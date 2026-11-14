@@ -1,425 +1,391 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Settings, Calculator, AlertTriangle, ShieldCheck, Activity, Zap,
-  Server, ChevronRight, Save, LayoutDashboard, Award, PlusCircle,
-  Lock, Unlock, Building2, CheckCircle2, XCircle, Printer, Download,
-  Wrench, Clock, TrendingUp, HelpCircle, Search, RefreshCw, Key, Layers
+  Calculator, Wrench, MessageSquare, Building2, ShieldCheck, Zap,
+  Award, Search, Send, Lock, CheckCircle2, XCircle, PlusCircle,
+  Download, Printer, Activity, Layers, Key, RefreshCw, AlertTriangle, Clock
 } from 'lucide-react';
 import {
-  collection, addDoc, getDocs, updateDoc, doc, query, where, orderBy, serverTimestamp
+  collection, addDoc, getDocs, query, orderBy, serverTimestamp
 } from 'firebase/firestore';
 import { db } from './firebase';
 
 // ============================================================================
-// بيانات افتراضية أولية (تظهر فوراً وتندمج مع بيانات Firebase)
+// بيانات أولية للدرافيل والممرات (Roll & Pass Life Management) للشركات
 // ============================================================================
-const INITIAL_STANDS = Array.from({ length: 12 }, (_, i) => ({
+const INITIAL_STANDS_PASSES = Array.from({ length: 12 }, (_, i) => ({
   id: i + 1,
   name: `استاند ${i + 1}`,
-  type: i < 4 ? 'تخشين (Roughing)' : i < 8 ? 'متوسط (Intermediate)' : 'تشطيب (Finishing)',
+  section: i < 4 ? 'تخشين (Roughing)' : i < 8 ? 'متوسط (Intermediate)' : 'تشطيب (Finishing)',
   status: i === 4 ? 'warning' : 'active',
-  rollDia: 485 - (i * 12),
-  workingDia: 472 - (i * 12),
+  rollCode: `R-${101 + i}`,
+  maxDia: 485 - i * 10,
+  currentDia: 472 - i * 10,
+  minScrapDia: 420 - i * 10,
+  collarDepth: 8 + (i % 3),
   speedMps: (1.2 + i * 0.45).toFixed(2),
   motorRpm: Math.round(350 + i * 65),
-  gearRatio: (4.5 - i * 0.25).toFixed(2),
-  passNumber: (i % 4) + 1,
-  tonnageOnPass: Math.floor(180 + (i * 27) % 300),
-  maxPassTonnage: 500,
-  bearingHours: 120 + i * 15,
-  entryDate: '2026-11-10'
+  activeGroove: 2,
+  totalGrooves: 5,
+  grooveTonnage: Math.floor(160 + (i * 35) % 280),
+  maxGrooveCapacity: 400,
+  totalRollTonnage: 1450 + i * 120,
+  bearingHours: 140 + i * 12,
+  installDate: '2026-11-10'
 }));
 
-const DEFAULT_FAULTS = [
+const INITIAL_FAULTS = [
   {
     id: 'f1',
     code: 'F0001 / F30001',
     brand: 'Siemens SINAMICS / Micromaster',
-    category: 'كهرباء ودرايف',
-    title: 'Overcurrent (تيار زائد مفاجئ)',
-    cause: 'دخول بيليت بارد على الاستاند، حشر معدن (Cobble)، أو قصر في كابلات الموتور.',
-    solution: 'راجع حرارة البيليت، افحص خلوص الدرافيل (Roll Gap)، قس عزل الموتور والكابل بالـ Megger، وراجع باراميتر حدود التيار.',
-    author: 'م. بسام وليد',
-    points: 45
-  },
-  {
-    id: 'f2',
-    code: 'F0002 / F30002',
-    brand: 'Siemens / Parker DC & AC Drives',
-    category: 'كهرباء ودرايف',
-    title: 'DC Link Overvoltage (ارتفاع جهد دائرة الـ DC)',
-    cause: 'تباطؤ سريع جداً للموتور (Regeneration) أو فصل في مقاومة الفرملة (Braking Resistor).',
-    solution: 'زود زمن التباطؤ (Deceleration Ramp Time)، وافحص Chopper ومقاومة الفرملة.',
-    author: 'م. بسام وليد',
-    points: 35
-  },
-  {
-    id: 'f3',
-    code: 'F07900 / Stall',
-    brand: 'Siemens S120 / WinCC',
-    category: 'كنترول وتشغيل',
-    title: 'Motor Blocked / Torque Limit Reached',
-    cause: 'نسبة التخفيض (Reduction Ratio) عالية جداً في الباس أو توقف الموتور تحت الحمل.',
-    solution: 'افتح خلوص الدرافيل قليلاً، راجع سرعة الاستاند السابق واللاحق لمنع الشد أو الكومبريشن، وتأكد من سلامة الكوبلن وصندوق التروس.',
+    title: 'Overcurrent - فصل تيار زائد مفاجئ',
+    cause: 'دخول بيليت بارد على الاستاند، حشر معدن (Cobble)، أو انهيار عزل كابل الموتور.',
+    solution: 'راجع حرارة البيليت، افحص خلوص الدرافيل (Roll Gap)، قس عزل الموتور والكابل بالـ Megger، وتأكد من سلامة الكوبلن.',
     author: 'م. بسام وليد',
     points: 50
   },
   {
-    id: 'f4',
-    code: 'ENC-FLT / F31115',
-    brand: 'Incremental / Absolute Encoder',
-    category: 'أجهزة قياس وحساسات',
-    title: 'فقدان أو تقطع إشارة الإنكودر (Speed Feedback Loss)',
-    cause: 'اهتزاز الكوبلن المرن للإنكودر، دخول مياه تبريد، أو شوشرة (Noise) على كابل الشيلد.',
-    solution: 'افحص كابل الشيلد وتأريضه من ناحية الدرايف فقط، غير الكوبلن البلاستيك المكسور، أو حول الدرايف مؤقتاً لوضع Sensorless Vector لحين انتهاء الوردية.',
-    author: 'فني كنترول أول',
-    points: 30
+    id: 'f2',
+    code: 'F0002 / F30002',
+    brand: 'Siemens / Parker Drives',
+    title: 'DC Link Overvoltage - ارتفاع جهد دائرة الـ DC',
+    cause: 'فرملة سريعة للموتور أو فصل في مقاومة الفرملة (Braking Resistor).',
+    solution: 'زود زمن التباطؤ (Deceleration Time) وافحص دائرة الـ Braking Chopper.',
+    author: 'م. بسام وليد',
+    points: 40
   },
   {
-    id: 'f5',
-    code: 'LPR-ERR',
-    brand: 'Looper Scanner / HMD',
-    category: 'كنترول وتشغيل',
-    title: 'عدم استقرار اللوبر (Looper Hunting / Oscillation)',
-    cause: 'اتساخ عدسة الـ Looper Scanner بالبخار والقشور (Scale) أو خطأ في معامل الـ PID لتعويض السرعة.',
-    solution: 'نظف عدسة الاسكانر وتأكد من ضغط هواء التبريد (Air Purge)، واضبط ارتفاع المرجع (Looper Reference Height) إلى الزاوية القياسية (15° - 20°).',
+    id: 'f3',
+    code: 'LPR-OSC',
+    brand: 'Looper Scanner & Tension Control',
+    title: 'تذبذب اللوبر وعدم استقرار الشد بين الاستاندات',
+    cause: 'اتساخ عدسة الـ Looper Scanner بالبخار أو القشور (Scale) أو زيادة سرعة الاستاند الخلفي.',
+    solution: 'نظف عدسة الاسكانر وتأكد من هواء التبريد، واضبط ارتفاع اللوبر المرجعي ليعمل في زاوية 15 إلى 20 درجة.',
     author: 'م. بسام وليد',
     points: 60
-  }
-];
-
-const INITIAL_TENANTS = [
-  {
-    id: 't1',
-    name: 'شركة الجيوشي للصلب (El Gioshy Steel)',
-    code: 'GIOSHY-2026',
-    plan: 'باقة المصانع المتقدمة (Enterprise SaaS)',
-    status: 'active',
-    managerPin: '1234',
-    standsCount: 12,
-    expiryDate: '2027-12-31'
   },
   {
-    id: 't2',
-    name: 'مصنع الدرفلة النموذجي (Demo Mill)',
-    code: 'DEMO-MILL',
-    plan: 'الباقة التجريبية (Trial)',
+    id: 'f4',
+    code: 'ENC-ERR / F31115',
+    brand: 'Incremental Encoder',
+    title: 'فقدان إشارة السرعة من الإنكودر',
+    cause: 'كسر الكوبلن المرن للإنكودر أو شوشرة كهربائية على كابل الشيلد.',
+    solution: 'غير الكوبلن المرن، وتأكد من تأريض الشيلد من جهة الدرايف فقط، أو حول الدرايف مؤقتاً لوضع بدون إنكودر (Sensorless) لحين انتهاء الوردية.',
+    author: 'فني صيانة كنترول',
+    points: 35
+  }
+];
+
+const INITIAL_CHAT = [
+  {
+    id: 'c1',
+    sender: 'م. بسام وليد (المؤسس)',
+    role: 'مشغل أول غرفة تحكم & كنترول',
+    text: 'أهلاً بكل مهندسين وفنيين صناعة الحديد والدرفلة! القسم ده متاح مجاناً للجميع لمناقشة الأعطال، حسابات السرعات، وتبادل الخبرات.',
+    time: '09:00 ص'
+  },
+  {
+    id: 'c2',
+    sender: 'م. أحمد طارق',
+    role: 'مهندس درفلة',
+    text: 'شباب، لو بننقل من إنتاج خوصة 50x10 لخوصة 40x10، إيه أفضل نسبة تخفيض على استاند التشطيب قبل الأخير عشان نحافظ على استقامة العود؟',
+    time: '09:15 ص'
+  }
+];
+
+const INITIAL_COMPANIES = [
+  {
+    id: 'comp1',
+    name: 'شركة الجيوشي للصلب (El Gioshy Steel)',
+    code: 'GIOSHY-2026',
+    plan: 'باقة المصانع المتكاملة (Enterprise Pass & Roll SaaS)',
+    status: 'active',
+    managerPin: '1234',
+    contact: 'غرفة التحكم الرئيسية'
+  },
+  {
+    id: 'comp2',
+    name: 'مصنع الدرفلة التجريبي (Demo Steel Mill)',
+    code: 'DEMO-2026',
+    plan: 'باقة تجريبية للشركات',
     status: 'active',
     managerPin: '0000',
-    standsCount: 12,
-    expiryDate: '2026-12-30'
+    contact: 'إدارة الإنتاج'
   }
 ];
 
 // ============================================================================
-// 1. قسم الحاسبات الهندسية الشامل (Rolling Mill Engineering Toolkit)
+// 1. قسم الحاسبات الهندسية المجاني (Public Rolling Mill Calculators)
 // ============================================================================
-const CalculatorsSection = () => {
+const CalculatorsHub = () => {
   const [subTab, setSubTab] = useState('speed');
 
-  // 1) متغيرات تزامن السرعات والتدفق الكتلي
-  const [vel, setVel] = useState(2.5); // m/s
-  const [rollDia, setRollDia] = useState(480); // mm
-  const [collarDepth, setCollarDepth] = useState(8); // عمق الكاليبر mm
+  // متغيرات السرعة والتزامن
+  const [vel, setVel] = useState(2.5);
+  const [rollDia, setRollDia] = useState(480);
+  const [collarDepth, setCollarDepth] = useState(8);
   const [gearRatio, setGearRatio] = useState(3.5);
-  const [motorPoles, setMotorPoles] = useState(4);
-  const [area1, setArea1] = useState(1600); // mm2
-  const [vel1, setVel1] = useState(2.25); // m/s
-  const [area2, setArea2] = useState(1250); // mm2
+  const [poles, setPoles] = useState(4);
+  const [area1, setArea1] = useState(1600);
+  const [vel1, setVel1] = useState(2.25);
+  const [area2, setArea2] = useState(1250);
 
-  // 2) متغيرات الباس ديزاين والتخفيض
+  // متغيرات الباس ديزاين
   const [hIn, setHIn] = useState(14.5);
   const [bIn, setBIn] = useState(46);
   const [hOut, setHOut] = useState(10);
   const [bOut, setBOut] = useState(50);
-  const [workRollDia, setWorkRollDia] = useState(480);
+  const [workDia, setWorkDia] = useState(480);
 
-  // 3) متغيرات الأوزان والبيليت والهالك
-  const [billetSize, setBilletSize] = useState(130); // 130x130 mm
-  const [billetLength, setBilletLength] = useState(2.0); // meters
-  const [scaleLoss, setScaleLoss] = useState(2.0); // %
-  const [prodType, setProdType] = useState('flat'); // rebar | flat | angle
-  const [rebarDia, setRebarDia] = useState(16); // mm
-  const [flatWidth, setFlatWidth] = useState(50); // mm
-  const [flatThick, setFlatThick] = useState(10); // mm
-  const [angleSide, setAngleSide] = useState(50); // mm
-  const [angleThick, setAngleThick] = useState(5); // mm
-  const [commercialLen, setCommercialLen] = useState(12); // 12m
+  // متغيرات الأوزان والهالك
+  const [billetSize, setBilletSize] = useState(130);
+  const [billetLen, setBilletLen] = useState(2.0);
+  const [scaleLoss, setScaleLoss] = useState(2.0);
+  const [prodType, setProdType] = useState('flat');
+  const [rebarDia, setRebarDia] = useState(16);
+  const [flatW, setFlatW] = useState(50);
+  const [flatT, setFlatT] = useState(10);
+  const [angleS, setAngleS] = useState(50);
+  const [angleT, setAngleT] = useState(5);
 
-  // 4) متغيرات القدرة والعزم واللوبر
-  const [rollingForce, setRollingForce] = useState(450); // kN
-  const [leverArm, setLeverArm] = useState(0.45);
+  // متغيرات العزم واللوبر
+  const [forceKn, setForceKn] = useState(450);
+  const [looperSpan, setLooperSpan] = useState(4500);
+  const [looperHeight, setLooperHeight] = useState(180);
   const [voltage, setVoltage] = useState(400);
-  const [pf, setPf] = useState(0.86);
-  const [looperSpan, setLooperSpan] = useState(4500); // mm بين الاستاندين
-  const [looperHeight, setLooperHeight] = useState(180); // mm ارتفاع اللوبر
 
-  // --- المعادلات الهندسية ---
-  // أ. السرعات
-  const workingDia = Math.max(1, Number(rollDia) - Number(collarDepth));
-  const rollRpm = ((Number(vel) * 60 * 1000) / (Math.PI * workingDia)).toFixed(1);
+  // الحسابات الرياضية
+  const effDia = Math.max(1, Number(rollDia) - Number(collarDepth));
+  const rollRpm = ((Number(vel) * 60 * 1000) / (Math.PI * effDia)).toFixed(1);
   const motorRpm = (Number(rollRpm) * Number(gearRatio)).toFixed(0);
-  const vfdFreq = ((Number(motorRpm) * Number(motorPoles)) / 120).toFixed(1);
-  const syncedVel2 = area2 > 0 ? ((Number(area1) * Number(vel1)) / Number(area2)).toFixed(2) : 0;
-  const hourlyProdTon = ((Number(area2) / 1000000) * Number(syncedVel2) * 7.85 * 3600).toFixed(1);
+  const vfdHz = ((Number(motorRpm) * Number(poles)) / 120).toFixed(1);
+  const v2Synced = area2 > 0 ? ((Number(area1) * Number(vel1)) / Number(area2)).toFixed(2) : 0;
+  const tonsPerHour = ((Number(area2) / 1000000) * Number(v2Synced) * 7.85 * 3600).toFixed(1);
 
-  // ب. الباس ديزاين
-  const calcAreaIn = (Number(hIn) * Number(bIn)).toFixed(1);
-  const calcAreaOut = (Number(hOut) * Number(bOut)).toFixed(1);
-  const reductionRatio = calcAreaIn > 0 ? (((calcAreaIn - calcAreaOut) / calcAreaIn) * 100).toFixed(2) : 0;
-  const elongationFactor = calcAreaOut > 0 ? (calcAreaIn / calcAreaOut).toFixed(3) : 0;
+  const areaInCalc = (Number(hIn) * Number(bIn)).toFixed(1);
+  const areaOutCalc = (Number(hOut) * Number(bOut)).toFixed(1);
+  const redRatio = areaInCalc > 0 ? (((areaInCalc - areaOutCalc) / areaInCalc) * 100).toFixed(2) : 0;
+  const elong = areaOutCalc > 0 ? (areaInCalc / areaOutCalc).toFixed(3) : 0;
   const draft = Math.max(0, Number(hIn) - Number(hOut)).toFixed(2);
-  const contactLength = Math.sqrt((Number(workRollDia) / 2) * Number(draft)).toFixed(2);
-  const biteAngleRad = Math.acos(Math.max(-1, Math.min(1, 1 - Number(draft) / Number(workRollDia))));
-  const biteAngleDeg = ((biteAngleRad * 180) / Math.PI).toFixed(1);
-  // معادلة Wusatowski / Siebel التقريبية للانتشار (Spread)
-  const siebelSpread = (0.35 * Number(draft) * Math.sqrt(Number(workRollDia) / (2 * Number(hIn)))).toFixed(2);
+  const contactArc = Math.sqrt((Number(workDia) / 2) * Number(draft)).toFixed(2);
+  const biteDeg = ((Math.acos(Math.max(-1, Math.min(1, 1 - Number(draft) / Number(workDia)))) * 180) / Math.PI).toFixed(1);
+  const spreadMm = (0.35 * Number(draft) * Math.sqrt(Number(workDia) / (2 * Math.max(1, Number(hIn))))).toFixed(2);
 
-  // ج. الأوزان والهالك وأطوال الخرج
-  const billetVolM3 = (Number(billetSize) / 1000) * (Number(billetSize) / 1000) * Number(billetLength);
-  const billetWeightKg = (billetVolM3 * 7850).toFixed(1);
-  const netWeightKg = (billetWeightKg * (1 - Number(scaleLoss) / 100)).toFixed(1);
-
-  let unitWeightKgPerM = 1;
-  let productCrossAreaMm2 = 100;
+  const billetWeight = ((Number(billetSize) / 1000) * (Number(billetSize) / 1000) * Number(billetLen) * 7850).toFixed(1);
+  const netWeight = (billetWeight * (1 - Number(scaleLoss) / 100)).toFixed(1);
+  let meterWeight = 1;
   if (prodType === 'rebar') {
-    unitWeightKgPerM = (Number(rebarDia) * Number(rebarDia)) / 162.2;
-    productCrossAreaMm2 = Math.PI * Math.pow(Number(rebarDia) / 2, 2);
+    meterWeight = (Number(rebarDia) * Number(rebarDia)) / 162.2;
   } else if (prodType === 'flat') {
-    productCrossAreaMm2 = Number(flatWidth) * Number(flatThick);
-    unitWeightKgPerM = productCrossAreaMm2 * 0.00785;
+    meterWeight = Number(flatW) * Number(flatT) * 0.00785;
   } else {
-    productCrossAreaMm2 = (2 * Number(angleSide) - Number(angleThick)) * Number(angleThick);
-    unitWeightKgPerM = productCrossAreaMm2 * 0.00785;
+    meterWeight = (2 * Number(angleS) - Number(angleT)) * Number(angleT) * 0.00785;
   }
-  const totalBarLengthM = unitWeightKgPerM > 0 ? (Number(netWeightKg) / unitWeightKgPerM).toFixed(2) : 0;
-  const barsCount = commercialLen > 0 ? (Number(totalBarLengthM) / Number(commercialLen)).toFixed(1) : 0;
+  const totalOutLength = meterWeight > 0 ? (Number(netWeight) / meterWeight).toFixed(2) : 0;
+  const bars12m = (Number(totalOutLength) / 12).toFixed(1);
 
-  // د. العزم والقدرة واللوبر
-  const torqueKnM = (2 * Number(rollingForce) * Number(leverArm) * (Number(contactLength) / 1000)).toFixed(2);
+  const torqueKnM = (2 * Number(forceKn) * 0.45 * (Number(contactArc) / 1000)).toFixed(2);
   const powerKw = ((Number(torqueKnM) * Number(rollRpm) * 2 * Math.PI) / 60).toFixed(1);
-  const estCurrentAmp = (
-    (Number(powerKw) * 1000) /
-    (Math.sqrt(3) * Number(voltage) * Number(pf) * 0.92)
-  ).toFixed(0);
-  // طول القوس الزائد في اللوبر
-  const looperExtraLengthMm = looperSpan > 0 ? ((8 * Math.pow(Number(looperHeight), 2)) / (3 * Number(looperSpan))).toFixed(1) : 0;
-  const looperAngleDeg = (Math.atan((2 * Number(looperHeight)) / Number(looperSpan)) * (180 / Math.PI)).toFixed(1);
+  const estAmp = ((Number(powerKw) * 1000) / (1.732 * Number(voltage) * 0.85 * 0.92)).toFixed(0);
+  const looperExtraMm = looperSpan > 0 ? ((8 * Math.pow(Number(looperHeight), 2)) / (3 * Number(looperSpan))).toFixed(1) : 0;
+  const looperAngle = (Math.atan((2 * Number(looperHeight)) / Math.max(1, Number(looperSpan))) * (180 / Math.PI)).toFixed(1);
 
   return (
     <div className="space-y-6">
-      <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+          <span className="text-xs bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2.5 py-0.5 rounded-full font-bold">
+            أداة مجانية لجميع المهندسين والفنيين
+          </span>
+          <h2 className="text-2xl font-bold text-white mt-1.5 flex items-center gap-2">
             <Calculator className="text-blue-500" />
-            موسوعة حاسبات وقوانين الدرفلة الذكية
+            حاسبة الدرفلة الذكية وقوانين التشغيل
           </h2>
-          <p className="text-slate-400 text-sm mt-1">
-            معادلات هندسية دقيقة لمشغلي غرف التحكم ومهندسي الدرفلة والـ Pass Design
-          </p>
         </div>
         <div className="flex flex-wrap gap-2">
           {[
-            { id: 'speed', label: 'تزامن السرعات والـ VFD' },
+            { id: 'speed', label: 'تزامن السرعات و RPM' },
             { id: 'pass', label: 'الباس ديزاين والتخفيض' },
-            { id: 'weight', label: 'الأوزان والهالك والأطوال' },
+            { id: 'weight', label: 'الأوزان والهالك والطول' },
             { id: 'power', label: 'العزم واللوبر والقوانين' }
-          ].map((t) => (
+          ].map((tab) => (
             <button
-              key={t.id}
-              onClick={() => setSubTab(t.id)}
-              className={`px-3.5 py-2 rounded-lg text-sm font-medium transition-all ${
-                subTab === t.id
+              key={tab.id}
+              onClick={() => setSubTab(tab.id)}
+              className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${
+                subTab === tab.id
                   ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30'
                   : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
               }`}
             >
-              {t.label}
+              {tab.label}
             </button>
           ))}
         </div>
       </div>
 
-      {/* 1. حاسبة تزامن السرعات والتدفق الكتلي */}
       {subTab === 'speed' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-slate-900 p-6 rounded-xl border border-slate-800 space-y-4">
-            <h3 className="text-lg font-bold text-blue-400 border-b border-slate-800 pb-3">
-              1. حساب سرعة الدرفيل والموتور والتردد (Speed, RPM & VFD Hz)
+          <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 space-y-4">
+            <h3 className="text-lg font-bold text-blue-400 border-b border-slate-800 pb-2">
+              1. حساب سرعة الدرفيل والموتور وتردد الـ VFD
             </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="text-xs text-slate-400 block mb-1">سرعة خروج المعدن الخطية V (m/s)</label>
+                <label className="text-xs text-slate-400 block mb-1">سرعة خروج المعدن الخطية (m/s)</label>
                 <input type="number" step="0.05" value={vel} onChange={(e) => setVel(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white font-mono" />
               </div>
               <div>
-                <label className="text-xs text-slate-400 block mb-1">قطر الدرفيل الاسمي D (mm)</label>
+                <label className="text-xs text-slate-400 block mb-1">قطر الدرفيل الخارجي (mm)</label>
                 <input type="number" value={rollDia} onChange={(e) => setRollDia(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white font-mono" />
               </div>
               <div>
-                <label className="text-xs text-slate-400 block mb-1">عمق الكاليبر الفعال (Collar Reduction mm)</label>
+                <label className="text-xs text-slate-400 block mb-1">عمق الكاليبر / الممر (mm)</label>
                 <input type="number" value={collarDepth} onChange={(e) => setCollarDepth(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white font-mono" />
               </div>
               <div>
-                <label className="text-xs text-slate-400 block mb-1">نسبة الجيربوكس (Gearbox Ratio i)</label>
+                <label className="text-xs text-slate-400 block mb-1">نسبة تخفيض الجيربوكس (Gear Ratio)</label>
                 <input type="number" step="0.1" value={gearRatio} onChange={(e) => setGearRatio(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white font-mono" />
               </div>
-              <div>
-                <label className="text-xs text-slate-400 block mb-1">عدد أقطاب الموتور (Motor Poles)</label>
-                <select value={motorPoles} onChange={(e) => setMotorPoles(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white">
-                  <option value={2}>2 أقطاب (3000 RPM)</option>
-                  <option value={4}>4 أقطاب (1500 RPM)</option>
-                  <option value={6}>6 أقطاب (1000 RPM)</option>
-                  <option value={8}>8 أقطاب (750 RPM)</option>
-                </select>
-              </div>
             </div>
-
-            <div className="bg-slate-950 p-4 rounded-xl border border-blue-900/40 space-y-2 mt-4">
+            <div className="bg-slate-950 p-4 rounded-xl border border-blue-900/40 space-y-2">
               <div className="flex justify-between text-sm">
-                <span className="text-slate-400">القطر الشغال الفعال ($D_w$):</span>
-                <span className="text-white font-mono font-bold">{workingDia} mm</span>
+                <span className="text-slate-400">القطر الشغال الفعال (Working Dia):</span>
+                <span className="text-white font-mono font-bold">{effDia} mm</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-slate-400">سرعة الدرفيل ($N_{roll}$):</span>
-                <span className="text-emerald-400 font-mono text-lg font-bold">{rollRpm} RPM</span>
+                <span className="text-slate-400">سرعة الدرفيل (Roll RPM):</span>
+                <span className="text-emerald-400 font-mono font-bold text-lg">{rollRpm} RPM</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-slate-400">سرعة الموتور المطلوبة ($N_{motor}$):</span>
-                <span className="text-blue-400 font-mono text-2xl font-bold">{motorRpm} RPM</span>
+                <span className="text-slate-400">سرعة الموتور (Motor RPM):</span>
+                <span className="text-blue-400 font-mono font-bold text-2xl">{motorRpm} RPM</span>
               </div>
               <div className="flex justify-between text-sm pt-2 border-t border-slate-800">
-                <span className="text-slate-400">تردد الإنفرتر المتوقع (VFD Frequency):</span>
-                <span className="text-amber-400 font-mono font-bold">{vfdFreq} Hz</span>
+                <span className="text-slate-400">التردد المتوقع على الدرايف (Frequency):</span>
+                <span className="text-amber-400 font-mono font-bold">{vfdHz} Hz</span>
               </div>
             </div>
           </div>
 
-          <div className="bg-slate-900 p-6 rounded-xl border border-slate-800 space-y-4">
-            <h3 className="text-lg font-bold text-emerald-400 border-b border-slate-800 pb-3">
-              2. قانون ثبات التدفق الكتلي (Mass Flow Balance: $A_1 V_1 = A_2 V_2$)
+          <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 space-y-4">
+            <h3 className="text-lg font-bold text-emerald-400 border-b border-slate-800 pb-2">
+              2. معادلة ثبات التدفق الكتلي (A1 × V1 = A2 × V2)
             </h3>
             <p className="text-xs text-slate-400">
-              يضمن ضبط سرعة الاستاند التالي بدقة لمنع الشد (Tension) أو التكدس والحشر (Cobble).
+              اضبط تزامن الاستاندات المتتالية لمنع حدوث شد في العود (Tension) أو حشر (Cobble).
             </p>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label className="text-xs text-slate-400 block mb-1">مساحة استاند 1 ($A_1\text{ mm}^2$)</label>
+                <label className="text-xs text-slate-400 block mb-1">مساحة استاند 1 (mm²)</label>
                 <input type="number" value={area1} onChange={(e) => setArea1(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white font-mono" />
               </div>
               <div>
-                <label className="text-xs text-slate-400 block mb-1">سرعة استاند 1 ($V_1\text{ m/s}$)</label>
+                <label className="text-xs text-slate-400 block mb-1">سرعة استاند 1 (m/s)</label>
                 <input type="number" step="0.05" value={vel1} onChange={(e) => setVel1(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white font-mono" />
               </div>
               <div>
-                <label className="text-xs text-slate-400 block mb-1">مساحة استاند 2 ($A_2\text{ mm}^2$)</label>
+                <label className="text-xs text-slate-400 block mb-1">مساحة استاند 2 (mm²)</label>
                 <input type="number" value={area2} onChange={(e) => setArea2(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white font-mono" />
               </div>
             </div>
-
-            <div className="bg-slate-950 p-4 rounded-xl border border-emerald-900/40 space-y-3 mt-4">
+            <div className="bg-slate-950 p-4 rounded-xl border border-emerald-900/40 space-y-3">
               <div className="flex justify-between items-center">
-                <span className="text-slate-300">السرعة المتزامنة المطلوبة لاستاند 2 ($V_2$):</span>
-                <span className="text-2xl font-bold text-emerald-400 font-mono">{syncedVel2} m/s</span>
+                <span className="text-slate-300 text-sm">السرعة المطلوبة لاستاند 2 (V2):</span>
+                <span className="text-2xl font-bold text-emerald-400 font-mono">{v2Synced} m/s</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-slate-300">معدل الإنتاج النظري للخط (Hourly Rate):</span>
-                <span className="text-xl font-bold text-white font-mono">{hourlyProdTon} طن/ساعة</span>
-              </div>
-              <div className="text-xs text-slate-500 pt-2 border-t border-slate-800">
-                معادلة السرعة الخطية: $V = \frac{\pi \times D_{work} \times N_{roll}}{60 \times 1000}$
+                <span className="text-slate-300 text-sm">إنتاجية الخط النظرية بالطن/ساعة:</span>
+                <span className="text-xl font-bold text-white font-mono">{tonsPerHour} طن/ساعة</span>
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* 2. حاسبة الباس ديزاين والتخفيض */}
       {subTab === 'pass' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-slate-900 p-6 rounded-xl border border-slate-800 space-y-4">
-            <h3 className="text-lg font-bold text-blue-400 border-b border-slate-800 pb-3">
-              مدخلات تمريرة الدرفلة (Pass Entry & Exit Dimensions)
+          <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 space-y-4">
+            <h3 className="text-lg font-bold text-blue-400 border-b border-slate-800 pb-2">
+              أبعاد المعدن قبل وبعد الدرفيل (Pass Dimensions)
             </h3>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs text-slate-400 block mb-1">ارتفاع الدخول $H_1$ (mm)</label>
+                <label className="text-xs text-slate-400 block mb-1">ارتفاع الدخول H1 (mm)</label>
                 <input type="number" step="0.5" value={hIn} onChange={(e) => setHIn(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white font-mono" />
               </div>
               <div>
-                <label className="text-xs text-slate-400 block mb-1">عرض الدخول $B_1$ (mm)</label>
+                <label className="text-xs text-slate-400 block mb-1">عرض الدخول B1 (mm)</label>
                 <input type="number" step="0.5" value={bIn} onChange={(e) => setBIn(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white font-mono" />
               </div>
               <div>
-                <label className="text-xs text-slate-400 block mb-1">ارتفاع الخروج $H_2$ (mm)</label>
+                <label className="text-xs text-slate-400 block mb-1">ارتفاع الخروج H2 (mm)</label>
                 <input type="number" step="0.5" value={hOut} onChange={(e) => setHOut(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white font-mono" />
               </div>
               <div>
-                <label className="text-xs text-slate-400 block mb-1">عرض الخروج $B_2$ (mm)</label>
+                <label className="text-xs text-slate-400 block mb-1">عرض الخروج B2 (mm)</label>
                 <input type="number" step="0.5" value={bOut} onChange={(e) => setBOut(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white font-mono" />
               </div>
               <div className="col-span-2">
-                <label className="text-xs text-slate-400 block mb-1">قطر الدرفيل الشغال (Working Roll Dia mm)</label>
-                <input type="number" value={workRollDia} onChange={(e) => setWorkRollDia(e.target.value)}
+                <label className="text-xs text-slate-400 block mb-1">قطر الدرفيل الشغال (mm)</label>
+                <input type="number" value={workDia} onChange={(e) => setWorkDia(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white font-mono" />
               </div>
             </div>
           </div>
 
-          <div className="bg-slate-900 p-6 rounded-xl border border-slate-800 space-y-3">
-            <h3 className="text-lg font-bold text-emerald-400 border-b border-slate-800 pb-3">
-              نتائج الـ Pass Design الهندسية
+          <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 space-y-3">
+            <h3 className="text-lg font-bold text-emerald-400 border-b border-slate-800 pb-2">
+              نتائج التخفيض والاستطالة وزاوية العض
             </h3>
             <div className="grid grid-cols-2 gap-3">
-              <div className="bg-slate-950 p-3.5 rounded-lg border border-slate-800">
+              <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800">
                 <span className="text-xs text-slate-400 block">نسبة التخفيض (Reduction %)</span>
-                <span className="text-2xl font-bold text-emerald-400 font-mono">{reductionRatio}%</span>
+                <span className="text-2xl font-bold text-emerald-400 font-mono">{redRatio}%</span>
               </div>
-              <div className="bg-slate-950 p-3.5 rounded-lg border border-slate-800">
-                <span className="text-xs text-slate-400 block">معامل الاستطالة ($\lambda = A_1/A_2$)</span>
-                <span className="text-2xl font-bold text-blue-400 font-mono">{elongationFactor}</span>
+              <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800">
+                <span className="text-xs text-slate-400 block">معامل الاستطالة (Elongation)</span>
+                <span className="text-2xl font-bold text-blue-400 font-mono">{elong}</span>
               </div>
-              <div className="bg-slate-950 p-3.5 rounded-lg border border-slate-800">
-                <span className="text-xs text-slate-400 block">مقدار الجر (Draft $\Delta h$)</span>
+              <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800">
+                <span className="text-xs text-slate-400 block">مقدار الجر (Draft Δh)</span>
                 <span className="text-xl font-bold text-white font-mono">{draft} mm</span>
               </div>
-              <div className="bg-slate-950 p-3.5 rounded-lg border border-slate-800">
-                <span className="text-xs text-slate-400 block">طول قوس التلامس ($L_d$)</span>
-                <span className="text-xl font-bold text-white font-mono">{contactLength} mm</span>
+              <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800">
+                <span className="text-xs text-slate-400 block">طول قوس التلامس (Contact Arc)</span>
+                <span className="text-xl font-bold text-white font-mono">{contactArc} mm</span>
               </div>
-              <div className="bg-slate-950 p-3.5 rounded-lg border border-slate-800">
-                <span className="text-xs text-slate-400 block">زاوية العض (Bite Angle $\alpha$)</span>
-                <span className={`text-xl font-bold font-mono ${Number(biteAngleDeg) > 24 ? 'text-red-400' : 'text-amber-400'}`}>
-                  {biteAngleDeg}° {Number(biteAngleDeg) > 24 ? '(خطر انزلاق!)' : '(آمن)'}
+              <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800">
+                <span className="text-xs text-slate-400 block">زاوية العض (Bite Angle)</span>
+                <span className={`text-xl font-bold font-mono ${Number(biteDeg) > 24 ? 'text-red-400' : 'text-amber-400'}`}>
+                  {biteDeg}° {Number(biteDeg) > 24 ? '(خطر زحلقة)' : '(ممتاز)'}
                 </span>
               </div>
-              <div className="bg-slate-950 p-3.5 rounded-lg border border-slate-800">
-                <span className="text-xs text-slate-400 block">الانتشار العرضي المتوقع (Siebel Spread)</span>
-                <span className="text-xl font-bold text-purple-400 font-mono">+{siebelSpread} mm</span>
+              <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800">
+                <span className="text-xs text-slate-400 block">الانتشار العرضي (Spread)</span>
+                <span className="text-xl font-bold text-purple-400 font-mono">+{spreadMm} mm</span>
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* 3. حاسبة الأوزان والهالك وأطوال الخرج */}
       {subTab === 'weight' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-slate-900 p-6 rounded-xl border border-slate-800 space-y-4">
-            <h3 className="text-lg font-bold text-blue-400 border-b border-slate-800 pb-3">
-              بيانات البيليت الخام ونوع القطاع النهائي
+          <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 space-y-4">
+            <h3 className="text-lg font-bold text-blue-400 border-b border-slate-800 pb-2">
+              حسابات وزن البيليت والهالك وأطوال الخرج
             </h3>
             <div className="grid grid-cols-3 gap-3">
               <div>
@@ -429,49 +395,46 @@ const CalculatorsSection = () => {
               </div>
               <div>
                 <label className="text-xs text-slate-400 block mb-1">طول البيليت (متر)</label>
-                <input type="number" step="0.1" value={billetLength} onChange={(e) => setBilletLength(e.target.value)}
+                <input type="number" step="0.1" value={billetLen} onChange={(e) => setBilletLen(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-white font-mono" />
               </div>
               <div>
-                <label className="text-xs text-slate-400 block mb-1">نسبة الهالك Scale (%)</label>
+                <label className="text-xs text-slate-400 block mb-1">نسبة الهالك (%)</label>
                 <input type="number" step="0.5" value={scaleLoss} onChange={(e) => setScaleLoss(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-white font-mono" />
               </div>
             </div>
 
-            <div>
-              <label className="text-xs text-slate-400 block mb-1">نوع المنتج المدرفل</label>
-              <div className="grid grid-cols-3 gap-2">
-                {[
-                  { id: 'flat', label: 'خوصة (Flat Bar)' },
-                  { id: 'rebar', label: 'حديد تسليح (Rebar)' },
-                  { id: 'angle', label: 'زاوية متساوية (Angle)' }
-                ].map((p) => (
-                  <button
-                    key={p.id}
-                    onClick={() => setProdType(p.id)}
-                    className={`py-2 rounded-lg text-xs font-bold border ${
-                      prodType === p.id
-                        ? 'bg-blue-600/20 border-blue-500 text-blue-400'
-                        : 'bg-slate-950 border-slate-800 text-slate-400'
-                    }`}
-                  >
-                    {p.label}
-                  </button>
-                ))}
-              </div>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { id: 'flat', label: 'خوصة (Flat Bar)' },
+                { id: 'rebar', label: 'حديد تسليح (Rebar)' },
+                { id: 'angle', label: 'زاوية (Equal Angle)' }
+              ].map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => setProdType(t.id)}
+                  className={`py-2 rounded-lg text-xs font-bold border ${
+                    prodType === t.id
+                      ? 'bg-blue-600/20 border-blue-500 text-blue-400'
+                      : 'bg-slate-950 border-slate-800 text-slate-400'
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
             </div>
 
             {prodType === 'flat' && (
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-slate-400 block mb-1">عرض الخوصة (mm) مثلاً 50 أو 40</label>
-                  <input type="number" value={flatWidth} onChange={(e) => setFlatWidth(e.target.value)}
+                  <label className="text-xs text-slate-400 block mb-1">عرض الخوصة (mm) مثلاً 50</label>
+                  <input type="number" value={flatW} onChange={(e) => setFlatW(e.target.value)}
                     className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-white font-mono" />
                 </div>
                 <div>
                   <label className="text-xs text-slate-400 block mb-1">سمك الخوصة (mm) مثلاً 10</label>
-                  <input type="number" value={flatThick} onChange={(e) => setFlatThick(e.target.value)}
+                  <input type="number" value={flatT} onChange={(e) => setFlatT(e.target.value)}
                     className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-white font-mono" />
                 </div>
               </div>
@@ -479,7 +442,7 @@ const CalculatorsSection = () => {
 
             {prodType === 'rebar' && (
               <div>
-                <label className="text-xs text-slate-400 block mb-1">قطر سيخ التسليح D (mm)</label>
+                <label className="text-xs text-slate-400 block mb-1">قطر السيخ (mm)</label>
                 <input type="number" value={rebarDia} onChange={(e) => setRebarDia(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-white font-mono" />
               </div>
@@ -488,60 +451,59 @@ const CalculatorsSection = () => {
             {prodType === 'angle' && (
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-slate-400 block mb-1">طول ضلع الزاوية (mm)</label>
-                  <input type="number" value={angleSide} onChange={(e) => setAngleSide(e.target.value)}
+                  <label className="text-xs text-slate-400 block mb-1">عرض ضلع الزاوية (mm)</label>
+                  <input type="number" value={angleS} onChange={(e) => setAngleS(e.target.value)}
                     className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-white font-mono" />
                 </div>
                 <div>
-                  <label className="text-xs text-slate-400 block mb-1">سمك الزاوية (mm)</label>
-                  <input type="number" value={angleThick} onChange={(e) => setAngleThick(e.target.value)}
+                  <label className="text-xs text-slate-400 block mb-1">تخانة الزاوية (mm)</label>
+                  <input type="number" value={angleT} onChange={(e) => setAngleT(e.target.value)}
                     className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-white font-mono" />
                 </div>
               </div>
             )}
           </div>
 
-          <div className="bg-slate-900 p-6 rounded-xl border border-slate-800 space-y-3">
-            <h3 className="text-lg font-bold text-emerald-400 border-b border-slate-800 pb-3">
-              نتائج الوزن الصافي وطول العود على فرش التبريد
+          <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 space-y-3">
+            <h3 className="text-lg font-bold text-emerald-400 border-b border-slate-800 pb-2">
+              الوزن الصافي وطول العود الخارج
             </h3>
             <div className="grid grid-cols-2 gap-3">
-              <div className="bg-slate-950 p-3.5 rounded-lg border border-slate-800">
+              <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800">
                 <span className="text-xs text-slate-400 block">وزن البيليت الخام</span>
-                <span className="text-xl font-bold text-white font-mono">{billetWeightKg} كجم</span>
+                <span className="text-xl font-bold text-white font-mono">{billetWeight} كجم</span>
               </div>
-              <div className="bg-slate-950 p-3.5 rounded-lg border border-slate-800">
+              <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800">
                 <span className="text-xs text-slate-400 block">الوزن الصافي بعد الهالك</span>
-                <span className="text-xl font-bold text-emerald-400 font-mono">{netWeightKg} كجم</span>
+                <span className="text-xl font-bold text-emerald-400 font-mono">{netWeight} كجم</span>
               </div>
-              <div className="bg-slate-950 p-3.5 rounded-lg border border-slate-800">
-                <span className="text-xs text-slate-400 block">وزن المتر الطولي للمنتج</span>
-                <span className="text-xl font-bold text-blue-400 font-mono">{unitWeightKgPerM.toFixed(3)} كجم/م</span>
+              <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800">
+                <span className="text-xs text-slate-400 block">وزن المتر الطولي</span>
+                <span className="text-xl font-bold text-blue-400 font-mono">{meterWeight.toFixed(3)} كجم/م</span>
               </div>
-              <div className="bg-slate-950 p-3.5 rounded-lg border border-slate-800">
-                <span className="text-xs text-slate-400 block">إجمالي طول الخرج الصافي</span>
-                <span className="text-2xl font-bold text-amber-400 font-mono">{totalBarLengthM} متر</span>
+              <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800">
+                <span className="text-xs text-slate-400 block">إجمالي طول العود الخارج</span>
+                <span className="text-2xl font-bold text-amber-400 font-mono">{totalOutLength} متر</span>
               </div>
             </div>
-            <div className="bg-slate-950 p-4 rounded-lg border border-slate-800 flex justify-between items-center">
-              <span className="text-sm text-slate-300">عدد الأعواد التجارية (طول {commercialLen} متر):</span>
-              <span className="text-xl font-bold text-white font-mono">{barsCount} عود</span>
+            <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 flex justify-between items-center">
+              <span className="text-sm text-slate-300">عدد الأسياخ / الأعواد التجارية (طول 12 متر):</span>
+              <span className="text-xl font-bold text-white font-mono">{bars12m} عود</span>
             </div>
           </div>
         </div>
       )}
 
-      {/* 4. حاسبة القدرة والعزم واللوبر ومرجع القوانين */}
       {subTab === 'power' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-slate-900 p-6 rounded-xl border border-slate-800 space-y-4">
-            <h3 className="text-lg font-bold text-blue-400 border-b border-slate-800 pb-3">
-              حسابات عزم الموتور والأمبير واللوبر (Torque & Looper Tension)
+          <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 space-y-4">
+            <h3 className="text-lg font-bold text-blue-400 border-b border-slate-800 pb-2">
+              حسابات العزم والأمبير واللوبر (Torque & Looper Control)
             </h3>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs text-slate-400 block mb-1">قوة الدرفلة المقدرة F (kN)</label>
-                <input type="number" value={rollingForce} onChange={(e) => setRollingForce(e.target.value)}
+                <label className="text-xs text-slate-400 block mb-1">قوة الدرفلة المقدرة (kN)</label>
+                <input type="number" value={forceKn} onChange={(e) => setForceKn(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-white font-mono" />
               </div>
               <div>
@@ -560,49 +522,44 @@ const CalculatorsSection = () => {
                   className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-white font-mono" />
               </div>
             </div>
-
             <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
               <div className="flex justify-between text-sm">
-                <span className="text-slate-400">عزم الدرفلة المطلوب ($M_t$):</span>
+                <span className="text-slate-400">عزم الدرفلة المطلوب (Rolling Torque):</span>
                 <span className="text-white font-mono font-bold">{torqueKnM} kN.m</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-slate-400">القدرة الميكانيكية المطلوبة ($P$):</span>
+                <span className="text-slate-400">القدرة الميكانيكية المطلوبة:</span>
                 <span className="text-emerald-400 font-mono font-bold">{powerKw} kW</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-slate-400">الأمبير المتوقع سحبه ($I$):</span>
-                <span className="text-amber-400 font-mono font-bold">{estCurrentAmp} Amp</span>
+                <span className="text-slate-400">الأمبير المتوقع للموتور:</span>
+                <span className="text-amber-400 font-mono font-bold">{estAmp} Amp</span>
               </div>
               <div className="flex justify-between text-sm pt-2 border-t border-slate-800">
-                <span className="text-slate-400">زاوية اللوبر / الطول المخزن:</span>
-                <span className="text-blue-400 font-mono font-bold">{looperAngleDeg}° ({looperExtraLengthMm} mm)</span>
+                <span className="text-slate-400">زاوية اللوبر / الطول المخزن باللوبر:</span>
+                <span className="text-blue-400 font-mono font-bold">{looperAngle}° ({looperExtraMm} mm)</span>
               </div>
             </div>
           </div>
 
-          <div className="bg-slate-900 p-6 rounded-xl border border-slate-800 space-y-3">
-            <h3 className="text-lg font-bold text-amber-400 border-b border-slate-800 pb-3">
-              المرجع السريع لقوانين الدرفلة الأساسية
+          <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 space-y-3">
+            <h3 className="text-lg font-bold text-amber-400 border-b border-slate-800 pb-2">
+              ملخص قوانين الدرفلة الأساسية للمهندسين
             </h3>
-            <ul className="space-y-2.5 text-xs text-slate-300 leading-relaxed">
-              <li className="p-2.5 bg-slate-950 rounded-lg border border-slate-800">
-                <strong className="text-blue-400 block">1. قانون السرعة الخطية للمعدن:</strong>
-                $V (\text{m/s}) = \frac{\pi \times D_{\text{work}} (\text{mm}) \times N_{\text{motor}}}{60 \times 1000 \times i_{\text{gear}}}$
-              </li>
-              <li className="p-2.5 bg-slate-950 rounded-lg border border-slate-800">
-                <strong className="text-emerald-400 block">2. قانون التدفق الحجمي الثابت (Constant Mass Flow):</strong>
-                $A_1 \times V_1 = A_2 \times V_2 = A_n \times V_n = \text{Constant}$
-              </li>
-              <li className="p-2.5 bg-slate-950 rounded-lg border border-slate-800">
-                <strong className="text-purple-400 block">3. قانون الانزلاق الأمامي (Forward Slip $S_f$):</strong>
-                $S_f \% = \frac{V_{\text{exit}} - V_{\text{roll}}}{V_{\text{roll}}} \times 100$ (يتراوح عادة بين 3% إلى 8%)
-              </li>
-              <li className="p-2.5 bg-slate-950 rounded-lg border border-slate-800">
-                <strong className="text-amber-400 block">4. وزن المتر الطولي للقطاعات:</strong>
-                للتسليح: $\frac{D^2}{162.2}$ كجم/م | للخوص والزوايا: $\text{Area (mm}^2) \times 0.00785$ كجم/م
-              </li>
-            </ul>
+            <div className="space-y-2.5 text-xs text-slate-300">
+              <div className="p-3 bg-slate-950 rounded-xl border border-slate-800">
+                <p className="text-blue-400 font-bold mb-1">1. معادلة السرعة الخطية للمعدن (Linear Speed):</p>
+                <p className="font-mono text-white">V (m/s) = (3.1416 × Working_Dia_mm × Roll_RPM) / 60000</p>
+              </div>
+              <div className="p-3 bg-slate-950 rounded-xl border border-slate-800">
+                <p className="text-emerald-400 font-bold mb-1">2. معادلة ثبات التدفق الكتلي (Mass Flow Equation):</p>
+                <p className="font-mono text-white">Area_1 × Speed_1 = Area_2 × Speed_2 = Constant</p>
+              </div>
+              <div className="p-3 bg-slate-950 rounded-xl border border-slate-800">
+                <p className="text-purple-400 font-bold mb-1">3. معادلة وزن المتر الطولي:</p>
+                <p className="font-mono text-white">للتسليح: D² / 162.2 | للقطاعات والخوص: Area(mm²) × 0.00785</p>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -611,190 +568,555 @@ const CalculatorsSection = () => {
 };
 
 // ============================================================================
-// 2. قسم يوميات التشغيل والاستاندات 1-12 (Shift Handover & Stands 1-12)
+// 2. قسم الأعطال والدردشة الفنية للمستخدمين (Public Troubleshooting & Live Chat)
 // ============================================================================
-const OperationsSection = ({ currentTenant, stands, setStands, pendingChanges, setPendingChanges }) => {
-  const [selectedStand, setSelectedStand] = useState(null);
-  const [downtimeReason, setDowntimeReason] = useState('');
-  const [downtimeCategory, setDowntimeCategory] = useState('كهرباء وكنترول');
-  const [downtimeMins, setDowntimeMins] = useState(15);
-  const [downtimeLogs, setDowntimeLogs] = useState([
-    { id: 1, category: 'ميكانيكا ودرافيل', reason: 'تغيير باس استاند 5 وضبط الخلوص', mins: 25, time: '10:30 ص' }
-  ]);
-  const [shiftBillets, setShiftBillets] = useState(340);
+const CommunityAndFaultsHub = ({ faults, setFaults, messages, setMessages }) => {
+  const [view, setView] = useState('faults'); // faults | chat
+  const [search, setSearch] = useState('');
 
-  // تعديل مباشر لعدادات البليت ورولمان البلي (يتخطى موافقة المدير)
-  const handleQuickCounterUpdate = (standId, addTons) => {
-    setStands((prev) =>
+  // فورم إضافة عطل
+  const [author, setAuthor] = useState('');
+  const [code, setCode] = useState('');
+  const [brand, setBrand] = useState('Siemens SINAMICS / WinCC');
+  const [title, setTitle] = useState('');
+  const [solution, setSolution] = useState('');
+
+  // فورم الدردشة
+  const [chatName, setChatName] = useState('');
+  const [chatRole, setChatRole] = useState('مهندس / فني درفلة');
+  const [chatText, setChatText] = useState('');
+
+  const filteredFaults = faults.filter(
+    (f) =>
+      f.code.toLowerCase().includes(search.toLowerCase()) ||
+      f.title.toLowerCase().includes(search.toLowerCase()) ||
+      f.brand.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const handleAddFault = async (e) => {
+    e.preventDefault();
+    if (!code || !title || !solution) return;
+    const newF = {
+      id: Date.now().toString(),
+      code,
+      brand,
+      title,
+      cause: 'مرصود من واقع التشغيل الفعلي بالمصنع',
+      solution,
+      author: author || 'فني محترف',
+      points: 20
+    };
+    setFaults([newF, ...faults]);
+    try {
+      await addDoc(collection(db, 'faults_hub'), { ...newF, createdAt: serverTimestamp() });
+    } catch (err) {
+      console.error(err);
+    }
+    setCode('');
+    setTitle('');
+    setSolution('');
+  };
+
+  const handleSendChat = async (e) => {
+    e.preventDefault();
+    if (!chatText.trim()) return;
+    const msg = {
+      id: Date.now().toString(),
+      sender: chatName || 'عضو صناع الحديد',
+      role: chatRole,
+      text: chatText,
+      time: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })
+    };
+    setMessages([...messages, msg]);
+    setChatText('');
+    try {
+      await addDoc(collection(db, 'community_chat'), { ...msg, createdAt: serverTimestamp() });
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 flex flex-wrap justify-between items-center gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-white">مجتمع الصيانة والدردشة الفنية المفتوح</h2>
+          <p className="text-xs text-slate-400 mt-1">تبادل خبرات الصيانة، حلول أعطال الدرايفات، ونقاشات الدرفلة المباشرة</p>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setView('faults')}
+            className={`px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 ${
+              view === 'faults' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-300'
+            }`}
+          >
+            <Wrench size={16} /> موسوعة الأعطال
+          </button>
+          <button
+            onClick={() => setView('chat')}
+            className={`px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 ${
+              view === 'chat' ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-300'
+            }`}
+          >
+            <MessageSquare size={16} /> غرفة الدردشة المباشرة
+          </button>
+        </div>
+      </div>
+
+      {view === 'faults' ? (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 space-y-4">
+            <div className="relative">
+              <Search className="absolute right-3.5 top-3 text-slate-500" size={18} />
+              <input
+                type="text"
+                placeholder="ابحث بكود العطل (مثلاً F0001 أو ENC أو Looper أو Siemens)..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full bg-slate-900 border border-slate-800 rounded-xl pr-10 pl-4 py-2.5 text-white text-sm"
+              />
+            </div>
+
+            {filteredFaults.map((f) => (
+              <div key={f.id} className="bg-slate-900 p-5 rounded-2xl border border-slate-800 space-y-2">
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-1 bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg font-mono font-bold text-xs">
+                      {f.code}
+                    </span>
+                    <span className="text-xs bg-slate-800 text-slate-300 px-2.5 py-1 rounded-lg">{f.brand}</span>
+                  </div>
+                  <span className="text-xs text-amber-400 font-medium">بواسطة: {f.author}</span>
+                </div>
+                <h3 className="text-lg font-bold text-white">{f.title}</h3>
+                <p className="text-xs text-slate-400">السبب: {f.cause}</p>
+                <div className="bg-slate-950 p-3 rounded-xl border border-emerald-900/40 text-xs text-emerald-300">
+                  <strong>الحل العملي: </strong> {f.solution}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <form onSubmit={handleAddFault} className="bg-slate-900 p-5 rounded-2xl border border-slate-800 space-y-3 h-fit">
+            <h3 className="text-lg font-bold text-white flex items-center gap-2">
+              <Award className="text-amber-400" size={20} /> أضف عطل وحله للموسوعة
+            </h3>
+            <input
+              type="text"
+              placeholder="اسمك (يظهر في القائمة)"
+              value={author}
+              onChange={(e) => setAuthor(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-sm text-white"
+            />
+            <input
+              type="text"
+              placeholder="كود العطل (مثلاً F008)"
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-sm text-white"
+            />
+            <select
+              value={brand}
+              onChange={(e) => setBrand(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-sm text-white"
+            >
+              <option>Siemens SINAMICS / WinCC</option>
+              <option>Parker SSD Drives</option>
+              <option>ABB / Schneider Drives</option>
+              <option>أعطال درافيل وميكانيكا وهيدروليك</option>
+            </select>
+            <input
+              type="text"
+              placeholder="عنوان المشكلة"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-sm text-white"
+            />
+            <textarea
+              rows={3}
+              placeholder="خطوات الحل بالتفصيل..."
+              value={solution}
+              onChange={(e) => setSolution(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-sm text-white"
+            />
+            <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-white py-2.5 rounded-xl font-bold text-sm">
+              نشر في الموسوعة
+            </button>
+          </form>
+        </div>
+      ) : (
+        <div className="bg-slate-900 rounded-2xl border border-slate-800 p-5 space-y-4">
+          <div className="h-96 overflow-y-auto space-y-3 p-3 bg-slate-950 rounded-xl border border-slate-800">
+            {messages.map((m) => (
+              <div key={m.id} className="bg-slate-900 p-3.5 rounded-xl border border-slate-800">
+                <div className="flex justify-between items-center mb-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-blue-400 text-sm">{m.sender}</span>
+                    <span className="text-[11px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded">{m.role}</span>
+                  </div>
+                  <span className="text-[11px] text-slate-500">{m.time}</span>
+                </div>
+                <p className="text-sm text-slate-200 leading-relaxed">{m.text}</p>
+              </div>
+            ))}
+          </div>
+
+          <form onSubmit={handleSendChat} className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <input
+              type="text"
+              placeholder="اسمك..."
+              value={chatName}
+              onChange={(e) => setChatName(e.target.value)}
+              className="bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-sm text-white"
+            />
+            <select
+              value={chatRole}
+              onChange={(e) => setChatRole(e.target.value)}
+              className="bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-sm text-white"
+            >
+              <option>مشغل غرفة تحكم (MCR)</option>
+              <option>مهندس درفلة / إنتاج</option>
+              <option>مهندس / فني كهرباء وكنترول</option>
+              <option>فني ميكانيكا ودرافيل</option>
+            </select>
+            <div className="md:col-span-2 flex gap-2">
+              <input
+                type="text"
+                placeholder="اكتب سؤالك أو مشاركتك الفنية هنا..."
+                value={chatText}
+                onChange={(e) => setChatText(e.target.value)}
+                className="flex-1 bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-sm text-white"
+              />
+              <button type="submit" className="bg-emerald-600 hover:bg-emerald-500 text-white px-5 rounded-xl font-bold flex items-center gap-1">
+                <Send size={16} /> إرسال
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ============================================================================
+// 3. بوابة الشركات ونظام إدارة الدرافيل وإنتاجية الممرات (Enterprise Roll & Pass SaaS)
+// ============================================================================
+const CompaniesSaaSSection = ({
+  companies,
+  activeCompany,
+  setActiveCompany,
+  standsPasses,
+  setStandsPasses,
+  joinRequests,
+  setJoinRequests
+}) => {
+  const [codeInput, setCodeInput] = useState('');
+  const [reqFactoryName, setReqFactoryName] = useState('');
+  const [reqPhone, setReqPhone] = useState('');
+  const [reqStandsCount, setReqStandsCount] = useState(12);
+  const [selectedStand, setSelectedStand] = useState(null);
+
+  const handleLoginCompany = (e) => {
+    e.preventDefault();
+    const found = companies.find((c) => c.code.toUpperCase() === codeInput.trim().toUpperCase());
+    if (!found) {
+      alert('كود الشركة غير صحيح! يمكنك تجربة كود GIOSHY-2026 أو تقديم طلب انضمام شركتك بالأسفل.');
+      return;
+    }
+    if (found.status !== 'active') {
+      alert('اشتراك هذه الشركة موقوف حالياً.');
+      return;
+    }
+    setActiveCompany(found);
+    setCodeInput('');
+  };
+
+  const handleJoinRequest = async (e) => {
+    e.preventDefault();
+    if (!reqFactoryName || !reqPhone) return;
+    const reqObj = {
+      id: Date.now().toString(),
+      factoryName: reqFactoryName,
+      phone: reqPhone,
+      standsCount: Number(reqStandsCount),
+      date: new Date().toLocaleDateString('ar-EG')
+    };
+    setJoinRequests([reqObj, ...joinRequests]);
+    try {
+      await addDoc(collection(db, 'company_join_requests'), reqObj);
+    } catch (err) {
+      console.error(err);
+    }
+    setReqFactoryName('');
+    setReqPhone('');
+    alert('تم إرسال طلب انضمام شركتكم بنجاح! سيقوم م. بسام وليد بمراجعته وتفعيل كود الشركة.');
+  };
+
+  // زيادة إنتاجية الممر الحالي بالطن
+  const handleAddPassTons = (standId, tons) => {
+    setStandsPasses((prev) =>
       prev.map((s) =>
         s.id === standId
-          ? { ...s, tonnageOnPass: s.tonnageOnPass + addTons, bearingHours: s.bearingHours + 1 }
+          ? {
+              ...s,
+              grooveTonnage: s.grooveTonnage + tons,
+              totalRollTonnage: s.totalRollTonnage + tons,
+              status: s.grooveTonnage + tons >= s.maxGrooveCapacity ? 'warning' : s.status
+            }
           : s
       )
     );
   };
 
-  // طلب تغيير باس أو قطر درفيل (يرسل للمدير للموافقة)
-  const handleRequestPassChange = (e) => {
+  // نقل للباص / الممر الجديد (Next Groove) وتصفير عداد الممر الحالي
+  const handleSwitchNextGroove = (standId) => {
+    setStandsPasses((prev) =>
+      prev.map((s) => {
+        if (s.id !== standId) return s;
+        const nextGroove = s.activeGroove < s.totalGrooves ? s.activeGroove + 1 : 1;
+        return {
+          ...s,
+          activeGroove: nextGroove,
+          grooveTonnage: 0,
+          status: 'active',
+          installDate: new Date().toISOString().slice(0, 10)
+        };
+      })
+    );
+  };
+
+  // تحديث قطر الدرفيل بعد المخرطة (Roll Turning)
+  const handleSaveRollUpdate = (e) => {
     e.preventDefault();
     if (!selectedStand) return;
-    const changeReq = {
-      id: Date.now(),
-      standId: selectedStand.id,
-      standName: selectedStand.name,
-      newRollDia: Number(selectedStand.rollDia),
-      newPassNumber: Number(selectedStand.passNumber),
-      newStatus: selectedStand.status,
-      requestedBy: 'مشغل غرفة التحكم الرئيسية',
-      timestamp: new Date().toLocaleTimeString('ar-EG'),
-      zeroPass: selectedStand.zeroPass || false
-    };
-    setPendingChanges((prev) => [changeReq, ...prev]);
+    setStandsPasses((prev) =>
+      prev.map((s) => (s.id === selectedStand.id ? { ...selectedStand } : s))
+    );
     setSelectedStand(null);
-    alert('تم إرسال طلب تعديل الباس/الدرفيل إلى لوحة مدير الإنتاج للاعتماد!');
   };
 
-  // حفظ تقرير الوردية في Firebase
-  const handleSaveShiftToCloud = async () => {
-    try {
-      const docRef = await addDoc(collection(db, 'shift_reports'), {
-        tenantCode: currentTenant.code,
-        tenantName: currentTenant.name,
-        billetsCount: Number(shiftBillets),
-        standsSnapshot: stands,
-        downtimeLogs: downtimeLogs,
-        createdAt: serverTimestamp()
-      });
-      alert(`تم حفظ تقرير الوردية سحابياً باسم (${currentTenant.name})! رقم المرجع: ${docRef.id}`);
-    } catch (err) {
-      console.error(err);
-      alert('تم الحفظ محلياً، وتأكد من إعدادات Rules في Firebase Firestore.');
-    }
+  // تصدير شيت إكسيل لإنتاجية الدرافيل والممرات
+  const handleExportPassCSV = () => {
+    const headers = ['Stand,RollCode,CurrentDia(mm),ActiveGroove,GrooveTonnage,MaxCapacity,TotalRollTonnage,RemainingLife(%)\n'];
+    const rows = standsPasses.map((s) => {
+      const rem = Math.max(0, Math.round(((s.maxGrooveCapacity - s.grooveTonnage) / s.maxGrooveCapacity) * 100));
+      return `${s.name},${s.rollCode},${s.currentDia},Pass ${s.activeGroove}/${s.totalGrooves},${s.grooveTonnage},${s.maxGrooveCapacity},${s.totalRollTonnage},${rem}%`;
+    });
+    const csv = 'data:text/csv;charset=utf-8,\uFEFF' + headers.concat(rows.join('\n'));
+    const link = document.createElement('a');
+    link.setAttribute('href', encodeURI(csv));
+    link.setAttribute('download', `Roll_Pass_Productivity_${activeCompany.code}.csv`);
+    document.body.appendChild(link);
+    link.click();
   };
 
-  const addDowntime = () => {
-    if (!downtimeReason.trim()) return;
-    setDowntimeLogs([
-      {
-        id: Date.now(),
-        category: downtimeCategory,
-        reason: downtimeReason,
-        mins: Number(downtimeMins),
-        time: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })
-      },
-      ...downtimeLogs
-    ]);
-    setDowntimeReason('');
-  };
-
-  return (
-    <div className="space-y-6">
-      {/* شريط معلومات الوردية السريع */}
-      <div className="bg-slate-900 p-5 rounded-xl border border-slate-800 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-600/20 text-blue-400 border border-blue-500/30">
-              {currentTenant.name}
-            </span>
-            <span className="text-xs text-slate-500 font-mono">كود المصنع: {currentTenant.code}</span>
-          </div>
-          <h2 className="text-2xl font-bold text-white mt-1">خريطة خط الدرفلة (Stands 1 – 12)</h2>
+  // إذا لم تسجل الشركة دخولها بعد: نعرض بوابة انضمام الشركات + تسجيل الدخول بكود الشركة
+  if (!activeCompany) {
+    return (
+      <div className="space-y-8">
+        <div className="bg-gradient-to-l from-blue-950/60 to-slate-900 border border-blue-500/30 p-6 rounded-2xl">
+          <span className="text-xs bg-blue-500/20 text-blue-400 px-3 py-1 rounded-full font-bold">
+            نظام SaaS للشركات ومصانع الحديد والصلب
+          </span>
+          <h2 className="text-2xl font-bold text-white mt-2">
+            بوابة الشركات: نظام إدارة الدرافيل وحساب إنتاجية الممرات (Pass & Roll Life)
+          </h2>
+          <p className="text-sm text-slate-300 mt-1">
+            يتيح هذا القسم للمصانع المشتركة تتبع عمر كل ممر (Pass/Groove) على الدرفيل بالطن، التنبيه قبل انتهاء عمر الكاليبر، وحساب المتبقي من قطر الدرفيل قبل الخراطة.
+          </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="bg-slate-950 px-4 py-2 rounded-lg border border-slate-800 flex items-center gap-3">
-            <span className="text-xs text-slate-400">عداد البيليت بالوردية:</span>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* تسجيل دخول الشركات المشتركة */}
+          <form onSubmit={handleLoginCompany} className="bg-slate-900 p-6 rounded-2xl border border-slate-800 space-y-4">
+            <h3 className="text-lg font-bold text-white flex items-center gap-2">
+              <Lock className="text-blue-400" size={20} /> دخول الشركات المشتركة
+            </h3>
+            <p className="text-xs text-slate-400">
+              أدخل كود التفعيل الخاص بمصنعك لفتح لوحة تتبع الدرافيل والممرات (للتجربة الفورية أدخل الكود: <strong className="text-emerald-400 font-mono">GIOSHY-2026</strong>)
+            </p>
             <input
-              type="number"
-              value={shiftBillets}
-              onChange={(e) => setShiftBillets(e.target.value)}
-              className="w-20 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-emerald-400 font-mono font-bold text-center"
+              type="text"
+              placeholder="كود الشركة (مثلاً: GIOSHY-2026)"
+              value={codeInput}
+              onChange={(e) => setCodeInput(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white font-mono uppercase text-center text-lg"
             />
+            <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl font-bold">
+              دخول نظام إدارة الدرافيل والممرات
+            </button>
+          </form>
+
+          {/* طلب انضمام شركة جديدة */}
+          <form onSubmit={handleJoinRequest} className="bg-slate-900 p-6 rounded-2xl border border-slate-800 space-y-4">
+            <h3 className="text-lg font-bold text-emerald-400 flex items-center gap-2">
+              <Building2 size={20} /> طلب انضمام مصنع / شركة جديدة للمنصة
+            </h3>
+            <div>
+              <label className="text-xs text-slate-400 block mb-1">اسم الشركة / المصنع</label>
+              <input
+                type="text"
+                placeholder="مثلاً: شركة حديد العبور / مصنع الدرفلة..."
+                value={reqFactoryName}
+                onChange={(e) => setReqFactoryName(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white text-sm"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-slate-400 block mb-1">رقم التواصل / واتساب</label>
+                <input
+                  type="text"
+                  placeholder="010xxxxxxxx"
+                  value={reqPhone}
+                  onChange={(e) => setReqPhone(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white text-sm font-mono"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-slate-400 block mb-1">عدد استاندات الخط</label>
+                <input
+                  type="number"
+                  value={reqStandsCount}
+                  onChange={(e) => setReqStandsCount(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white text-sm font-mono"
+                />
+              </div>
+            </div>
+            <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded-xl font-bold">
+              إرسال طلب اشتراك الشركة
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  // واجهة الشركة بعد الدخول: حسابات الدرافيل وإنتاجية الممرات (Pass & Groove Productivity)
+  return (
+    <div className="space-y-6">
+      <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 flex flex-wrap justify-between items-center gap-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+              حساب شركة مفعل: {activeCompany.name}
+            </span>
+            <span className="text-xs text-slate-400 font-mono">({activeCompany.code})</span>
           </div>
+          <h2 className="text-2xl font-bold text-white mt-1">
+            منظومة تتبع الدرافيل وإنتاجية الممرات (Roll & Pass Life Tracker)
+          </h2>
+        </div>
+        <div className="flex flex-wrap gap-2">
           <button
-            onClick={handleSaveShiftToCloud}
-            className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2.5 rounded-lg font-medium flex items-center gap-2 shadow-lg shadow-blue-600/20"
+            onClick={handleExportPassCSV}
+            className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5"
           >
-            <Save size={18} />
-            <span>حفظ تقرير الوردية سحابياً</span>
+            <Download size={15} /> تصدير تقرير الإكسيل
+          </button>
+          <button
+            onClick={() => window.print()}
+            className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5"
+          >
+            <Printer size={15} /> طباعة التقرير
+          </button>
+          <button
+            onClick={() => setActiveCompany(null)}
+            className="bg-red-600/20 text-red-400 border border-red-500/30 px-3 py-2 rounded-xl text-xs font-bold"
+          >
+            خروج من حساب الشركة
           </button>
         </div>
       </div>
 
-      {/* شبكة الاستاندات 1 إلى 12 */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-        {stands.map((stand) => {
-          const loadPercent = Math.min(100, Math.round((stand.tonnageOnPass / stand.maxPassTonnage) * 100));
+      {/* بطاقات الدرافيل والممرات للاستاندات 1 - 12 */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {standsPasses.map((st) => {
+          const grooveUsagePercent = Math.min(100, Math.round((st.grooveTonnage / st.maxGrooveCapacity) * 100));
+          const remainingTons = Math.max(0, st.maxGrooveCapacity - st.grooveTonnage);
+          const usableDiaMm = Math.max(0, st.currentDia - st.minScrapDia);
+
           return (
-            <div
-              key={stand.id}
-              className="bg-slate-900 rounded-xl p-4 border border-slate-800 hover:border-slate-600 transition-all flex flex-col justify-between"
-            >
+            <div key={st.id} className="bg-slate-900 rounded-2xl p-5 border border-slate-800 flex flex-col justify-between space-y-4">
               <div>
-                <div className="flex justify-between items-start mb-2">
+                <div className="flex justify-between items-start">
                   <div>
-                    <h3 className="text-lg font-bold text-white">{stand.name}</h3>
-                    <span className="text-[11px] text-slate-400">{stand.type}</span>
+                    <h3 className="text-lg font-bold text-white">{st.name}</h3>
+                    <span className="text-xs text-slate-400">{st.section} | كود الدرفيل: {st.rollCode}</span>
                   </div>
                   <span
-                    className={`px-2 py-0.5 rounded text-xs font-bold ${
-                      stand.status === 'active'
-                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                        : stand.status === 'warning'
+                    className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                      grooveUsagePercent >= 90
+                        ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+                        : grooveUsagePercent >= 75
                         ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                        : 'bg-red-500/20 text-red-400 border border-red-500/30'
+                        : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
                     }`}
                   >
-                    {stand.status === 'active' ? 'يعمل' : stand.status === 'warning' ? 'تنبيه باس' : 'متوقف'}
+                    {grooveUsagePercent >= 90 ? 'يحتاج نقل باس!' : 'الممر سليم'}
                   </span>
                 </div>
 
-                <div className="space-y-1.5 text-xs text-slate-300 mt-3 bg-slate-950 p-3 rounded-lg border border-slate-800/80">
+                {/* تفاصيل القطر والممر الفعال */}
+                <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800/80 space-y-2 mt-3 text-xs">
                   <div className="flex justify-between">
-                    <span className="text-slate-400">قطر الدرفيل / الشغال:</span>
-                    <span className="font-mono text-white font-bold">{stand.rollDia} / {stand.workingDia} mm</span>
+                    <span className="text-slate-400">القطر الحالي / حد التكهين:</span>
+                    <span className="text-white font-mono font-bold">{st.currentDia} / {st.minScrapDia} mm</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-400">السرعة / الموتور:</span>
-                    <span className="font-mono text-blue-400">{stand.speedMps} m/s ({stand.motorRpm} RPM)</span>
+                    <span className="text-slate-400">الرصيد المتبقي للخراطة:</span>
+                    <span className="text-emerald-400 font-mono font-bold">{usableDiaMm} mm متاح</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-400">رقم الباس الحالي:</span>
-                    <span className="font-mono text-amber-400 font-bold">Pass #{stand.passNumber}</span>
+                    <span className="text-slate-400">الممر الشغال حالياً (Groove):</span>
+                    <span className="text-amber-400 font-mono font-bold">
+                      باس رقم {st.activeGroove} من {st.totalGrooves}
+                    </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-400">ساعات البلي (Bearing):</span>
-                    <span className="font-mono text-slate-200">{stand.bearingHours} ساعة</span>
+                    <span className="text-slate-400">إجمالي إنتاج الدرفيل الكلي:</span>
+                    <span className="text-blue-400 font-mono font-bold">{st.totalRollTonnage} طن</span>
                   </div>
                 </div>
 
-                {/* شريط استهلاك الباس */}
-                <div className="mt-3">
-                  <div className="flex justify-between text-xs mb-1">
-                    <span className="text-slate-400">إنتاج الباس:</span>
-                    <span className="font-mono text-white">{stand.tonnageOnPass} / {stand.maxPassTonnage} طن</span>
+                {/* مؤشر عمر الممر الحالي (Pass Productivity Bar) */}
+                <div className="mt-3 space-y-1.5">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-slate-400">إنتاجية الممر الحالي:</span>
+                    <span className="font-mono font-bold text-white">
+                      {st.grooveTonnage} / {st.maxGrooveCapacity} طن (متبقي {remainingTons} طن)
+                    </span>
                   </div>
-                  <div className="w-full h-2 bg-slate-950 rounded-full overflow-hidden">
+                  <div className="w-full h-2.5 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
                     <div
-                      className={`h-full ${loadPercent > 85 ? 'bg-red-500' : loadPercent > 65 ? 'bg-amber-500' : 'bg-emerald-500'}`}
-                      style={{ width: `${loadPercent}%` }}
+                      className={`h-full transition-all ${
+                        grooveUsagePercent >= 90 ? 'bg-red-500' : grooveUsagePercent >= 75 ? 'bg-amber-500' : 'bg-blue-500'
+                      }`}
+                      style={{ width: `${grooveUsagePercent}%` }}
                     />
                   </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2 mt-4 pt-3 border-t border-slate-800">
+              {/* أزرار التحكم السريع في الباس والدرفيل */}
+              <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-800">
                 <button
-                  onClick={() => handleQuickCounterUpdate(stand.id, 10)}
-                  className="bg-slate-800 hover:bg-slate-700 text-slate-200 py-1.5 rounded-lg text-xs font-medium"
+                  onClick={() => handleAddPassTons(st.id, 25)}
+                  className="bg-slate-800 hover:bg-slate-700 text-white py-2 rounded-lg text-xs font-bold"
                 >
-                  +10 طن إنتاج
+                  +25 طن للممر
                 </button>
                 <button
-                  onClick={() => setSelectedStand({ ...stand, zeroPass: false })}
-                  className="bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 py-1.5 rounded-lg text-xs font-medium"
+                  onClick={() => handleSwitchNextGroove(st.id)}
+                  className="bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 py-2 rounded-lg text-xs font-bold"
                 >
-                  تعديل / تصفير باس
+                  نقل للباس التالي
+                </button>
+                <button
+                  onClick={() => setSelectedStand({ ...st })}
+                  className="bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 py-2 rounded-lg text-xs font-bold"
+                >
+                  خراطة / تعديل
                 </button>
               </div>
             </div>
@@ -802,65 +1124,62 @@ const OperationsSection = ({ currentTenant, stands, setStands, pendingChanges, s
         })}
       </div>
 
-      {/* نافذة تعديل وتصفير الباس (Modal) */}
+      {/* نافذة تعديل قطر الدرفيل وسعة الممر */}
       {selectedStand && (
-        <div className="fixed inset-0 bg-black/75 flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
           <form
-            onSubmit={handleRequestPassChange}
+            onSubmit={handleSaveRollUpdate}
             className="bg-slate-900 border border-slate-700 rounded-2xl p-6 max-w-md w-full space-y-4"
           >
-            <h3 className="text-xl font-bold text-white">
-              طلب تعديل بيانات {selectedStand.name}
+            <h3 className="text-lg font-bold text-white">
+              تحديث بيانات درفيل {selectedStand.name} ({selectedStand.rollCode})
             </h3>
-            <p className="text-xs text-amber-400">
-              ملاحظة: تغييرات الأقطار وتصفير الباسات تُرسل لمدير الإنتاج للاعتماد قبل التفعيل النهائي.
-            </p>
-            <div>
-              <label className="text-xs text-slate-400 block mb-1">قطر الدرفيل الجديد (mm)</label>
-              <input
-                type="number"
-                value={selectedStand.rollDia}
-                onChange={(e) => setSelectedStand({ ...selectedStand, rollDia: e.target.value })}
-                className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white font-mono"
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-slate-400 block mb-1">القطر الحالي بعد الخراطة (mm)</label>
+                <input
+                  type="number"
+                  value={selectedStand.currentDia}
+                  onChange={(e) => setSelectedStand({ ...selectedStand, currentDia: Number(e.target.value) })}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white font-mono"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-slate-400 block mb-1">السعة القصوى للممر (طن)</label>
+                <input
+                  type="number"
+                  value={selectedStand.maxGrooveCapacity}
+                  onChange={(e) => setSelectedStand({ ...selectedStand, maxGrooveCapacity: Number(e.target.value) })}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white font-mono"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-slate-400 block mb-1">عدد الممرات الكلي بالدرفيل</label>
+                <input
+                  type="number"
+                  value={selectedStand.totalGrooves}
+                  onChange={(e) => setSelectedStand({ ...selectedStand, totalGrooves: Number(e.target.value) })}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white font-mono"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-slate-400 block mb-1">رقم الممر الفعال حالياً</label>
+                <input
+                  type="number"
+                  value={selectedStand.activeGroove}
+                  onChange={(e) => setSelectedStand({ ...selectedStand, activeGroove: Number(e.target.value) })}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white font-mono"
+                />
+              </div>
             </div>
-            <div>
-              <label className="text-xs text-slate-400 block mb-1">رقم الباس الجديد (Pass Number)</label>
-              <input
-                type="number"
-                value={selectedStand.passNumber}
-                onChange={(e) => setSelectedStand({ ...selectedStand, passNumber: e.target.value })}
-                className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white font-mono"
-              />
-            </div>
-            <div>
-              <label className="text-xs text-slate-400 block mb-1">حالة الاستاند</label>
-              <select
-                value={selectedStand.status}
-                onChange={(e) => setSelectedStand({ ...selectedStand, status: e.target.value })}
-                className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white"
-              >
-                <option value="active">يعمل بشكل طبيعي (Active)</option>
-                <option value="warning">يحتاج مراجعة قريباً (Warning)</option>
-                <option value="danger">متوقف للصيانة (Stopped)</option>
-              </select>
-            </div>
-            <label className="flex items-center gap-2 text-sm text-slate-200 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={selectedStand.zeroPass}
-                onChange={(e) => setSelectedStand({ ...selectedStand, zeroPass: e.target.checked })}
-              />
-              <span>تصفير عداد أطنان الباس (Pass Zeroing)</span>
-            </label>
-            <div className="flex gap-3 pt-2">
-              <button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-2 rounded-lg font-bold">
-                إرسال للاعتماد
+            <div className="flex gap-2 pt-2">
+              <button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-2 rounded-xl font-bold">
+                حفظ التعديلات
               </button>
               <button
                 type="button"
                 onClick={() => setSelectedStand(null)}
-                className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2 rounded-lg"
+                className="flex-1 bg-slate-800 text-slate-300 py-2 rounded-xl"
               >
                 إلغاء
               </button>
@@ -868,541 +1187,140 @@ const OperationsSection = ({ currentTenant, stands, setStands, pendingChanges, s
           </form>
         </div>
       )}
-
-      {/* سجل التوقفات والأعطال اليومية (Downtime Tracker) */}
-      <div className="bg-slate-900 p-6 rounded-xl border border-slate-800 space-y-4">
-        <h3 className="text-lg font-bold text-white flex items-center gap-2">
-          <Clock size={20} className="text-amber-400" />
-          سجل توقفات الخط خلال الوردية (Downtime Log)
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-          <select
-            value={downtimeCategory}
-            onChange={(e) => setDowntimeCategory(e.target.value)}
-            className="bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white text-sm"
-          >
-            <option>كهرباء وكنترول</option>
-            <option>ميكانيكا ودرافيل</option>
-            <option>تشغيل وحشر (Cobble)</option>
-            <option>هيدروليك وتبريد</option>
-          </select>
-          <input
-            type="text"
-            placeholder="سبب التوقف بالتفصيل..."
-            value={downtimeReason}
-            onChange={(e) => setDowntimeReason(e.target.value)}
-            className="md:col-span-2 bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white text-sm"
-          />
-          <div className="flex gap-2">
-            <input
-              type="number"
-              value={downtimeMins}
-              onChange={(e) => setDowntimeMins(e.target.value)}
-              className="w-24 bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white font-mono text-center"
-              placeholder="دقيقة"
-            />
-            <button
-              onClick={addDowntime}
-              className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-medium text-sm"
-            >
-              تسجيل
-            </button>
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          {downtimeLogs.map((log) => (
-            <div key={log.id} className="bg-slate-950 p-3 rounded-lg border border-slate-800 flex justify-between items-center text-sm">
-              <div>
-                <span className="text-amber-400 font-bold ml-2">[{log.category}]</span>
-                <span className="text-slate-200">{log.reason}</span>
-              </div>
-              <div className="flex items-center gap-4 font-mono text-xs">
-                <span className="text-red-400 font-bold">{log.mins} دقيقة</span>
-                <span className="text-slate-500">{log.time}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
     </div>
   );
 };
 
 // ============================================================================
-// 3. موسوعة الأعطال والصيانة ولوحة الشرف (Troubleshooting Hub & Leaderboard)
+// 4. لوحة تحكم المصمم السرية (Creator Super Admin) - تفتح بـ 5 ضغطات على اللوجو
 // ============================================================================
-const TroubleshootingSection = ({ faults, setFaults }) => {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [newCode, setNewCode] = useState('');
-  const [newBrand, setNewBrand] = useState('Siemens SINAMICS');
-  const [newTitle, setNewTitle] = useState('');
-  const [newSolution, setNewSolution] = useState('');
-  const [authorName, setAuthorName] = useState('');
-
-  const filteredFaults = faults.filter(
-    (f) =>
-      f.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      f.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      f.brand.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const handleAddFault = async (e) => {
-    e.preventDefault();
-    if (!newCode || !newTitle || !newSolution) return;
-    const item = {
-      id: Date.now().toString(),
-      code: newCode,
-      brand: newBrand,
-      category: 'مشاركة خبرات',
-      title: newTitle,
-      cause: 'تم رصدها أثناء التشغيل الفعلي بالمصنع',
-      solution: newSolution,
-      author: authorName || 'مهندس / فني صيانة',
-      points: 15
-    };
-    setFaults([item, ...faults]);
-    try {
-      await addDoc(collection(db, 'troubleshooting_hub'), item);
-    } catch (err) {
-      console.error(err);
-    }
-    setNewCode('');
-    setNewTitle('');
-    setNewSolution('');
-  };
-
-  // تجميع نقاط لوحة الشرف
-  const leaderboard = Object.values(
-    faults.reduce((acc, curr) => {
-      acc[curr.author] = acc[curr.author] || { name: curr.author, points: 0, count: 0 };
-      acc[curr.author].points += curr.points || 10;
-      acc[curr.author].count += 1;
-      return acc;
-    }, {})
-  ).sort((a, b) => b.points - a.points);
-
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <div className="lg:col-span-2 space-y-6">
-        <div className="bg-slate-900 p-5 rounded-xl border border-slate-800 space-y-4">
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <Wrench className="text-amber-400" />
-            موسوعة أعطال الدرايفات والكنترول والميكانيكا
-          </h2>
-          <div className="relative">
-            <Search className="absolute right-3 top-3 text-slate-500" size={18} />
-            <input
-              type="text"
-              placeholder="ابحث بكود العطل (مثلاً F0001 أو ENC-FLT أو Siemens أو Looper)..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-700 rounded-lg pr-10 pl-4 py-2.5 text-white text-sm"
-            />
-          </div>
-        </div>
-
-        <div className="space-y-4">
-          {filteredFaults.map((fault) => (
-            <div key={fault.id} className="bg-slate-900 p-5 rounded-xl border border-slate-800 space-y-2">
-              <div className="flex justify-between items-start">
-                <div className="flex items-center gap-2">
-                  <span className="px-2.5 py-1 bg-red-500/20 text-red-400 border border-red-500/30 rounded font-mono font-bold text-sm">
-                    {fault.code}
-                  </span>
-                  <span className="text-xs bg-slate-800 text-slate-300 px-2.5 py-1 rounded">
-                    {fault.brand}
-                  </span>
-                </div>
-                <span className="text-xs text-slate-400">بواسطة: {fault.author}</span>
-              </div>
-              <h3 className="text-lg font-bold text-white">{fault.title}</h3>
-              <p className="text-xs text-slate-400"><strong>السبب المحتمل:</strong> {fault.cause}</p>
-              <div className="bg-slate-950 p-3 rounded-lg border border-emerald-900/40 text-xs text-emerald-300">
-                <strong>خطوات الإصلاح السريع: </strong> {fault.solution}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* القسم الجانبي: إضافة عطل + لوحة الشرف */}
-      <div className="space-y-6">
-        <div className="bg-slate-900 p-5 rounded-xl border border-slate-800">
-          <h3 className="text-lg font-bold text-amber-400 flex items-center gap-2 mb-4">
-            <Award size={20} />
-            لوحة شرف خبراء الصيانة (Leaderboard)
-          </h3>
-          <div className="space-y-2.5">
-            {leaderboard.map((user, idx) => (
-              <div key={user.name} className="bg-slate-950 p-3 rounded-lg border border-slate-800 flex justify-between items-center">
-                <div className="flex items-center gap-2.5">
-                  <span className="w-6 h-6 rounded-full bg-amber-500/20 text-amber-400 text-xs font-bold flex items-center justify-center">
-                    {idx + 1}
-                  </span>
-                  <div>
-                    <p className="text-sm font-bold text-white">{user.name}</p>
-                    <p className="text-[11px] text-slate-400">{user.count} مساهمات فنية</p>
-                  </div>
-                </div>
-                <span className="text-emerald-400 font-mono font-bold text-sm">{user.points} نقطة</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <form onSubmit={handleAddFault} className="bg-slate-900 p-5 rounded-xl border border-slate-800 space-y-3">
-          <h3 className="text-lg font-bold text-white">شارك حل عطل واجهك (+15 نقطة)</h3>
-          <input
-            type="text"
-            placeholder="اسمك (للوحة الشرف)"
-            value={authorName}
-            onChange={(e) => setAuthorName(e.target.value)}
-            className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-sm text-white"
-          />
-          <input
-            type="text"
-            placeholder="كود العطل (مثلاً F008 أو Cobble-S4)"
-            value={newCode}
-            onChange={(e) => setNewCode(e.target.value)}
-            className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-sm text-white"
-          />
-          <select
-            value={newBrand}
-            onChange={(e) => setNewBrand(e.target.value)}
-            className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-sm text-white"
-          >
-            <option>Siemens SINAMICS / WinCC</option>
-            <option>Parker SSD Drives</option>
-            <option>PLC & Sensors</option>
-            <option>ميكانيكا ودرافيل وهيدروليك</option>
-          </select>
-          <input
-            type="text"
-            placeholder="وصف المشكلة باختصار"
-            value={newTitle}
-            onChange={(e) => setNewTitle(e.target.value)}
-            className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-sm text-white"
-          />
-          <textarea
-            rows={3}
-            placeholder="كيف قمت بحل المشكلة؟"
-            value={newSolution}
-            onChange={(e) => setNewSolution(e.target.value)}
-            className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-sm text-white"
-          />
-          <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-white py-2 rounded-lg font-bold text-sm">
-            نشر الحل في الموسوعة
-          </button>
-        </form>
-      </div>
-    </div>
-  );
-};
-
-// ============================================================================
-// 4. لوحة مدير الإنتاج بالمصنع (Factory Manager Admin Panel)
-// ============================================================================
-const FactoryAdminSection = ({ currentTenant, stands, setStands, pendingChanges, setPendingChanges }) => {
-  const [pinInput, setPinInput] = useState('');
-  const [unlocked, setUnlocked] = useState(false);
-
-  const handleApprove = (change) => {
-    setStands((prev) =>
-      prev.map((s) =>
-        s.id === change.standId
-          ? {
-              ...s,
-              rollDia: change.newRollDia,
-              passNumber: change.newPassNumber,
-              status: change.newStatus,
-              tonnageOnPass: change.zeroPass ? 0 : s.tonnageOnPass,
-              entryDate: new Date().toISOString().slice(0, 10)
-            }
-          : s
-      )
-    );
-    setPendingChanges((prev) => prev.filter((c) => c.id !== change.id));
-  };
-
-  const handleExportCSV = () => {
-    const headers = ['Stand,Type,Status,RollDia(mm),WorkingDia(mm),Speed(m/s),MotorRPM,PassNumber,TonnageOnPass\n'];
-    const rows = stands.map(
-      (s) =>
-        `${s.name},${s.type},${s.status},${s.rollDia},${s.workingDia},${s.speedMps},${s.motorRpm},${s.passNumber},${s.tonnageOnPass}`
-    );
-    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + headers.concat(rows.join('\n'));
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `Report_${currentTenant.code}_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-  };
-
-  if (!unlocked) {
-    return (
-      <div className="max-w-md mx-auto bg-slate-900 p-8 rounded-2xl border border-slate-800 text-center space-y-4 mt-10">
-        <ShieldCheck size={48} className="mx-auto text-blue-500" />
-        <h2 className="text-xl font-bold text-white">لوحة اعتماد مدير الإنتاج ({currentTenant.name})</h2>
-        <p className="text-xs text-slate-400">
-          أدخل رمز مدير المصنع لاعتماد تغييرات الباسات وتصدير التقارير (الرمز الافتراضي: <span className="font-mono text-white">{currentTenant.managerPin}</span>)
-        </p>
-        <input
-          type="password"
-          placeholder="PIN مدير المصنع"
-          value={pinInput}
-          onChange={(e) => setPinInput(e.target.value)}
-          className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-center text-white font-mono text-lg"
-        />
-        <button
-          onClick={() => {
-            if (pinInput === currentTenant.managerPin || pinInput === '1234') setUnlocked(true);
-            else alert('الرمز غير صحيح');
-          }}
-          className="w-full bg-blue-600 hover:bg-blue-500 text-white py-2.5 rounded-lg font-bold"
-        >
-          دخول لوحة مدير المصنع
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-6">
-      <div className="bg-slate-900 p-5 rounded-xl border border-slate-800 flex flex-wrap justify-between items-center gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-white">لوحة مدير الإنتاج واعتماد الباسات</h2>
-          <p className="text-xs text-slate-400">المصنع الحالي: {currentTenant.name}</p>
-        </div>
-        <div className="flex gap-3">
-          <button
-            onClick={handleExportCSV}
-            className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2"
-          >
-            <Download size={16} />
-            <span>تصدير Excel (CSV)</span>
-          </button>
-          <button
-            onClick={() => window.print()}
-            className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2"
-          >
-            <Printer size={16} />
-            <span>طباعة تقرير PDF</span>
-          </button>
-        </div>
-      </div>
-
-      <div className="bg-slate-900 p-6 rounded-xl border border-slate-800 space-y-4">
-        <h3 className="text-lg font-bold text-amber-400">
-          طلبات تغيير الدرافيل وتصفير الباسات المعلقة ({pendingChanges.length})
-        </h3>
-        {pendingChanges.length === 0 ? (
-          <p className="text-sm text-slate-500">لا توجد طلبات معلقة حالياً.</p>
-        ) : (
-          <div className="space-y-3">
-            {pendingChanges.map((change) => (
-              <div key={change.id} className="bg-slate-950 p-4 rounded-xl border border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <div>
-                  <span className="text-white font-bold">{change.standName}</span>
-                  <p className="text-xs text-slate-300 mt-1">
-                    القطر الجديد: <strong>{change.newRollDia} mm</strong> | الباس الجديد: <strong>#{change.newPassNumber}</strong> | تصفير العداد: <strong>{change.zeroPass ? 'نعم' : 'لا'}</strong>
-                  </p>
-                  <span className="text-[11px] text-slate-500">وقت الطلب: {change.timestamp}</span>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => handleApprove(change)}
-                    className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1"
-                  >
-                    <CheckCircle2 size={14} /> اعتماد وتنفيذ
-                  </button>
-                  <button
-                    onClick={() => setPendingChanges((prev) => prev.filter((c) => c.id !== change.id))}
-                    className="bg-red-600/20 hover:bg-red-600/30 text-red-400 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1"
-                  >
-                    <XCircle size={14} /> رفض
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
-// ============================================================================
-// 5. لوحة تحكم المصمم ومؤسس المنصة السرية (Creator & SaaS Super Admin)
-// تفتح عند الضغط 5 مرات على لوجو SteelPortal
-// ============================================================================
-const CreatorSuperAdminModal = ({ isOpen, onClose, tenants, setTenants, currentTenant, setCurrentTenant }) => {
-  const [masterPin, setMasterPin] = useState('');
-  const [isCreatorAuth, setIsCreatorAuth] = useState(false);
-  const [factoryName, setFactoryName] = useState('');
-  const [factoryCode, setFactoryCode] = useState('');
-  const [factoryPlan, setFactoryPlan] = useState('باقة المصانع الاحترافية (Pro SaaS)');
-  const [factoryPin, setFactoryPin] = useState('1234');
+const CreatorSuperAdminModal = ({
+  isOpen,
+  onClose,
+  companies,
+  setCompanies,
+  joinRequests,
+  setActiveCompany
+}) => {
+  const [pin, setPin] = useState('');
+  const [auth, setAuth] = useState(false);
+  const [newCompName, setNewCompName] = useState('');
+  const [newCompCode, setNewCompCode] = useState('');
 
   if (!isOpen) return null;
 
-  const handleCreateTenant = async (e) => {
+  const handleAddCompany = (e) => {
     e.preventDefault();
-    if (!factoryName || !factoryCode) return;
-    const newTenant = {
+    if (!newCompName || !newCompCode) return;
+    const item = {
       id: Date.now().toString(),
-      name: factoryName,
-      code: factoryCode.toUpperCase(),
-      plan: factoryPlan,
+      name: newCompName,
+      code: newCompCode.toUpperCase(),
+      plan: 'باقة الشركات الكاملة (Enterprise)',
       status: 'active',
-      managerPin: factoryPin,
-      standsCount: 12,
-      expiryDate: '2027-12-31'
+      managerPin: '1234',
+      contact: 'تم التفعيل من لوحة المصمم'
     };
-    setTenants([newTenant, ...tenants]);
-    try {
-      await addDoc(collection(db, 'saas_tenants'), newTenant);
-    } catch (err) {
-      console.error(err);
-    }
-    setFactoryName('');
-    setFactoryCode('');
-    alert(`تم تفعيل اشتراك المصنع الجديد بالكود: ${newTenant.code}`);
-  };
-
-  const toggleTenantStatus = (id) => {
-    setTenants((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, status: t.status === 'active' ? 'suspended' : 'active' } : t))
-    );
+    setCompanies([item, ...companies]);
+    setNewCompName('');
+    setNewCompCode('');
+    alert(`تم تفعيل الشركة بالكود: ${item.code}`);
   };
 
   return (
-    <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto">
+    <div className="fixed inset-0 bg-black/85 flex items-center justify-center p-4 z-50 overflow-y-auto">
       <div className="bg-slate-900 border-2 border-amber-500/40 rounded-2xl p-6 max-w-4xl w-full space-y-6">
         <div className="flex justify-between items-center border-b border-slate-800 pb-4">
           <div className="flex items-center gap-3">
-            <div className="bg-amber-500/20 p-2.5 rounded-xl border border-amber-500/40">
-              <Key className="text-amber-400" size={24} />
-            </div>
+            <Key className="text-amber-400" size={24} />
             <div>
-              <h2 className="text-xl font-bold text-white">لوحة تحكم المبرمج ومؤسس المنصة (SaaS Master Console)</h2>
-              <p className="text-xs text-amber-400">خاص بالمهندس بسام وليد (Controlexa / SteelPortal Creator)</p>
+              <h2 className="text-xl font-bold text-white">لوحة تحكم مؤسس المنصة (Creator SaaS Admin)</h2>
+              <p className="text-xs text-amber-400">إدارة اشتراكات المصانع وتوليد أكواد التفعيل - م. بسام وليد</p>
             </div>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-white text-sm bg-slate-800 px-3 py-1.5 rounded-lg">
+          <button onClick={onClose} className="bg-slate-800 text-slate-300 px-3 py-1 rounded-lg text-sm">
             إغلاق X
           </button>
         </div>
 
-        {!isCreatorAuth ? (
-          <div className="max-w-sm mx-auto py-8 text-center space-y-4">
-            <Lock size={40} className="mx-auto text-amber-400" />
-            <p className="text-sm text-slate-300">أدخل الرقم السري الخاص بمصمم المنصة (الافتراضي: 2026)</p>
+        {!auth ? (
+          <div className="max-w-sm mx-auto py-6 text-center space-y-4">
+            <p className="text-sm text-slate-300">أدخل الرقم السري للمصمم (الافتراضي: 2026 أو beso)</p>
             <input
               type="password"
-              value={masterPin}
-              onChange={(e) => setMasterPin(e.target.value)}
-              placeholder="Master Password"
-              className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-center text-white font-mono"
+              value={pin}
+              onChange={(e) => setPin(e.target.value)}
+              placeholder="Master PIN"
+              className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-center text-white font-mono"
             />
             <button
               onClick={() => {
-                if (masterPin === '2026' || masterPin === 'beso') setIsCreatorAuth(true);
-                else alert('كلمة المرور غير صحيحة');
+                if (pin === '2026' || pin === 'beso') setAuth(true);
+                else alert('الرقم السري غير صحيح');
               }}
-              className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2.5 rounded-lg"
+              className="w-full bg-amber-500 text-slate-950 font-bold py-2.5 rounded-xl"
             >
-              فتح لوحة التحكم الكاملة
+              فتح لوحة المصمم
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* فورم إنشاء مصنع جديد (SaaS Tenant) */}
-            <form onSubmit={handleCreateTenant} className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
-              <h3 className="text-sm font-bold text-amber-400 flex items-center gap-2">
-                <PlusCircle size={16} /> إضافة مصنع جديد وتوليد كود اشتراك
-              </h3>
-              <div>
-                <label className="text-xs text-slate-400 block mb-1">اسم المصنع / الشركة</label>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="space-y-4">
+              <form onSubmit={handleAddCompany} className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
+                <h3 className="text-sm font-bold text-amber-400">تفعيل شركة جديدة وتوليد كود دخول</h3>
                 <input
                   type="text"
-                  placeholder="مثلاً: حديد الأردن / مصنع العبور"
-                  value={factoryName}
-                  onChange={(e) => setFactoryName(e.target.value)}
+                  placeholder="اسم المصنع / الشركة"
+                  value={newCompName}
+                  onChange={(e) => setNewCompName(e.target.value)}
                   className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-sm text-white"
                 />
-              </div>
-              <div>
-                <label className="text-xs text-slate-400 block mb-1">كود تفعيل المصنع (Activation Key)</label>
                 <input
                   type="text"
-                  placeholder="مثلاً: JORDAN-2026"
-                  value={factoryCode}
-                  onChange={(e) => setFactoryCode(e.target.value)}
+                  placeholder="كود التفعيل (مثلاً: EZZ-2026)"
+                  value={newCompCode}
+                  onChange={(e) => setNewCompCode(e.target.value)}
                   className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-sm text-white font-mono uppercase"
                 />
-              </div>
-              <div>
-                <label className="text-xs text-slate-400 block mb-1">الباقة (SaaS Plan)</label>
-                <select
-                  value={factoryPlan}
-                  onChange={(e) => setFactoryPlan(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-sm text-white"
-                >
-                  <option>باقة المصانع المتقدمة (Enterprise SaaS)</option>
-                  <option>باقة المصانع الاحترافية (Pro SaaS)</option>
-                  <option>الباقة التجريبية (Trial 30 Days)</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-xs text-slate-400 block mb-1">الرقم السري لمدير هذا المصنع</label>
-                <input
-                  type="text"
-                  value={factoryPin}
-                  onChange={(e) => setFactoryPin(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-sm text-white font-mono"
-                />
-              </div>
-              <button type="submit" className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2 rounded-lg text-sm">
-                تفعيل وحفظ في السحابة
-              </button>
-            </form>
+                <button type="submit" className="w-full bg-amber-500 text-slate-950 font-bold py-2 rounded-lg text-sm">
+                  تفعيل الشركة الآن
+                </button>
+              </form>
 
-            {/* قائمة المصانع المشتركة */}
-            <div className="lg:col-span-2 space-y-3">
-              <h3 className="text-sm font-bold text-white">إدارة المصانع المشتركة في المنصة ({tenants.length} مصانع)</h3>
-              <div className="space-y-2.5 max-h-80 overflow-y-auto pr-1">
-                {tenants.map((t) => (
-                  <div key={t.id} className="bg-slate-950 p-3.5 rounded-xl border border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-white text-sm">{t.name}</span>
-                        <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${t.status === 'active' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
-                          {t.status === 'active' ? 'مفعل' : 'موقوف'}
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-400 mt-1">
-                        كود الدخول: <strong className="text-amber-400 font-mono">{t.code}</strong> | الباقة: {t.plan} | PIN المدير: {t.managerPin}
-                      </p>
+              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
+                <h3 className="text-sm font-bold text-emerald-400">طلبات انضمام الشركات الواردة ({joinRequests.length})</h3>
+                {joinRequests.length === 0 ? (
+                  <p className="text-xs text-slate-500">لا توجد طلبات جديدة حالياً.</p>
+                ) : (
+                  joinRequests.map((r) => (
+                    <div key={r.id} className="p-2.5 bg-slate-900 rounded-lg border border-slate-800 text-xs flex justify-between">
+                      <span>{r.factoryName} ({r.standsCount} استاند)</span>
+                      <span className="font-mono text-amber-400">{r.phone}</span>
                     </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => setCurrentTenant(t)}
-                        className="bg-blue-600/20 text-blue-400 border border-blue-500/30 px-2.5 py-1 rounded text-xs font-bold"
-                      >
-                        معاينة كمصنع حالي
-                      </button>
-                      <button
-                        onClick={() => toggleTenantStatus(t.id)}
-                        className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-2.5 py-1 rounded text-xs"
-                      >
-                        {t.status === 'active' ? 'إيقاف الاشتراك' : 'تفعيل'}
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
+            </div>
+
+            <div className="space-y-2.5">
+              <h3 className="text-sm font-bold text-white">الشركات المفعلة حالياً ({companies.length})</h3>
+              {companies.map((c) => (
+                <div key={c.id} className="bg-slate-950 p-3.5 rounded-xl border border-slate-800 flex justify-between items-center">
+                  <div>
+                    <p className="text-sm font-bold text-white">{c.name}</p>
+                    <p className="text-xs text-amber-400 font-mono">كود الدخول: {c.code}</p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setActiveCompany(c);
+                      onClose();
+                    }}
+                    className="bg-blue-600/20 text-blue-400 border border-blue-500/30 px-3 py-1.5 rounded-lg text-xs font-bold"
+                  >
+                    فتح لوحة الشركة
+                  </button>
+                </div>
+              ))}
             </div>
           </div>
         )}
@@ -1412,20 +1330,20 @@ const CreatorSuperAdminModal = ({ isOpen, onClose, tenants, setTenants, currentT
 };
 
 // ============================================================================
-// التطبيق الرئيسي (Main Portal App)
+// المكون الرئيسي للتطبيق (Main App)
 // ============================================================================
 export default function App() {
   const [activeTab, setActiveTab] = useState('calculators');
-  const [tenants, setTenants] = useState(INITIAL_TENANTS);
-  const [currentTenant, setCurrentTenant] = useState(INITIAL_TENANTS[0]);
-  const [stands, setStands] = useState(INITIAL_STANDS);
-  const [pendingChanges, setPendingChanges] = useState([]);
-  const [faults, setFaults] = useState(DEFAULT_FAULTS);
+  const [faults, setFaults] = useState(INITIAL_FAULTS);
+  const [messages, setMessages] = useState(INITIAL_CHAT);
+  const [companies, setCompanies] = useState(INITIAL_COMPANIES);
+  const [activeCompany, setActiveCompany] = useState(null);
+  const [standsPasses, setStandsPasses] = useState(INITIAL_STANDS_PASSES);
+  const [joinRequests, setJoinRequests] = useState([]);
 
-  // عداد الضغطات السرية على اللوجو لفتح لوحة المصمم (5 ضغطات)
+  // عداد الـ 5 ضغطات على اللوجو لفتح لوحة المصمم
   const [logoClicks, setLogoClicks] = useState(0);
   const [showCreatorModal, setShowCreatorModal] = useState(false);
-  const [switchCodeInput, setSwitchCodeInput] = useState('');
 
   const handleLogoClick = () => {
     const next = logoClicks + 1;
@@ -1437,26 +1355,10 @@ export default function App() {
     }
   };
 
-  const handleTenantSwitch = (e) => {
-    e.preventDefault();
-    const found = tenants.find((t) => t.code.toUpperCase() === switchCodeInput.trim().toUpperCase());
-    if (!found) {
-      alert('كود المصنع غير مسجل! يمكنك توليد أكواد جديدة من لوحة المصمم السرية.');
-      return;
-    }
-    if (found.status !== 'active') {
-      alert('عفواً، اشتراك هذا المصنع موقوف مؤقتاً من قبل إدارة المنصة.');
-      return;
-    }
-    setCurrentTenant(found);
-    setSwitchCodeInput('');
-  };
-
   const navItems = [
-    { id: 'calculators', label: 'حاسبة الدرفلة الذكية', icon: Calculator },
-    { id: 'operations', label: 'إدارة يوميات التشغيل', icon: Activity },
-    { id: 'faults', label: 'موسوعة الأعطال والصيانة', icon: Wrench },
-    { id: 'admin', label: 'لوحة مدير المصنع', icon: ShieldCheck }
+    { id: 'calculators', label: 'حاسبات الدرفلة (مجاني)', icon: Calculator },
+    { id: 'community', label: 'الأعطال والدردشة الفنية', icon: MessageSquare },
+    { id: 'companies', label: 'بوابة الشركات (إنتاجية الممرات)', icon: Building2 }
   ];
 
   return (
@@ -1464,49 +1366,23 @@ export default function App() {
       {/* القائمة الجانبية */}
       <aside className="w-full md:w-72 bg-slate-900 border-l border-slate-800 p-4 flex flex-col justify-between">
         <div>
-          {/* اللوجو (اضغط 5 مرات لفتح لوحة المصمم السرية) */}
           <div
             onClick={handleLogoClick}
-            title="اضغط 5 مرات لفتح لوحة تحكم مصمم المنصة"
-            className="flex items-center gap-3 mb-6 px-2 mt-2 cursor-pointer select-none group"
+            title="اضغط 5 مرات لفتح لوحة المصمم السرية"
+            className="flex items-center gap-3 mb-6 px-2 mt-2 cursor-pointer select-none"
           >
-            <div className="bg-blue-600 p-2.5 rounded-xl shadow-lg shadow-blue-600/30 group-active:scale-95 transition-transform">
+            <div className="bg-blue-600 p-2.5 rounded-xl shadow-lg shadow-blue-600/30">
               <Zap className="text-white" size={24} />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-white tracking-tight">
+              <h1 className="text-xl font-bold text-white">
                 Steel<span className="text-blue-500">Portal</span>
-                <span className="text-[10px] bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded mr-1.5">SaaS</span>
               </h1>
-              <p className="text-[11px] text-slate-400">منصة صناع الحديد والدرفلة</p>
+              <p className="text-[11px] text-slate-400">مجتمع صناع الحديد ومنصة الشركات</p>
             </div>
           </div>
 
-          {/* صندوق تبديل كود المصنع (SaaS Workspace) */}
-          <form onSubmit={handleTenantSwitch} className="bg-slate-950 p-3 rounded-xl border border-slate-800 mb-6 space-y-2">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-slate-400 flex items-center gap-1">
-                <Building2 size={13} className="text-blue-400" /> المصنع النشط:
-              </span>
-              <span className="text-emerald-400 font-mono font-bold">{currentTenant.code}</span>
-            </div>
-            <p className="text-xs font-bold text-white truncate">{currentTenant.name}</p>
-            <div className="flex gap-1.5 pt-1">
-              <input
-                type="text"
-                placeholder="أدخل كود مصنع آخر..."
-                value={switchCodeInput}
-                onChange={(e) => setSwitchCodeInput(e.target.value)}
-                className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white font-mono uppercase"
-              />
-              <button type="submit" className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-2.5 py-1 rounded text-xs">
-                تبديل
-              </button>
-            </div>
-          </form>
-
-          {/* أزرار التنقل */}
-          <nav className="space-y-1.5">
+          <nav className="space-y-2">
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = activeTab === item.id;
@@ -1514,9 +1390,9 @@ export default function App() {
                 <button
                   key={item.id}
                   onClick={() => setActiveTab(item.id)}
-                  className={`w-full flex items-center justify-between p-3 rounded-xl transition-all ${
+                  className={`w-full flex items-center justify-between p-3.5 rounded-xl transition-all ${
                     isActive
-                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/25 font-bold'
+                      ? 'bg-blue-600 text-white font-bold shadow-lg shadow-blue-600/25'
                       : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
                   }`}
                 >
@@ -1524,20 +1400,14 @@ export default function App() {
                     <Icon size={19} />
                     <span className="text-sm">{item.label}</span>
                   </div>
-                  {item.id === 'admin' && pendingChanges.length > 0 && (
-                    <span className="bg-amber-500 text-slate-950 text-xs font-bold px-2 py-0.5 rounded-full">
-                      {pendingChanges.length}
-                    </span>
-                  )}
                 </button>
               );
             })}
           </nav>
         </div>
 
-        {/* الفوتر الجانبي */}
         <div className="pt-4 border-t border-slate-800 mt-6 text-xs text-slate-500 space-y-1">
-          <p className="text-slate-300 font-medium">غرفة التحكم الرئيسية (MCR)</p>
+          <p className="text-slate-300 font-bold">صناع الحديد والصلب - Rolling Mill</p>
           <p>تطوير: م. بسام وليد (Controlexa)</p>
         </div>
       </aside>
@@ -1545,37 +1415,40 @@ export default function App() {
       {/* المحتوى الرئيسي */}
       <main className="flex-1 p-4 md:p-8 overflow-y-auto">
         <div className="max-w-6xl mx-auto">
-          {activeTab === 'calculators' && <CalculatorsSection />}
-          {activeTab === 'operations' && (
-            <OperationsSection
-              currentTenant={currentTenant}
-              stands={stands}
-              setStands={setStands}
-              pendingChanges={pendingChanges}
-              setPendingChanges={setPendingChanges}
+          {activeTab === 'calculators' && <CalculatorsHub />}
+          {activeTab === 'community' && (
+            <CommunityAndFaultsHub
+              faults={faults}
+              setFaults={setFaults}
+              messages={messages}
+              setMessages={setMessages}
             />
           )}
-          {activeTab === 'faults' && <TroubleshootingSection faults={faults} setFaults={setFaults} />}
-          {activeTab === 'admin' && (
-            <FactoryAdminSection
-              currentTenant={currentTenant}
-              stands={stands}
-              setStands={setStands}
-              pendingChanges={pendingChanges}
-              setPendingChanges={setPendingChanges}
+          {activeTab === 'companies' && (
+            <CompaniesSaaSSection
+              companies={companies}
+              activeCompany={activeCompany}
+              setActiveCompany={setActiveCompany}
+              standsPasses={standsPasses}
+              setStandsPasses={setStandsPasses}
+              joinRequests={joinRequests}
+              setJoinRequests={setJoinRequests}
             />
           )}
         </div>
       </main>
 
-      {/* نافذة مصمم المنصة السرية */}
+      {/* لوحة المصمم السرية */}
       <CreatorSuperAdminModal
         isOpen={showCreatorModal}
         onClose={() => setShowCreatorModal(false)}
-        tenants={tenants}
-        setTenants={setTenants}
-        currentTenant={currentTenant}
-        setCurrentTenant={setCurrentTenant}
+        companies={companies}
+        setCompanies={setCompanies}
+        joinRequests={joinRequests}
+        setActiveCompany={(c) => {
+          setActiveCompany(c);
+          setActiveTab('companies');
+        }}
       />
     </div>
   );
