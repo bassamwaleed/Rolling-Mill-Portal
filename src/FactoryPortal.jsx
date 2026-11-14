@@ -5,14 +5,15 @@ import {
   Sliders, Trash2, Clock, Settings, X, UploadCloud, History,
   ShieldAlert, Key, Eye, Layers, Wrench, ArrowLeftRight,
   FileSpreadsheet, FileText, Inbox, Check, XCircle, Hourglass,
-  Cpu, PlusCircle, Building2, FileSignature
+  Cpu, PlusCircle, Building2, FileSignature, BookMarked, Disc,
+  Siren, Share2, Copy, MessageSquareShare
 } from 'lucide-react';
 import { signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { doc, setDoc, onSnapshot } from 'firebase/firestore';
 import { auth, db } from './App';
 
 /* ======================================================
-   1. الثوابت الإعدادية وبناء الستاندات الديناميكي
+   1. الثوابت الإعدادية والبيانات الافتراضية للميزات الجديدة
    ====================================================== */
 const DEFAULT_STANDS_CONFIG = [
   { type: 'بيضاوي', rollCode: '111', diameter: '380', hardness: '42 HRC', totalPasses: 6, maxLimit: 2500 },
@@ -28,6 +29,110 @@ const DEFAULT_STANDS_CONFIG = [
   { type: '16 mm', rollCode: 'F16/16', diameter: '332', hardness: '51 HRC', totalPasses: 24, maxLimit: 1000 },
   { type: '16 mm', rollCode: 'F16/17', diameter: '332', hardness: '51 HRC', totalPasses: 24, maxLimit: 1000 }
 ].map((c, i) => ({ ...c, id: String(i + 1), name: `ستاند ${i + 1}` }));
+
+// وصفات الإنتاج الجاهزة (Feature #2: Product Recipes)
+const DEFAULT_RECIPES = [
+  {
+    id: 'rec-16',
+    name: 'وصفة حديد تسليح 16 مم (Single Strand)',
+    productSize: '16',
+    billetSize: '130×130 مم',
+    furnaceTemp: '1150 °C',
+    finishSpeed: '11.5 m/s',
+    qtbPressure: '8.5 bar',
+    qtbFlow: '420 m³/h',
+    flyingShearLen: '48 متر',
+    activeStandsCount: 12,
+    notes: 'ضبط ارتفاع اللوبر على 180 مم ومراجعة خلوص ق11 وق12.'
+  },
+  {
+    id: 'rec-12',
+    name: 'وصفة حديد تسليح 12 مم (شق ثنائي Two-Slit)',
+    productSize: '12',
+    billetSize: '130×130 مم',
+    furnaceTemp: '1170 °C',
+    finishSpeed: '13.5 m/s',
+    qtbPressure: '7.2 bar',
+    qtbFlow: '360 m³/h',
+    flyingShearLen: '48 متر',
+    activeStandsCount: 12,
+    notes: 'مراجعة سنترية دليل الشق (Slitter Guide) ومتابعة أمبير ق12.'
+  },
+  {
+    id: 'rec-flat-50',
+    name: 'وصفة خوصة 50×10 مم (Flat Bar)',
+    productSize: 'خوصة 50×10',
+    billetSize: '130×130 مم (طول 2م)',
+    furnaceTemp: '1140 °C',
+    finishSpeed: '2.5 m/s',
+    qtbPressure: 'مفصول (تبريد هواء)',
+    qtbFlow: '0 m³/h',
+    flyingShearLen: '36 متر',
+    activeStandsCount: 10,
+    notes: 'تشغيل القوائم الرأسية (V1 عند 1300 RPM و V2 عند 1100 RPM) لضبط الحواف.'
+  },
+  {
+    id: 'rec-flat-40',
+    name: 'وصفة خوصة 40×10 مم (Flat Bar)',
+    productSize: 'خوصة 40×10',
+    billetSize: '130×130 مم (طول 2م)',
+    furnaceTemp: '1145 °C',
+    finishSpeed: '2.8 m/s',
+    qtbPressure: 'مفصول (تبريد هواء)',
+    qtbFlow: '0 m³/h',
+    flyingShearLen: '36 متر',
+    activeStandsCount: 10,
+    notes: 'ضبط تزامن استاند 1 (قطر 485 مم) مع استاند تشطيب 2 (قطر 480 مم).'
+  }
+];
+
+// رادار طواقم الدرافيل والمخرطة (Feature #3: Roll Shop Inventory & Redressing)
+const DEFAULT_ROLL_SHOP = [
+  { id: 'rs1', code: 'RL-111-A', standName: 'ستاند 1', material: 'Spheroidal Graphite (SG)', maxDia: 400, currentDia: 380, minScrapDia: 340, redressCount: 2, totalTonsRolled: 12400, status: 'بالخدمة على الخط', lastRedressDate: '01/11/2026' },
+  { id: 'rs2', code: 'RL-404-B', standName: 'ستاند 4', material: 'Alloy Indefinite Chill', maxDia: 410, currentDia: 395, minScrapDia: 350, redressCount: 1, totalTonsRolled: 8900, status: 'بالخدمة على الخط', lastRedressDate: '05/11/2026' },
+  { id: 'rs3', code: 'RL-804-C', standName: 'ستاند 8', material: 'High Speed Steel (HSS)', maxDia: 340, currentDia: 315, minScrapDia: 295, redressCount: 4, totalTonsRolled: 19200, status: 'جاهز بالورشة (احتياطي)', lastRedressDate: '10/11/2026' },
+  { id: 'rs4', code: 'RL-F16-D', standName: 'ستاند 12', material: 'Tungsten Carbide / Chill', maxDia: 345, currentDia: 332, minScrapDia: 305, redressCount: 2, totalTonsRolled: 9500, status: 'بالخدمة على الخط', lastRedressDate: '12/11/2026' }
+];
+
+// قوائم طوارئ غرفة التحكم (Feature #4: MCR Emergency SOPs)
+const EMERGENCY_SOPS = [
+  {
+    id: 'sop-power',
+    title: 'انقطاع التيار الكهربي المفاجئ ووجود بيليت في الخط',
+    badge: 'طوارئ قصوى',
+    color: 'border-red-500 bg-red-50',
+    steps: [
+      'تحويل مفاتيح محابس مياه تبريد الممرات والدلائل فوراً من وضع ON إلى وضع OFF لمنع تلف الدرافيل الساخنة أو اندفاع المياه عند عودة التيار.',
+      'تأمين وضع الأبرون (Slider) ومراجعة وضعه على الـ PLC (UP / Intermediate / Down) قبل إعادة التشغيل.',
+      'إبلاغ فنيي صالة الدرفلة لتقطيع وسحب البيليت المتوقف بين القوائم وتأمين المقصات.',
+      'مراجعة جاهزية كبائن الدرايفات (VFDs) والتأكد من عدم وجود أعطال Undervoltage معلقة قبل الدوران.'
+    ]
+  },
+  {
+    id: 'sop-looper',
+    title: 'خلل مفاجئ في اللوبر أو ارتفاع اللوب (Cobble Risk)',
+    badge: 'تحكم وتزامن',
+    color: 'border-amber-500 bg-amber-50',
+    steps: [
+      'إيقاف دفع بيليت جديد من الفرن فوراً ومراقبة خروج السيخ الحالي.',
+      'طباعة أو حفظ التغيرات الموجودة في سرعات القوائم (Speed Cascade) ومراجعتها مع مهندس الوردية.',
+      'استدعاء فني الكهرباء لمسح عدسة خلية اللوبر (Looper Scanner) والتأكد من ضغط هواء التبريد (Air Purge).',
+      'التأكد من عدم وجود ضوء شمس مباشر يؤثر على حساسات الـ HMD واللوابر.'
+    ]
+  },
+  {
+    id: 'sop-coolingbed',
+    title: 'حدوث كعبلة على سرير التبريد أو مسافة رمي خاطئة',
+    badge: 'منطقة الفنش',
+    color: 'border-blue-500 bg-blue-50',
+    steps: [
+      'تفعيل تقطيع البيليت على مقص الطوارئ (Chopping Shear) بدلاً من تراكم الحديد الساخن على سرير التبريد.',
+      'عدم السماح بدخول الأفراد لرفع الهالك من على سرير التبريد إلا بعد توقف البكر والأبرون تماماً.',
+      'مراجعة عدد العلب المغلقة للأبرون (X = V² / 8) وزمن بدء دورة الأبرون بعد المقص الطائر.',
+      'لا يتم إعادة التشغيل إلا بعد تأكيد فني كنترول سرير التبريد وماكينة الرباط بالجاهزية.'
+    ]
+  }
+];
 
 const SHIFTS_NORMAL = ['الوردية الأولى', 'الوردية الثانية', 'الوردية الثالثة'];
 const SHIFTS_FRIDAY = ['الوردية الأولى (12 ساعة)', 'الوردية الثانية (12 ساعة)'];
@@ -69,7 +174,6 @@ const buildStand = (cfg) => {
 
 const buildInitialStands = () => DEFAULT_STANDS_CONFIG.map(buildStand);
 
-// يدعم أي عدد من الستاندات يحدده المصنع (1 إلى 30 ستاند)
 const normalizeStand = (stand, fallbackIndex) => {
   const cfg = DEFAULT_STANDS_CONFIG[fallbackIndex] || {
     id: String(fallbackIndex + 1),
@@ -137,7 +241,6 @@ const LiveClock = () => {
   );
 };
 
-/* دوال التاريخ */
 const formatDateToISO = (d) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const formatDateToGB = (iso) => {
@@ -351,7 +454,7 @@ const Overlay = ({ z = 50, children }) => (
    4. المكون الرئيسي لبوابة المصانع (FactoryPortal)
    ====================================================== */
 export default function FactoryPortal({ onBack, factoryConfig, factoriesList = [], onSelectFactory }) {
-  const [currentUser, setCurrentUser] = useState('none'); // 'none' | 'tech' | 'manager' | 'admin'
+  const [currentUser, setCurrentUser] = useState('none');
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [userAuth, setUserAuth] = useState(null);
@@ -385,9 +488,13 @@ export default function FactoryPortal({ onBack, factoryConfig, factoriesList = [
   const [productionArchive, setProductionArchive] = useState([]);
   const [passChanges, setPassChanges] = useState([]);
   const [pendingList, setPendingList] = useState([]);
-  const [downtimesList, setDowntimesList] = useState([]); // سجل التوقفات والأعطال بالورديات
-  const [handoverNotesList, setHandoverNotesList] = useState([]); // ملاحظات تسليم الورديات
-  const [motorsList, setMotorsList] = useState([]); // سجل المواتير والدرايفات
+  const [downtimesList, setDowntimesList] = useState([]);
+  const [handoverNotesList, setHandoverNotesList] = useState([]);
+  const [motorsList, setMotorsList] = useState([]);
+  const [recipesList, setRecipesList] = useState(DEFAULT_RECIPES); // Feature #2
+  const [rollShopList, setRollShopList] = useState(DEFAULT_ROLL_SHOP); // Feature #3
+  const [checkedSopSteps, setCheckedSopSteps] = useState({}); // Feature #4
+  const [whatsappModalOpen, setWhatsappModalOpen] = useState(false); // Feature #5
   const [isDataLoaded, setIsDataLoaded] = useState(false);
 
   const [billetWeight, setBilletWeight] = useState(0.75);
@@ -396,7 +503,6 @@ export default function FactoryPortal({ onBack, factoryConfig, factoriesList = [
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [tempLogoUrl, setTempLogoUrl] = useState('');
 
-  // نافذة إضافة ستاند جديد أو تعديل عدد الستاندات
   const [addStandOpen, setAddStandOpen] = useState(false);
   const [newStandForm, setNewStandForm] = useState({
     name: '',
@@ -409,7 +515,7 @@ export default function FactoryPortal({ onBack, factoryConfig, factoriesList = [
   });
   const [targetStandsCount, setTargetStandsCount] = useState(12);
 
-  // فورم تسجيل عطل / توقف بالوردية
+  // فورم التوقفات
   const [downForm, setDownForm] = useState({
     category: 'كهرباء وكنترول',
     standName: 'عام / الخط بالكامل',
@@ -419,7 +525,7 @@ export default function FactoryPortal({ onBack, factoryConfig, factoriesList = [
   });
   const [handoverText, setHandoverText] = useState('');
 
-  // فورم إضافة موتور جديد
+  // فورم المواتير
   const [newMotor, setNewMotor] = useState({
     stand: '1',
     code: '',
@@ -428,6 +534,30 @@ export default function FactoryPortal({ onBack, factoryConfig, factoriesList = [
     rpm: '',
     amps: '',
     gearRatio: ''
+  });
+
+  // فورم إضافة وصفة إنتاج جديدة (Feature #2)
+  const [newRecipe, setNewRecipe] = useState({
+    name: '',
+    productSize: '16',
+    billetSize: '130×130 مم',
+    furnaceTemp: '1150 °C',
+    finishSpeed: '12 m/s',
+    qtbPressure: '8.0 bar',
+    qtbFlow: '400 m³/h',
+    flyingShearLen: '48 متر',
+    activeStandsCount: 12,
+    notes: ''
+  });
+
+  // فورم إضافة طقم درافيل بورشة الخراطة (Feature #3)
+  const [newRollItem, setNewRollItem] = useState({
+    code: '',
+    standName: 'ستاند 1',
+    material: 'SG Iron / HSS',
+    maxDia: 400,
+    currentDia: 390,
+    minScrapDia: 340
   });
 
   const [adminState, setAdminState] = useState({
@@ -492,7 +622,9 @@ export default function FactoryPortal({ onBack, factoryConfig, factoriesList = [
       adminRef = ref('adminState'),
       pendingRef = ref('pendingState'),
       downtimesRef = ref('downtimesState'),
-      motorsRef = ref('motorsState');
+      motorsRef = ref('motorsState'),
+      recipesRef = ref('recipesState'),
+      rollShopRef = ref('rollShopState');
 
     const u1 = onSnapshot(standsRef, (snap) => {
       if (snap.exists() && snap.data().standsList) {
@@ -553,16 +685,17 @@ export default function FactoryPortal({ onBack, factoryConfig, factoriesList = [
       if (snap.exists()) setMotorsList(snap.data().motors || []);
       else setDoc(motorsRef, { motors: [] });
     });
+    const u9 = onSnapshot(recipesRef, (snap) => {
+      if (snap.exists() && Array.isArray(snap.data().recipes)) setRecipesList(snap.data().recipes);
+      else setDoc(recipesRef, { recipes: DEFAULT_RECIPES });
+    });
+    const u10 = onSnapshot(rollShopRef, (snap) => {
+      if (snap.exists() && Array.isArray(snap.data().rolls)) setRollShopList(snap.data().rolls);
+      else setDoc(rollShopRef, { rolls: DEFAULT_ROLL_SHOP });
+    });
 
     return () => {
-      u1();
-      u2();
-      u3();
-      u4();
-      u5();
-      u6();
-      u7();
-      u8();
+      u1(); u2(); u3(); u4(); u5(); u6(); u7(); u8(); u9(); u10();
     };
   }, [userAuth, appId]);
 
@@ -625,7 +758,9 @@ export default function FactoryPortal({ onBack, factoryConfig, factoriesList = [
     pending,
     downtimes,
     handovers,
-    motors
+    motors,
+    recipes,
+    rollShop
   } = {}) => {
     if (userAuth && db) {
       try {
@@ -646,6 +781,8 @@ export default function FactoryPortal({ onBack, factoryConfig, factoriesList = [
           );
         }
         if (motors !== undefined) await setDoc(ref('motorsState'), { motors });
+        if (recipes !== undefined) await setDoc(ref('recipesState'), { recipes });
+        if (rollShop !== undefined) await setDoc(ref('rollShopState'), { rolls: rollShop });
         const upd = {};
         if (weight !== undefined) upd.billetWeight = weight;
         if (logo !== undefined) upd.logoUrl = logo;
@@ -666,7 +803,142 @@ export default function FactoryPortal({ onBack, factoryConfig, factoriesList = [
       if (downtimes !== undefined) setDowntimesList(downtimes);
       if (handovers !== undefined) setHandoverNotesList(handovers);
       if (motors !== undefined) setMotorsList(motors);
+      if (recipes !== undefined) setRecipesList(recipes);
+      if (rollShop !== undefined) setRollShopList(rollShop);
     }
+  };
+
+  /* ---------- وظائف الميزة #2: كتالوج وصفات الإنتاج ---------- */
+  const handleApplyRecipe = (recipe) => {
+    setSelectedProductSize(recipe.productSize);
+    const updatedStands = stands.map((s, idx) => ({
+      ...s,
+      isActive: idx < (Number(recipe.activeStandsCount) || stands.length)
+    }));
+    save({ stands: updatedStands, productSize: recipe.productSize });
+    showAlert(
+      'تم تفعيل الوصفة على الخط',
+      `تم ضبط الخط على (${recipe.name}):\n• المقاس: ${recipe.productSize}\n• السرعة المرجعية: ${recipe.finishSpeed}\n• صندوق التبريد QTB: ${recipe.qtbPressure}`
+    );
+  };
+
+  const handleAddRecipe = (e) => {
+    e.preventDefault();
+    if (!newRecipe.name.trim()) return;
+    const item = { id: `rec-${Date.now()}`, ...newRecipe };
+    save({ recipes: [item, ...recipesList] });
+    setNewRecipe({
+      name: '',
+      productSize: '16',
+      billetSize: '130×130 مم',
+      furnaceTemp: '1150 °C',
+      finishSpeed: '12 m/s',
+      qtbPressure: '8.0 bar',
+      qtbFlow: '400 m³/h',
+      flyingShearLen: '48 متر',
+      activeStandsCount: stands.length,
+      notes: ''
+    });
+  };
+
+  const handleDeleteRecipe = (id) => {
+    save({ recipes: recipesList.filter((r) => r.id !== id) });
+  };
+
+  /* ---------- وظائف الميزة #3: رادار الدرافيل والمخرطة (Roll Shop) ---------- */
+  const handleAddRollShopItem = (e) => {
+    e.preventDefault();
+    if (!newRollItem.code.trim()) return;
+    const item = {
+      id: `rs-${Date.now()}`,
+      code: newRollItem.code.trim().toUpperCase(),
+      standName: newRollItem.standName,
+      material: newRollItem.material,
+      maxDia: Number(newRollItem.maxDia) || 400,
+      currentDia: Number(newRollItem.currentDia) || 390,
+      minScrapDia: Number(newRollItem.minScrapDia) || 340,
+      redressCount: 0,
+      totalTonsRolled: 0,
+      status: 'جاهز بالورشة (جديد)',
+      lastRedressDate: new Date().toLocaleDateString('en-GB')
+    };
+    save({ rollShop: [item, ...rollShopList] });
+    setNewRollItem({ code: '', standName: 'ستاند 1', material: 'SG Iron / HSS', maxDia: 400, currentDia: 390, minScrapDia: 340 });
+  };
+
+  const handleRecordRedressing = (roll) => {
+    const mmRemoved = prompt(`كم ملليمتر تم خرطها من قطر الدرفيل (${roll.code}) في المخرطة؟ (القطر الحالي: ${roll.currentDia} مم)`, '4');
+    if (mmRemoved === null) return;
+    const cut = Number(mmRemoved) || 0;
+    if (cut <= 0) return;
+    const nextDia = Math.max(0, roll.currentDia - cut);
+    const updated = rollShopList.map((r) =>
+      r.id === roll.id
+        ? {
+            ...r,
+            currentDia: nextDia,
+            redressCount: (r.redressCount || 0) + 1,
+            status: nextDia <= r.minScrapDia ? 'تكهين (وصل لحد الخردة)' : 'تمت الخراطة وجاهز للتركيب',
+            lastRedressDate: new Date().toLocaleDateString('en-GB')
+          }
+        : r
+    );
+    save({ rollShop: updated });
+  };
+
+  /* ---------- وظائف الميزة #5: ملخص الوردية السريع للواتساب ---------- */
+  const currentDateStr = currentProdDate.toLocaleDateString('en-GB');
+  const existingShiftLog = productionArchive.find((l) => l.date === currentDateStr && l.shift === selectedShift);
+  const currentShiftDowntimes = downtimesList.filter((d) => d.date === currentDateStr && d.shift === selectedShift);
+  const currentShiftDownMins = currentShiftDowntimes.reduce((a, d) => a + (Number(d.durationMins) || 0), 0);
+  const currentShiftPassChanges = passChanges.filter((c) => c.date === currentDateStr && c.shift === selectedShift);
+
+  const buildWhatsAppSummaryText = () => {
+    const dayName = currentProdDate.toLocaleDateString('ar-EG', { weekday: 'long' });
+    const billets = existingShiftLog ? existingShiftLog.billets : Number(shiftBillets) || 0;
+    const tons = existingShiftLog ? existingShiftLog.tons.toFixed(1) : (billets * billetWeight).toFixed(1);
+    const activeCount = stands.filter((s) => s.isActive).length;
+    const dangerStands = stands.filter((s) => s.accumulatedTons >= s.maxLimit).map((s) => s.name);
+
+    const changesStr =
+      currentShiftPassChanges.length === 0
+        ? 'لا يوجد تغييرات ممرات بالوردية'
+        : currentShiftPassChanges
+            .map((c) => `• ${c.standName}: ${c.kind === 'newRoll' ? 'درفيل جديد' : `ممر ${c.fromPass} ← ${c.toPass}`}`)
+            .join('\n');
+
+    const downStr =
+      currentShiftDowntimes.length === 0
+        ? 'لا يوجد توقفات (تشغيل مستمر 100%)'
+        : currentShiftDowntimes.map((d) => `• ${d.standName} (${d.durationMins} ق): ${d.reason}`).join('\n');
+
+    return `🏭 *تقرير وردية خط الدرفلة - ${factoryName}*
+📅 *اليوم:* ${dayName} (${currentDateStr})
+⏰ *الوردية:* ${selectedShift}
+📏 *مقاس المنتج:* ${selectedProductSize} مم
+
+📊 *ملخص الإنتاج:*
+• عدد البيليت المسحوب: *${billets} بيليت*
+• إجمالي الأطنان: *${tons} طن*
+• القوائم العاملة: ${activeCount} من ${stands.length} ستاند
+
+⏱️ *التوقفات والأعطال (إجمالي ${currentShiftDownMins} دقيقة):*
+${downStr}
+
+🔄 *تغييرات الممرات والدرافيل بالوردية:*
+${changesStr}
+${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد الأقصى:* ${dangerStands.join('، ')}` : ''}
+✅ *تم التوليد عبر منصة SteelPortal SaaS*`;
+  };
+
+  const handleCopyWhatsApp = () => {
+    navigator.clipboard.writeText(buildWhatsAppSummaryText());
+    showAlert('تم النسخ', 'تم نسخ ملخص الوردية بنجاح! يمكنك لصقه مباشرة في جروب الواتساب.');
+  };
+
+  const handleSendWhatsAppDirect = () => {
+    const url = `https://wa.me/?text=${encodeURIComponent(buildWhatsAppSummaryText())}`;
+    window.open(url, '_blank');
   };
 
   /* ---------- إضافة / حذف / تغيير عدد الستاندات للمصنع ---------- */
@@ -971,9 +1243,6 @@ export default function FactoryPortal({ onBack, factoryConfig, factoriesList = [
   };
 
   /* ---------- إنتاج الوردية ---------- */
-  const currentDateStr = currentProdDate.toLocaleDateString('en-GB');
-  const existingShiftLog = productionArchive.find((l) => l.date === currentDateStr && l.shift === selectedShift);
-
   const handleAddShiftProduction = () => {
     const n = Number(shiftBillets);
     if (n <= 0 || isNaN(n)) return;
@@ -1050,7 +1319,7 @@ export default function FactoryPortal({ onBack, factoryConfig, factoriesList = [
     setShiftBillets('');
   };
 
-  /* ---------- تسجيل التوقفات والأعطال بنظام الورديات (Shift Downtime & Handover) ---------- */
+  /* ---------- تسجيل التوقفات والأعطال ---------- */
   const handleAddDowntime = (e) => {
     e.preventDefault();
     if (!downForm.reason.trim() || !downForm.durationMins) return;
@@ -1188,7 +1457,13 @@ export default function FactoryPortal({ onBack, factoryConfig, factoriesList = [
   };
 
   const exportButtons = (
-    <div className="flex gap-1.5">
+    <div className="flex flex-wrap gap-1.5">
+      <button
+        onClick={() => setWhatsappModalOpen(true)}
+        className="bg-green-600 hover:bg-green-700 text-white font-bold py-1.5 px-3 rounded text-[10px] flex items-center gap-1 shadow active:scale-95 transition-colors"
+      >
+        <Share2 className="w-3.5 h-3.5" /> ملخص واتساب
+      </button>
       <button
         onClick={() => downloadExcel(reportData)}
         className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1.5 px-3 rounded text-[10px] flex items-center gap-1 shadow active:scale-95 transition-colors"
@@ -1269,7 +1544,6 @@ export default function FactoryPortal({ onBack, factoryConfig, factoriesList = [
       <div className="flex flex-col items-center justify-center min-h-screen bg-slate-900 text-white p-4 select-none" dir="rtl">
         {loginModalJSX}
         <div className="bg-slate-800 p-8 rounded-2xl max-w-sm w-full text-center border border-slate-700 shadow-2xl relative">
-          {/* اختيار المصنع إذا كان هناك أكثر من مصنع */}
           {factoriesList.length > 1 && onSelectFactory && (
             <div className="mb-4">
               <label className="text-[10px] text-slate-400 font-bold block mb-1">اختر المصنع (SaaS Workspace):</label>
@@ -1310,7 +1584,7 @@ export default function FactoryPortal({ onBack, factoryConfig, factoriesList = [
             </div>
           ) : (
             <p className="text-blue-400 mb-6 text-xs flex items-center justify-center gap-1 font-bold">
-              <CheckCircle className="w-4 h-4" /> نظام سحابي متصل لحظياً ({stands.length} ستاند)
+              <CheckCircle className="w-4 h-4" /> قاعدة بيانات سحابية معزولة ({stands.length} ستاند)
             </p>
           )}
           {!isDataLoaded ? (
@@ -1355,10 +1629,6 @@ export default function FactoryPortal({ onBack, factoryConfig, factoriesList = [
   const selectedRollStand = rollModal.standIndex !== null ? stands[rollModal.standIndex] : null;
   const resetStandObj = resetModal.standIndex !== null ? stands[resetModal.standIndex] : null;
 
-  // إحصائيات توقفات الوردية الحالية
-  const currentShiftDowntimes = downtimesList.filter((d) => d.date === currentDateStr && d.shift === selectedShift);
-  const currentShiftDownMins = currentShiftDowntimes.reduce((a, d) => a + (Number(d.durationMins) || 0), 0);
-
   return (
     <div className="h-dvh bg-slate-200 text-slate-900 font-sans flex flex-col p-1 gap-1 overflow-hidden" dir="rtl">
       {/* تنبيه / تأكيد */}
@@ -1395,7 +1665,45 @@ export default function FactoryPortal({ onBack, factoryConfig, factoriesList = [
 
       {loginModalJSX}
 
-      {/* نافذة إضافة ستاند أو تعديل عدد الستاندات في المصنع */}
+      {/* نافذة الميزة #5: ملخص الوردية السريع للواتساب */}
+      {whatsappModalOpen && (
+        <Overlay z={95}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-300 flex flex-col max-h-[90vh]">
+            <div className="bg-green-700 text-white p-3.5 flex justify-between items-center">
+              <h3 className="font-black text-sm flex items-center gap-2">
+                <Share2 className="w-4 h-4" /> ملخص تقرير الوردية السريع للواتساب
+              </h3>
+              <button onClick={() => setWhatsappModalOpen(false)} className="text-white/80 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-4 space-y-3 overflow-y-auto">
+              <p className="text-xs text-slate-600 font-bold">
+                يتم تجميع هذا التقرير تلقائياً من بيانات الوردية الحالية ({selectedShift} - {currentDateStr}):
+              </p>
+              <pre className="bg-slate-900 text-emerald-300 p-3.5 rounded-xl text-xs font-sans whitespace-pre-wrap leading-relaxed border border-slate-700">
+                {buildWhatsAppSummaryText()}
+              </pre>
+              <div className="grid grid-cols-2 gap-2 pt-2">
+                <button
+                  onClick={handleCopyWhatsApp}
+                  className="bg-slate-800 hover:bg-slate-900 text-white font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow"
+                >
+                  <Copy className="w-4 h-4" /> نسخ النص للحافظة
+                </button>
+                <button
+                  onClick={handleSendWhatsAppDirect}
+                  className="bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow"
+                >
+                  <Share2 className="w-4 h-4" /> إرسال مباشر لواتساب
+                </button>
+              </div>
+            </div>
+          </div>
+        </Overlay>
+      )}
+
+      {/* نافذة إضافة ستاند أو تعديل عدد الستاندات */}
       {addStandOpen && isManagerLike && (
         <Overlay z={85}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-300">
@@ -1408,7 +1716,6 @@ export default function FactoryPortal({ onBack, factoryConfig, factoriesList = [
               </button>
             </div>
             <div className="p-4 space-y-4 text-xs">
-              {/* ضبط العدد الإجمالي */}
               <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 space-y-2">
                 <label className="font-black text-blue-900 block">
                   ضبط إجمالي عدد الستاندات بالمصنع (الحالي: {stands.length} ستاند):
@@ -1432,7 +1739,6 @@ export default function FactoryPortal({ onBack, factoryConfig, factoriesList = [
                 </div>
               </div>
 
-              {/* أو إضافة ستاند مفصل */}
               <form onSubmit={handleAddSingleStand} className="space-y-2.5 border-t border-slate-200 pt-3">
                 <h4 className="font-black text-slate-800">أو إضافة ستاند جديد بمواصفات مخصصة:</h4>
                 <div className="grid grid-cols-2 gap-2">
@@ -2158,13 +2464,21 @@ export default function FactoryPortal({ onBack, factoryConfig, factoriesList = [
             <LiveClock />
           </div>
           <div className="flex items-center gap-1.5 sm:gap-2 z-10">
+            <button
+              onClick={() => setWhatsappModalOpen(true)}
+              className="bg-green-600 hover:bg-green-500 text-white px-2 py-1 rounded text-[10px] font-bold flex items-center gap-1 shadow-sm"
+              title="ملخص الوردية للواتساب"
+            >
+              <Share2 className="w-3 h-3" />
+              <span className="hidden sm:inline">ملخص واتساب</span>
+            </button>
             {isManagerLike && (
               <button
                 onClick={() => setAddStandOpen(true)}
-                className="bg-emerald-600 hover:bg-emerald-500 text-white px-2.5 py-1 rounded text-[10px] font-bold flex items-center gap-1 shadow-sm"
+                className="bg-emerald-600 hover:bg-emerald-500 text-white px-2 py-1 rounded text-[10px] font-bold flex items-center gap-1 shadow-sm"
                 title="إضافة ستاند أو تعديل عدد القوائم"
               >
-                <PlusCircle className="w-3.5 h-3.5" />
+                <PlusCircle className="w-3 h-3" />
                 <span>الستاندات ({stands.length})</span>
               </button>
             )}
@@ -2203,19 +2517,26 @@ export default function FactoryPortal({ onBack, factoryConfig, factoriesList = [
         </div>
 
         <div className="flex flex-col sm:flex-row gap-2 bg-slate-800 p-1.5 rounded-lg justify-between items-center z-10 relative">
-          <div className="flex gap-1.5 w-full sm:w-auto overflow-x-auto">
+          <div className="flex gap-1 w-full sm:w-auto overflow-x-auto pb-0.5">
             {[
-              ['dashboard', 'التشغيل والممرات', TrendingUp],
-              ['downtime', 'أعطال ويوميات الوردية', Wrench],
-              ['motors', 'سجل المواتير', Cpu],
+              ['dashboard', 'الممرات والتشغيل', TrendingUp],
+              ['recipes', 'وصفات المقاسات', BookMarked],
+              ['rollshop', 'رادار الدرافيل والمخرطة', Disc],
+              ['downtime', 'أعطال الوردية', Wrench],
+              ['emergency', 'طوارئ الكنترول SOP', Siren],
+              ['motors', 'المواتير', Cpu],
               ['analytics', 'الإحصائيات', BarChart3],
               ['archive', 'الأرشيف', Archive]
             ].map(([k, label, Icon]) => (
               <button
                 key={k}
                 onClick={() => setActiveTab(k)}
-                className={`flex-1 sm:flex-none px-3 py-1.5 text-xs font-bold rounded flex justify-center items-center gap-1 whitespace-nowrap transition-all ${
-                  activeTab === k ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:bg-slate-700'
+                className={`px-2.5 py-1.5 text-[11px] font-bold rounded flex justify-center items-center gap-1 whitespace-nowrap transition-all shrink-0 ${
+                  activeTab === k
+                    ? k === 'emergency'
+                      ? 'bg-red-600 text-white shadow'
+                      : 'bg-blue-600 text-white shadow'
+                    : 'text-slate-300 hover:bg-slate-700'
                 }`}
               >
                 <Icon className="w-3.5 h-3.5" /> {label}
@@ -2227,7 +2548,7 @@ export default function FactoryPortal({ onBack, factoryConfig, factoriesList = [
                   setCurrentUser('admin');
                   setActiveTab('admin');
                 }}
-                className={`flex-1 sm:flex-none px-3 py-1.5 text-xs font-bold rounded flex justify-center items-center gap-1 whitespace-nowrap ${
+                className={`px-2.5 py-1.5 text-[11px] font-bold rounded flex justify-center items-center gap-1 whitespace-nowrap shrink-0 ${
                   activeTab === 'admin' ? 'bg-amber-500 text-slate-950 shadow' : 'text-amber-400 hover:bg-slate-700'
                 }`}
               >
@@ -2236,16 +2557,16 @@ export default function FactoryPortal({ onBack, factoryConfig, factoriesList = [
             )}
           </div>
           {activeTab === 'dashboard' && (
-            <div className="flex items-center gap-2 w-full sm:w-auto bg-slate-700 px-2 py-1 rounded border border-slate-600">
-              <span className="text-white text-xs font-bold whitespace-nowrap">مقاس المنتج:</span>
+            <div className="flex items-center gap-1.5 w-full sm:w-auto bg-slate-700 px-2 py-1 rounded border border-slate-600 shrink-0">
+              <span className="text-white text-[11px] font-bold whitespace-nowrap">المقاس:</span>
               <select
                 value={selectedProductSize}
                 onChange={(e) => handleProductSizeChange(e.target.value)}
-                className="bg-white text-slate-900 text-xs font-bold px-2 py-1 rounded outline-none w-full sm:w-auto cursor-pointer"
+                className="bg-white text-slate-900 text-[11px] font-bold px-2 py-0.5 rounded outline-none w-full sm:w-auto cursor-pointer"
               >
                 {['10', '12', '14', '16', '18', '20', '22', '25', '32', 'خوصة 50×10', 'خوصة 40×10'].map((s) => (
                   <option key={s} value={s}>
-                    {s} مم
+                    {s}
                   </option>
                 ))}
               </select>
@@ -2293,19 +2614,13 @@ export default function FactoryPortal({ onBack, factoryConfig, factoriesList = [
                     onClick={() => setAddStandOpen(true)}
                     className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-1.5 px-3 rounded text-[10px] flex items-center gap-1 shadow"
                   >
-                    <PlusCircle className="w-3.5 h-3.5" /> + إضافة / تعديل عدد الستاندات
+                    <PlusCircle className="w-3.5 h-3.5" /> + الستاندات
                   </button>
                   <button
                     onClick={handleResetAllStands}
                     className="bg-orange-500 hover:bg-orange-600 text-white font-bold py-1.5 px-3 rounded text-[10px] flex items-center gap-1 shadow"
                   >
                     <RefreshCw className="w-3 h-3" /> تصفير الكل
-                  </button>
-                  <button
-                    onClick={handleClearArchive}
-                    className="bg-red-600 hover:bg-red-700 text-white font-bold py-1.5 px-3 rounded text-[10px] flex items-center gap-1 shadow"
-                  >
-                    <Trash2 className="w-3 h-3" /> مسح الأرشيف
                   </button>
                 </div>
               </div>
@@ -2366,7 +2681,7 @@ export default function FactoryPortal({ onBack, factoryConfig, factoriesList = [
             </div>
           )}
 
-          {/* شبكة الستاندات الديناميكية */}
+          {/* شبكة الستاندات */}
           <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 overflow-y-auto pr-1 pb-1 content-start">
             {stands.map((stand, idx) => {
               const percentage = Math.max(0, Math.min((stand.accumulatedTons / stand.maxLimit) * 100, 100));
@@ -2480,10 +2795,340 @@ export default function FactoryPortal({ onBack, factoryConfig, factoriesList = [
         </div>
       )}
 
-      {/* ===== 2. نظام الأعطال والتوقفات ويوميات التشغيل بالورديات (Shift Downtime & Handover) ===== */}
+      {/* ===== 2. الميزة #2: كتالوج وصفات الإنتاج الجاهزة (Product Recipes) ===== */}
+      {activeTab === 'recipes' && (
+        <div className="flex-1 bg-white rounded-lg shadow border border-slate-300 p-3 sm:p-4 overflow-y-auto flex flex-col gap-4">
+          <div className="bg-slate-900 text-white p-3.5 rounded-xl flex flex-wrap justify-between items-center gap-3">
+            <div>
+              <h2 className="font-black text-sm sm:text-base flex items-center gap-2">
+                <BookMarked className="w-5 h-5 text-blue-400" /> كتالوج وصفات الإنتاج الجاهزة (Product Recipes & Presets)
+              </h2>
+              <p className="text-[11px] text-slate-300 font-bold mt-0.5">
+                احفظ إعدادات السرعة، ضغط مياه التبريد (QTB)، وعدد القوائم لكل مقاس وفعّلها بضغطة زر
+              </p>
+            </div>
+            <span className="bg-blue-600 text-white px-3 py-1 rounded-lg text-xs font-black">
+              المقاس الشغال حالياً: {selectedProductSize}
+            </span>
+          </div>
+
+          {isManagerLike && (
+            <form
+              onSubmit={handleAddRecipe}
+              className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-2.5 items-end text-xs"
+            >
+              <div className="col-span-2">
+                <label className="font-bold text-slate-700 block mb-1">اسم الوصفة:</label>
+                <input
+                  type="text"
+                  placeholder="مثلاً: تسليح 18 مم سرعة عالية"
+                  value={newRecipe.name}
+                  onChange={(e) => setNewRecipe({ ...newRecipe, name: e.target.value })}
+                  className="w-full border border-slate-300 rounded-lg p-2 bg-white font-bold"
+                />
+              </div>
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">المقاس:</label>
+                <input
+                  type="text"
+                  value={newRecipe.productSize}
+                  onChange={(e) => setNewRecipe({ ...newRecipe, productSize: e.target.value })}
+                  className="w-full border border-slate-300 rounded-lg p-2 bg-white font-mono"
+                />
+              </div>
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">سرعة الفنش (m/s):</label>
+                <input
+                  type="text"
+                  value={newRecipe.finishSpeed}
+                  onChange={(e) => setNewRecipe({ ...newRecipe, finishSpeed: e.target.value })}
+                  className="w-full border border-slate-300 rounded-lg p-2 bg-white font-mono"
+                />
+              </div>
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">ضغط مياه QTB:</label>
+                <input
+                  type="text"
+                  value={newRecipe.qtbPressure}
+                  onChange={(e) => setNewRecipe({ ...newRecipe, qtbPressure: e.target.value })}
+                  className="w-full border border-slate-300 rounded-lg p-2 bg-white font-mono"
+                />
+              </div>
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">تدفق مياه QTB:</label>
+                <input
+                  type="text"
+                  value={newRecipe.qtbFlow}
+                  onChange={(e) => setNewRecipe({ ...newRecipe, qtbFlow: e.target.value })}
+                  className="w-full border border-slate-300 rounded-lg p-2 bg-white font-mono"
+                />
+              </div>
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">حرارة الفرن:</label>
+                <input
+                  type="text"
+                  value={newRecipe.furnaceTemp}
+                  onChange={(e) => setNewRecipe({ ...newRecipe, furnaceTemp: e.target.value })}
+                  className="w-full border border-slate-300 rounded-lg p-2 bg-white font-mono"
+                />
+              </div>
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">عدد القوائم الشغالة:</label>
+                <input
+                  type="number"
+                  value={newRecipe.activeStandsCount}
+                  onChange={(e) => setNewRecipe({ ...newRecipe, activeStandsCount: e.target.value })}
+                  className="w-full border border-slate-300 rounded-lg p-2 bg-white font-mono"
+                />
+              </div>
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">ملاحظات الضبط:</label>
+                <input
+                  type="text"
+                  placeholder="ملاحظات اللوبر والدلائل..."
+                  value={newRecipe.notes}
+                  onChange={(e) => setNewRecipe({ ...newRecipe, notes: e.target.value })}
+                  className="w-full border border-slate-300 rounded-lg p-2 bg-white"
+                />
+              </div>
+              <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-lg shadow">
+                + حفظ الوصفة
+              </button>
+            </form>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {recipesList.map((rec) => (
+              <div key={rec.id} className="bg-slate-50 border-2 border-slate-200 hover:border-blue-400 rounded-2xl p-4 flex flex-col justify-between gap-3 shadow-sm">
+                <div>
+                  <div className="flex justify-between items-start gap-2 mb-2">
+                    <h3 className="font-black text-base text-slate-900">{rec.name}</h3>
+                    <span className="bg-blue-600 text-white text-xs font-black px-2.5 py-0.5 rounded-lg shrink-0">
+                      مقاس {rec.productSize}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs bg-white p-3 rounded-xl border border-slate-200 font-bold">
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">سرعة الفنش:</span>
+                      <span className="font-mono text-blue-700">{rec.finishSpeed}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">ضغط وتدفق QTB:</span>
+                      <span className="font-mono text-emerald-700">{rec.qtbPressure} ({rec.qtbFlow})</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">حرارة البيليت:</span>
+                      <span className="font-mono text-amber-700">{rec.furnaceTemp}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">قطعية المقص الطائر:</span>
+                      <span className="font-mono text-slate-800">{rec.flyingShearLen}</span>
+                    </div>
+                    <div className="col-span-2">
+                      <span className="text-slate-400 block text-[10px]">القوائم العاملة:</span>
+                      <span className="font-mono text-slate-800">أول {rec.activeStandsCount} ستاند</span>
+                    </div>
+                  </div>
+                  {rec.notes && (
+                    <p className="text-xs text-slate-600 font-bold mt-2 bg-amber-50 border border-amber-200 p-2 rounded-lg">
+                      💡 {rec.notes}
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex justify-between items-center gap-2 pt-2 border-t border-slate-200">
+                  <button
+                    onClick={() => handleApplyRecipe(rec)}
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-xl text-xs shadow flex items-center justify-center gap-1.5"
+                  >
+                    <CheckCircle className="w-4 h-4" /> تطبيق الوصفة على الخط الآن
+                  </button>
+                  {isManagerLike && (
+                    <button
+                      onClick={() => handleDeleteRecipe(rec.id)}
+                      className="bg-red-50 hover:bg-red-100 text-red-600 p-2 rounded-xl border border-red-200"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ===== 3. الميزة #3: رادار طواقم الدرافيل والمخرطة (Roll Shop Lifecycle) ===== */}
+      {activeTab === 'rollshop' && (
+        <div className="flex-1 bg-white rounded-lg shadow border border-slate-300 p-3 sm:p-4 overflow-y-auto flex flex-col gap-4">
+          <div className="bg-slate-900 text-white p-3.5 rounded-xl flex flex-wrap justify-between items-center gap-3">
+            <div>
+              <h2 className="font-black text-sm sm:text-base flex items-center gap-2">
+                <Disc className="w-5 h-5 text-emerald-400" /> رادار طواقم الدرافيل وورشة الخراطة (Roll Shop & Redressing)
+              </h2>
+              <p className="text-[11px] text-slate-300 font-bold mt-0.5">
+                تتبع عمر كل درفيل بالسيريال، الرصيد المتبقي من القطر قبل التكهين (Scrap Diameter)، وعدد مرات الخراطة
+              </p>
+            </div>
+          </div>
+
+          {isManagerLike && (
+            <form
+              onSubmit={handleAddRollShopItem}
+              className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2.5 items-end text-xs"
+            >
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">كود / سيريال الطقم:</label>
+                <input
+                  type="text"
+                  placeholder="RL-205-A"
+                  value={newRollItem.code}
+                  onChange={(e) => setNewRollItem({ ...newRollItem, code: e.target.value })}
+                  className="w-full border border-slate-300 rounded-lg p-2 bg-white font-mono"
+                />
+              </div>
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">مخصص لـ:</label>
+                <select
+                  value={newRollItem.standName}
+                  onChange={(e) => setNewRollItem({ ...newRollItem, standName: e.target.value })}
+                  className="w-full border border-slate-300 rounded-lg p-2 bg-white font-bold"
+                >
+                  {stands.map((s) => (
+                    <option key={s.id} value={s.name}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">خامة الدرفيل:</label>
+                <input
+                  type="text"
+                  value={newRollItem.material}
+                  onChange={(e) => setNewRollItem({ ...newRollItem, material: e.target.value })}
+                  className="w-full border border-slate-300 rounded-lg p-2 bg-white"
+                />
+              </div>
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">القطر الأصلي (مم):</label>
+                <input
+                  type="number"
+                  value={newRollItem.maxDia}
+                  onChange={(e) => setNewRollItem({ ...newRollItem, maxDia: e.target.value })}
+                  className="w-full border border-slate-300 rounded-lg p-2 bg-white font-mono"
+                />
+              </div>
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">القطر الحالي (مم):</label>
+                <input
+                  type="number"
+                  value={newRollItem.currentDia}
+                  onChange={(e) => setNewRollItem({ ...newRollItem, currentDia: e.target.value })}
+                  className="w-full border border-slate-300 rounded-lg p-2 bg-white font-mono"
+                />
+              </div>
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">حد التكهين Scrap (مم):</label>
+                <input
+                  type="number"
+                  value={newRollItem.minScrapDia}
+                  onChange={(e) => setNewRollItem({ ...newRollItem, minScrapDia: e.target.value })}
+                  className="w-full border border-slate-300 rounded-lg p-2 bg-white font-mono"
+                />
+              </div>
+              <button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-3 rounded-lg shadow">
+                + إضافة للورشة
+              </button>
+            </form>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {rollShopList.map((roll) => {
+              const totalUsableMm = Math.max(1, roll.maxDia - roll.minScrapDia);
+              const remainingMm = Math.max(0, roll.currentDia - roll.minScrapDia);
+              const lifePct = Math.min(100, Math.round((remainingMm / totalUsableMm) * 100));
+              const isScrap = remainingMm <= 0;
+
+              return (
+                <div
+                  key={roll.id}
+                  className={`rounded-2xl border-2 p-4 flex flex-col justify-between gap-3 shadow-sm ${
+                    isScrap ? 'bg-red-50 border-red-400' : 'bg-slate-50 border-slate-200'
+                  }`}
+                >
+                  <div>
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <span className="font-mono font-black text-base text-blue-900 block">{roll.code}</span>
+                        <span className="text-xs font-bold text-slate-600">
+                          {roll.standName} • {roll.material}
+                        </span>
+                      </div>
+                      <span
+                        className={`text-[10px] font-black px-2.5 py-1 rounded-full ${
+                          isScrap ? 'bg-red-600 text-white' : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                        }`}
+                      >
+                        {roll.status}
+                      </span>
+                    </div>
+
+                    <div className="bg-white rounded-xl border border-slate-200 p-3 mt-3 space-y-1.5 text-xs font-bold">
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">القطر الحالي / حد التكهين:</span>
+                        <span className="font-mono font-black text-slate-900">
+                          {roll.currentDia} مم / {roll.minScrapDia} مم
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">الرصيد المتبقي للخراطة:</span>
+                        <span className={`font-mono font-black ${remainingMm <= 6 ? 'text-red-600' : 'text-emerald-700'}`}>
+                          {remainingMm} مم متاح ({lifePct}%)
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">عدد مرات الخراطة (Redressing):</span>
+                        <span className="font-mono text-blue-700">{roll.redressCount} مرات</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">آخر خراطة:</span>
+                        <span className="font-mono text-slate-600">{roll.lastRedressDate}</span>
+                      </div>
+                    </div>
+
+                    {/* شريط العمر المتبقي من القطر */}
+                    <div className="mt-3">
+                      <div className="w-full h-2.5 bg-slate-200 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full ${lifePct < 25 ? 'bg-red-600' : lifePct < 50 ? 'bg-amber-500' : 'bg-emerald-600'}`}
+                          style={{ width: `${lifePct}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2 pt-2 border-t border-slate-200">
+                    <button
+                      onClick={() => handleRecordRedressing(roll)}
+                      disabled={isScrap}
+                      className={`flex-1 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow ${
+                        isScrap ? 'bg-slate-300 text-slate-500 cursor-not-allowed' : 'bg-slate-900 hover:bg-slate-800 text-amber-400'
+                      }`}
+                    >
+                      <Wrench className="w-3.5 h-3.5" /> تسجيل خراطة جديدة (خصم مم)
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ===== 4. نظام الأعطال والتوقفات ويوميات التشغيل بالورديات ===== */}
       {activeTab === 'downtime' && (
         <div className="flex-1 bg-white rounded-lg shadow border border-slate-300 p-3 sm:p-4 overflow-y-auto flex flex-col gap-4">
-          {/* شريط اختيار اليوم والوردية + أزرار التصدير */}
           <div className="bg-slate-900 text-white p-3 rounded-xl flex flex-wrap justify-between items-center gap-3">
             <div>
               <h2 className="font-black text-sm sm:text-base flex items-center gap-2">
@@ -2509,7 +3154,6 @@ export default function FactoryPortal({ onBack, factoryConfig, factoriesList = [
             </div>
           </div>
 
-          {/* ملخص توقفات الوردية الحالية */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
             <div className="bg-red-50 border border-red-200 p-3 rounded-xl">
               <span className="text-[10px] font-bold text-red-700 block">توقفات الوردية الحالية</span>
@@ -2534,7 +3178,6 @@ export default function FactoryPortal({ onBack, factoryConfig, factoriesList = [
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-            {/* فورم تسجيل عطل / توقف في الوردية */}
             <form onSubmit={handleAddDowntime} className="lg:col-span-5 bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3 h-fit">
               <h3 className="font-black text-sm text-slate-800 border-b border-slate-200 pb-2">
                 تسجيل عطل أو توقف في ({selectedShift})
@@ -2586,7 +3229,7 @@ export default function FactoryPortal({ onBack, factoryConfig, factoriesList = [
                   <label className="font-bold text-slate-600 block mb-1">سبب التوقف / وصف العطل:</label>
                   <input
                     type="text"
-                    placeholder="مثال: فصل درايف ستاند 4 Overcurrent أو كعبلة في دليل الدخول..."
+                    placeholder="مثال: فصل درايف ستاند 4 Overcurrent..."
                     value={downForm.reason}
                     onChange={(e) => setDownForm({ ...downForm, reason: e.target.value })}
                     className="w-full border border-slate-300 rounded-lg p-2 bg-white"
@@ -2607,7 +3250,6 @@ export default function FactoryPortal({ onBack, factoryConfig, factoriesList = [
                 حفظ التوقف في سجل الوردية
               </button>
 
-              {/* ملاحظات تسليم الوردية */}
               <div className="pt-3 border-t border-slate-200 space-y-2">
                 <label className="font-black text-xs text-slate-800 block">
                   تقرير وملاحظات تسليم الوردية (Shift Handover Note):
@@ -2629,7 +3271,6 @@ export default function FactoryPortal({ onBack, factoryConfig, factoriesList = [
               </div>
             </form>
 
-            {/* قائمة التوقفات والملاحظات المسجلة */}
             <div className="lg:col-span-7 space-y-4">
               <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2">
                 <h3 className="font-black text-xs text-slate-800">سجل أعطال وتوقفات الورديات ({downtimesList.length})</h3>
@@ -2689,7 +3330,60 @@ export default function FactoryPortal({ onBack, factoryConfig, factoriesList = [
         </div>
       )}
 
-      {/* ===== 3. صفحة سجل المواتير والدرايفات ===== */}
+      {/* ===== 5. الميزة #4: شاشة طوارئ ومهام مشغل الكنترول القياسية (MCR Emergency SOPs) ===== */}
+      {activeTab === 'emergency' && (
+        <div className="flex-1 bg-white rounded-lg shadow border border-slate-300 p-3 sm:p-4 overflow-y-auto flex flex-col gap-4">
+          <div className="bg-red-900 text-white p-3.5 rounded-xl flex flex-wrap justify-between items-center gap-3">
+            <div>
+              <h2 className="font-black text-sm sm:text-base flex items-center gap-2">
+                <Siren className="w-5 h-5 text-amber-300 animate-pulse" /> دليل طوارئ غرفة التحكم الرئيسية (MCR Emergency SOPs)
+              </h2>
+              <p className="text-[11px] text-red-100 font-bold mt-0.5">
+                قائمة الإجراءات القياسية الفورية لتأمين الخط والأفراد والمعدات أثناء الطوارئ وانقطاع التيار
+              </p>
+            </div>
+            <button
+              onClick={() => setCheckedSopSteps({})}
+              className="bg-white/15 hover:bg-white/25 text-white px-3 py-1.5 rounded-lg text-xs font-bold"
+            >
+              إعادة ضبط علامات المراجعة
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {EMERGENCY_SOPS.map((sop) => (
+              <div key={sop.id} className={`rounded-2xl border-2 p-4 space-y-3 ${sop.color}`}>
+                <div className="flex justify-between items-start gap-2">
+                  <h3 className="font-black text-sm text-slate-900">{sop.title}</h3>
+                  <span className="bg-slate-900 text-amber-400 text-[10px] font-black px-2 py-0.5 rounded shrink-0">
+                    {sop.badge}
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  {sop.steps.map((stepText, idx) => {
+                    const key = `${sop.id}-${idx}`;
+                    const isDone = !!checkedSopSteps[key];
+                    return (
+                      <label
+                        key={key}
+                        onClick={() => setCheckedSopSteps((prev) => ({ ...prev, [key]: !prev[key] }))}
+                        className={`flex items-start gap-2.5 p-2.5 rounded-xl border cursor-pointer transition-all text-xs font-bold leading-relaxed ${
+                          isDone ? 'bg-emerald-100/80 border-emerald-400 text-emerald-950 line-through opacity-75' : 'bg-white border-slate-200 text-slate-800'
+                        }`}
+                      >
+                        <input type="checkbox" checked={isDone} readOnly className="mt-1 accent-emerald-600" />
+                        <span>{stepText}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ===== 6. صفحة سجل المواتير والدرايفات ===== */}
       {activeTab === 'motors' && (
         <div className="flex-1 bg-white rounded-lg shadow border border-slate-300 p-3 sm:p-4 overflow-y-auto flex flex-col gap-4">
           <div className="flex justify-between items-center border-b border-slate-200 pb-2 flex-wrap gap-2">
@@ -2818,7 +3512,7 @@ export default function FactoryPortal({ onBack, factoryConfig, factoriesList = [
         </div>
       )}
 
-      {/* ===== 4. الإحصائيات ===== */}
+      {/* ===== 7. الإحصائيات ===== */}
       {activeTab === 'analytics' && (
         <div className="flex-1 bg-white rounded-lg shadow border border-slate-300 p-3 overflow-y-auto flex flex-col gap-4">
           <div className="flex items-center justify-between border-b pb-2 flex-wrap gap-2">
@@ -2888,7 +3582,7 @@ export default function FactoryPortal({ onBack, factoryConfig, factoriesList = [
         </div>
       )}
 
-      {/* ===== 5. الأرشيف ===== */}
+      {/* ===== 8. الأرشيف ===== */}
       {activeTab === 'archive' && (
         <div className="flex-1 bg-slate-100 rounded-lg shadow border border-slate-300 p-2 overflow-y-auto">
           <div className="flex justify-end mb-2">{exportButtons}</div>
@@ -2942,7 +3636,7 @@ export default function FactoryPortal({ onBack, factoryConfig, factoriesList = [
         </div>
       )}
 
-      {/* ===== 6. لوحة الأدمن ===== */}
+      {/* ===== 9. لوحة الأدمن ===== */}
       {activeTab === 'admin' && isSuperAdmin && (
         <div className="flex-1 bg-white rounded-lg shadow border border-slate-300 p-4 overflow-y-auto flex flex-col gap-4">
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-col gap-3">
