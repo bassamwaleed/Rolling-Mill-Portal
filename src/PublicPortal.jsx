@@ -22,7 +22,6 @@ const REBAR_SPECS = [
   { size: 32, area: 804.0, minW: 6.057, nomW: 6.310, maxW: 6.562, color: 'أخضر' }
 ];
 
-// جدول الكابلات القياسية بالملليمتر المربع وأقصى أمبير تقريبي للنحاس في الهواء/الحوامل
 const STANDARD_CABLES = [
   { size: 1.5, maxAmp: 18 },
   { size: 2.5, maxAmp: 25 },
@@ -97,7 +96,7 @@ const INITIAL_POSTS = [
         id: 'c103',
         user: 'م. أحمد طارق',
         role: 'مهندس جودة',
-        text: 'معلومة ذهبية! وعشان كدا ضبط عدد العلب المغلقة في الأبرون (X = V² / 8) بيفرق جداً في مسافة الرمي على سرير التبريد.',
+        text: 'معلومة ذهبية! وعشان كدا ضبط عدد العلب المغلقة في الأبرون (مربع السرعة على 8) بيفرق جداً في مسافة الرمي على سرير التبريد.',
         time: 'منذ 3 ساعات',
         isBest: true
       }
@@ -120,7 +119,7 @@ const INITIAL_FAULTS = [
     brand: 'عيوب الدرفلة والمنتج',
     title: 'ظهور نتوء طولي أكبر من المسموح (من جانب واحد أو جانبين)',
     cause: 'من الجانبين: غلق جاب القائم النهائي زيادة عن اللزوم أو زيادة معدن من القوائم السابقة. من جانب واحد: عدم سنترية دليل الدخول أو انهيار رولمان بلي الدليل البكري.',
-    solution: 'افحص Core Dimension ووزن المتر الطولي؛ لو القلب أقل من الطبيعي افتح جاب القائم النهائي، وراجع سنترية وبكر دليل الدخول.'
+    solution: 'افحص مقاس القلب ووزن المتر الطولي؛ لو القلب أقل من الطبيعي افتح جاب القائم النهائي، وراجع سنترية وبكر دليل الدخول.'
   },
   {
     id: 'f3',
@@ -136,7 +135,7 @@ const INITIAL_FAULTS = [
     brand: 'Siemens SINAMICS Drives',
     title: 'فصل الإنفرتر تيار زائد مفاجئ أثناء دخول المعدن',
     cause: 'دخول بيليت بارد، نسبة تخفيض عالية جداً، أو زاوية عض أكبر من الحد المسموح.',
-    solution: 'راجع حرارة البيليت، تأكد من تفعيل الـ Lead/Over Speed (2% - 5%) لتحسين عض مقدمة المعدن، وافحص كابلات الموتور.'
+    solution: 'راجع حرارة البيليت، تأكد من تفعيل سرعة العض الزائدة (Over Speed 2% - 5%) لتحسين دخول مقدمة المعدن، وافحص كابلات الموتور.'
   }
 ];
 
@@ -155,23 +154,23 @@ const toCelsius = (v, u) => (u === '°F' ? ((v - 32) * 5) / 9 : u === 'K' ? v - 
 const fromCelsius = (c, u) => (u === '°F' ? (c * 9) / 5 + 32 : u === 'K' ? c + 273.15 : c);
 
 /* ======================================================
-   2. عناصر واجهة مساعدة (UI Helpers)
+   2. عناصر واجهة مساعدة (Clean Light Mode UI Helpers)
    ====================================================== */
 const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 const fmt = (n, d = 2) => (Number.isFinite(Number(n)) ? Number(n).toFixed(d) : '—');
 const inputCls =
-  'w-full bg-slate-950 border border-slate-700/80 rounded-xl px-3 py-2 text-white font-mono text-sm focus:border-blue-500 outline-none transition-colors';
+  'w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-mono text-sm font-bold focus:border-blue-600 focus:bg-white outline-none transition-colors';
 
 const Field = ({ label, value, onChange, step = 'any', className = '' }) => (
   <div className={className}>
-    <label className="text-[11px] sm:text-xs text-slate-400 block mb-1 font-bold">{label}</label>
+    <label className="text-[11px] sm:text-xs text-slate-600 block mb-1 font-bold">{label}</label>
     <input type="number" step={step} value={value} onChange={(e) => onChange(e.target.value)} className={inputCls} />
   </div>
 );
 
 const SelectField = ({ label, value, onChange, options, className = '' }) => (
   <div className={className}>
-    <label className="text-[11px] sm:text-xs text-slate-400 block mb-1 font-bold">{label}</label>
+    <label className="text-[11px] sm:text-xs text-slate-600 block mb-1 font-bold">{label}</label>
     <select value={value} onChange={(e) => onChange(e.target.value)} className={inputCls}>
       {options.map((o) => (
         <option key={o[0]} value={o[0]}>
@@ -182,49 +181,52 @@ const SelectField = ({ label, value, onChange, options, className = '' }) => (
   </div>
 );
 
-const Stat = ({ label, value, unit, color = 'text-white', big = false }) => (
-  <div className="bg-slate-950 p-3 rounded-xl border border-slate-800/90">
-    <span className="text-[11px] text-slate-400 block mb-0.5">{label}</span>
-    <span className={`font-bold font-mono ${big ? 'text-lg sm:text-xl' : 'text-base sm:text-lg'} ${color}`}>
-      {value} {unit && <span className="text-[11px] text-slate-500 mr-1">{unit}</span>}
+const Stat = ({ label, value, unit, color = 'text-slate-900', big = false }) => (
+  <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+    <span className="text-[11px] text-slate-500 font-bold block mb-0.5">{label}</span>
+    <span className={`font-black font-mono ${big ? 'text-lg sm:text-xl' : 'text-base sm:text-lg'} ${color}`}>
+      {value} {unit && <span className="text-[11px] text-slate-500 font-bold mr-1">{unit}</span>}
     </span>
   </div>
 );
 
+// مكون خطوات الحل (مغلق افتراضياً ويفتح عند الضغط عليه، ومكتوب بالعربي الواضح)
 const SolutionStepsBox = ({ formula, steps }) => {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false); // مغلق افتراضياً بناءً على طلبك
   if (!steps || steps.length === 0) return null;
 
   return (
-    <div className="mt-4 bg-slate-950/90 border border-amber-500/30 rounded-2xl overflow-hidden shadow-md">
+    <div className="mt-4 bg-amber-50/60 border border-amber-300 rounded-2xl overflow-hidden">
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="w-full px-3.5 py-2.5 bg-amber-500/10 flex items-center justify-between text-amber-400 font-bold text-xs sm:text-sm hover:bg-amber-500/15 transition-colors"
+        className="w-full px-4 py-3 bg-amber-100/80 hover:bg-amber-200/70 flex items-center justify-between text-amber-950 font-black text-xs sm:text-sm transition-colors"
       >
         <span className="flex items-center gap-2">
-          <BookOpen size={15} /> خطوات الحل والتعويض في القانون
+          <BookOpen size={16} className="text-amber-700" />
+          {open ? 'إخفاء شرح القانون وخطوات الحل' : 'اضغط هنا لعرض القانون وخطوات الحل بالأرقام'}
         </span>
-        {open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+        {open ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
       </button>
 
       {open && (
-        <div className="p-3.5 space-y-2.5 text-xs">
+        <div className="p-4 space-y-3 text-xs bg-white border-t border-amber-200">
           {formula && (
-            <div className="bg-slate-900 p-2.5 rounded-xl border border-slate-800">
-              <span className="text-slate-400 text-[11px] block mb-0.5">القانون الهندسي:</span>
-              <p className="font-mono text-amber-300 font-bold text-left" dir="ltr">
+            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+              <span className="text-slate-500 text-[11px] font-bold block mb-1">القاعدة الهندسية بالعربي:</span>
+              <p className="text-blue-800 font-black text-xs sm:text-sm leading-relaxed">
                 {formula}
               </p>
             </div>
           )}
-          <div className="space-y-1.5">
+          <div className="space-y-2">
+            <span className="text-slate-500 text-[11px] font-bold block">خطوات التعويض المباشر بالأرقام:</span>
             {steps.map((st, idx) => (
-              <div key={idx} className="flex items-start gap-2 bg-slate-900/60 p-2 rounded-lg border border-slate-800/70">
-                <span className="w-4 h-4 rounded-full bg-blue-600/20 text-blue-400 border border-blue-500/30 font-mono text-[10px] flex items-center justify-center shrink-0 mt-0.5">
+              <div key={idx} className="flex items-start gap-2.5 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                <span className="w-5 h-5 rounded-full bg-blue-600 text-white font-mono text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">
                   {idx + 1}
                 </span>
-                <p className="text-slate-200 leading-relaxed font-mono text-[11px] sm:text-xs">{st}</p>
+                <p className="text-slate-800 font-bold leading-relaxed text-xs sm:text-sm">{st}</p>
               </div>
             ))}
           </div>
@@ -235,12 +237,256 @@ const SolutionStepsBox = ({ formula, steps }) => {
 };
 
 /* ======================================================
-   3. حاسبة الباس ديزاين الهندسية الحقيقية (Realistic Roll Pass Schedule)
+   3. حاسبة قطعيات المقص الطائر وأسياخ العميل معاً + وزن المتر اليدوي
+   ====================================================== */
+const BarsAndProductivityModal = ({ onBack }) => {
+  const [side, setSide] = useState(130);
+  const [billetLen, setBilletLen] = useState(12);
+  const [size, setSize] = useState('16');
+  // وزن المتر الطولي قابل للتعديل اليدوي أو يتحدث تلقائياً عند اختيار مقاس قياسي
+  const [customMeterWeight, setCustomMeterWeight] = useState(1.580);
+  const [yieldPct, setYieldPct] = useState(97.5);
+  const [strands, setStrands] = useState('2');
+  const [cutLen, setCutLen] = useState(36); // طول قطعية المقص الطائر
+  const [commLen, setCommLen] = useState(12); // طول سيخ العميل
+  const [gapSec, setGapSec] = useState(4);
+  const [lineSpeed, setLineSpeed] = useState(12);
+  const [billetsShift, setBilletsShift] = useState(400);
+
+  const handleSizeSelect = (newSize) => {
+    setSize(newSize);
+    const found = REBAR_SPECS.find((r) => String(r.size) === String(newSize));
+    if (found) {
+      setCustomMeterWeight(found.nomW);
+    }
+  };
+
+  const k = Math.max(1, Number(strands) || 1);
+  const wMeter = Math.max(0.01, num(customMeterWeight));
+  const billetKg = num(side) * num(side) * 0.00785 * num(billetLen);
+  const prodKg = (billetKg * num(yieldPct)) / 100;
+  const totalLenAllStrands = prodKg / wMeter;
+  const lenPerStrand = totalLenAllStrands / k;
+
+  // 1) نتائج المقص الطائر (Flying Shear) على سرير التبريد
+  const fullFlyingCutsPerStrand = num(cutLen) > 0 ? Math.floor(lenPerStrand / num(cutLen)) : 0;
+  const totalFullFlyingBarsPerBillet = fullFlyingCutsPerStrand * k;
+  const lastBarLengthPerStrand = Math.max(0, lenPerStrand - fullFlyingCutsPerStrand * num(cutLen));
+  const totalFlyingBarsWithLast =
+    lastBarLengthPerStrand >= 6 ? totalFullFlyingBarsPerBillet + k : totalFullFlyingBarsPerBillet;
+
+  // 2) نتائج الأسياخ التجارية للعميل (Cold Shear)
+  const commBarsPerFlyingCut = num(commLen) > 0 ? Math.floor(num(cutLen) / num(commLen)) : 0;
+  const wastePerFlyingCut = Math.max(0, num(cutLen) - commBarsPerFlyingCut * num(commLen));
+  const commBarsFromLastBar = num(commLen) > 0 ? Math.floor(lastBarLengthPerStrand / num(commLen)) : 0;
+  const shortScrapFromLastBar = Math.max(0, lastBarLengthPerStrand - commBarsFromLastBar * num(commLen));
+  const totalCustomerBarsPerBillet = k * (fullFlyingCutsPerStrand * commBarsPerFlyingCut + commBarsFromLastBar);
+
+  // 3) الطاقة الإنتاجية (طن/ساعة)
+  const rollSec = num(lineSpeed) * wMeter * k > 0 ? billetKg / (num(lineSpeed) * wMeter * k) : 0;
+  const cycleSec = rollSec + num(gapSec);
+  const billetsPerHr = cycleSec > 0 ? 3600 / cycleSec : 0;
+  const tonsPerHr = (billetsPerHr * prodKg) / 1000;
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+        <button
+          onClick={onBack}
+          className="bg-slate-100 hover:bg-slate-200 text-slate-800 px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5"
+        >
+          <ArrowLeft size={15} className="rotate-180" /> رجوع لكل القوانين
+        </button>
+        <span className="text-xs font-black text-blue-700 bg-blue-50 px-3 py-1 rounded-full border border-blue-200">
+          يعرض نتائج المقص الطائر + أسياخ العميل معاً
+        </span>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        {/* قسم المدخلات الذكية */}
+        <div className="lg:col-span-5 bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3.5 h-fit">
+          <h3 className="text-sm sm:text-base font-black text-slate-900 border-b border-slate-100 pb-2">
+            بيانات البيليت ووزن المتر والمقصات
+          </h3>
+
+          {/* اختيار سريع لطول قطعية المقص الطائر + إدخال حر */}
+          <div className="bg-amber-50/70 p-3 rounded-xl border border-amber-200 space-y-2">
+            <div className="flex justify-between items-center">
+              <label className="text-xs font-black text-amber-900">طول قطعية المقص الطائر (متر):</label>
+              <span className="font-mono text-sm font-black text-amber-700">{cutLen} متر</span>
+            </div>
+            <div className="grid grid-cols-5 gap-1.5">
+              {[24, 36, 48, 54, 60].map((presetLen) => (
+                <button
+                  key={presetLen}
+                  type="button"
+                  onClick={() => setCutLen(presetLen)}
+                  className={`py-1.5 rounded-lg font-mono text-xs font-bold border transition-all ${
+                    Number(cutLen) === presetLen
+                      ? 'bg-amber-500 text-slate-950 border-amber-600 shadow-sm'
+                      : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                  }`}
+                >
+                  {presetLen}م
+                </button>
+              ))}
+            </div>
+            <input
+              type="number"
+              step="0.5"
+              value={cutLen}
+              onChange={(e) => setCutLen(e.target.value)}
+              placeholder="أو اكتب أي طول قطعية للمقص الطائر..."
+              className={inputCls}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-2.5">
+            <Field label="ضلع البيليت (مم)" value={side} onChange={setSide} />
+            <Field label="طول البيليت (متر)" value={billetLen} onChange={setBilletLen} step="0.5" />
+
+            <SelectField
+              label="اختيار مقاس قياسي (أو حر)"
+              value={size}
+              onChange={handleSizeSelect}
+              options={[
+                ...REBAR_SPECS.map((r) => [String(r.size), `تسليح ${r.size} مم (${r.nomW} كجم/م)`]),
+                ['custom', 'مقاس خاص / خوصة (اكتب الوزن يدوياً)']
+              ]}
+            />
+
+            {/* حقل كتابة وزن المتر الطولي يدوياً كما طلبت */}
+            <div>
+              <label className="text-[11px] sm:text-xs text-blue-700 block mb-1 font-black">
+                وزن المتر الطولي الفعلي (كجم/م):
+              </label>
+              <input
+                type="number"
+                step="0.001"
+                value={customMeterWeight}
+                onChange={(e) => setCustomMeterWeight(e.target.value)}
+                className="w-full bg-blue-50/60 border-2 border-blue-400 rounded-xl px-3 py-2 text-blue-950 font-mono text-sm font-black focus:bg-white outline-none"
+              />
+            </div>
+
+            <SelectField
+              label="عدد الخيوط (Strands)"
+              value={strands}
+              onChange={setStrands}
+              options={[
+                ['1', '1 خط (بدون شق)'],
+                ['2', '2 خط (شق ثنائي)'],
+                ['3', '3 خطوط (شق ثلاثي)'],
+                ['4', '4 خطوط (شق رباعي)']
+              ]}
+            />
+            <Field label="طول سيخ العميل (متر)" value={commLen} onChange={setCommLen} step="0.5" />
+            <Field label="نسبة الإدرار الصافي (%)" value={yieldPct} onChange={setYieldPct} step="0.5" />
+            <Field label="سرعة آخر قائم (م/ث)" value={lineSpeed} onChange={setLineSpeed} step="0.5" />
+            <Field label="زمن الفجوة بين البيليت (ثانية)" value={gapSec} onChange={setGapSec} step="0.5" />
+            <Field label="عدد البيليت بالوردية" value={billetsShift} onChange={setBilletsShift} />
+          </div>
+        </div>
+
+        {/* قسم النتائج المزدوج: يعرض المقص الطائر + أسياخ العميل معاً في وقت واحد */}
+        <div className="lg:col-span-7 space-y-4">
+          {/* أولاً: نتيجة قطعيات المقص الطائر لسرير التبريد */}
+          <div className="bg-white p-4 sm:p-5 rounded-2xl border-2 border-amber-300 shadow-sm space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+              <h4 className="text-sm sm:text-base font-black text-amber-900 flex items-center gap-1.5">
+                <Scissors size={18} className="text-amber-600" />
+                أولاً: قطعيات المقص الطائر على سرير التبريد (طول {cutLen} متر)
+              </h4>
+              <span className="text-[10px] font-bold bg-amber-100 text-amber-800 px-2.5 py-0.5 rounded-full">
+                على الفرش
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+              <Stat
+                label={`بارات كاملة (${cutLen}م) للبيليت`}
+                value={totalFullFlyingBarsPerBillet}
+                unit="بار"
+                color="text-amber-700"
+                big
+              />
+              <Stat
+                label="طول البار الأخير (الذيل)"
+                value={fmt(lastBarLengthPerStrand, 2)}
+                unit="متر"
+                color={lastBarLengthPerStrand < 12 && lastBarLengthPerStrand > 0 ? 'text-red-600' : 'text-emerald-700'}
+                big
+              />
+              <Stat label="طول الحديد للخيط الواحد" value={fmt(lenPerStrand, 1)} unit="متر" />
+              <Stat
+                label="إجمالي قطعيات الوردية"
+                value={fmt(num(billetsShift) * totalFullFlyingBarsPerBillet, 0)}
+                unit={`بار (${cutLen}م)`}
+              />
+            </div>
+            <p className="text-xs font-bold text-slate-600 bg-amber-50/70 p-2.5 rounded-xl border border-amber-200/80">
+              • كل خيط يخرج منه <strong>{fullFlyingCutsPerStrand} قطعية كاملة</strong> بطول {cutLen}م + بار أخير في الذيل بطول{' '}
+              <strong>{fmt(lastBarLengthPerStrand, 2)} متر</strong> (بإجمالي {totalFlyingBarsWithLast} بار على سرير التبريد للبيليت الواحد).
+            </p>
+          </div>
+
+          {/* ثانياً: نتيجة الأسياخ النهائية للعميل بعد المقص البارد */}
+          <div className="bg-white p-4 sm:p-5 rounded-2xl border-2 border-emerald-300 shadow-sm space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+              <h4 className="text-sm sm:text-base font-black text-emerald-900 flex items-center gap-1.5">
+                <Calculator size={18} className="text-emerald-600" />
+                ثانياً: الأسياخ النهائية للعميل بعد المقص البارد (طول {commLen} متر)
+              </h4>
+              <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full">
+                تسليم العميل
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+              <Stat
+                label={`أسياخ العميل (${commLen}م) للبيليت`}
+                value={totalCustomerBarsPerBillet}
+                unit="سيخ"
+                color="text-emerald-700"
+                big
+              />
+              <Stat label="إنتاجية الساعة الصافية" value={fmt(tonsPerHr, 1)} unit="طن/ساعة" color="text-blue-700" big />
+              <Stat label="أسياخ سليمة من البار الأخير" value={commBarsFromLastBar * k} unit="سيخ" />
+              <Stat label="فضلة القصائر للهالك" value={fmt(shortScrapFromLastBar, 2)} unit="متر/خيط" color="text-red-600" />
+            </div>
+            <p className="text-xs font-bold text-slate-600 bg-emerald-50/70 p-2.5 rounded-xl border border-emerald-200/80">
+              • كل بار ({cutLen}م) يقطعه المقص البارد إلى <strong>{commBarsPerFlyingCut} أسياخ تجارية</strong> بطول {commLen}م{' '}
+              {wastePerFlyingCut > 0 ? `(ويتهدر ${fmt(wastePerFlyingCut, 1)}م من كل قطعية)` : '(بدون أي هدر في القطعية)'}، وإجمالي إنتاج الوردية للعميل:{' '}
+              <strong>{fmt(num(billetsShift) * totalCustomerBarsPerBillet, 0)} سيخ</strong> ({fmt((num(billetsShift) * prodKg) / 1000, 1)} طن).
+            </p>
+          </div>
+
+          {/* خطوات الحل بالعربي الواضح (مغلقة افتراضياً وتفتح عند الضغط) */}
+          <SolutionStepsBox
+            formula="الطول الكلي للحديد = الوزن الصافي للبيليت ÷ وزن المتر الطولي الفعلي  |  عدد القطعيات = الطول ÷ طول القطعية"
+            steps={[
+              `وزن البيليت الخام = (${side} × ${side}) × 0.00785 × ${billetLen} متر = ${fmt(billetKg, 1)} كجم`,
+              `الوزن الصافي بعد خصم الفواقد (${yieldPct}%) = ${fmt(prodKg, 1)} كجم`,
+              `إجمالي طول الحديد الخارج (على وزن متر ${wMeter} كجم/م) = ${fmt(prodKg, 1)} ÷ ${wMeter} = ${fmt(totalLenAllStrands, 1)} متر`,
+              `طول الخيط الواحد (مقسوم على ${k} خيط) = ${fmt(totalLenAllStrands, 1)} ÷ ${k} = ${fmt(lenPerStrand, 2)} متر`,
+              `المقص الطائر يقطع كل ${cutLen} متر: ${fmt(lenPerStrand, 2)} ÷ ${cutLen} = ${fullFlyingCutsPerStrand} قطعية كاملة لكل خيط (بإجمالي ${totalFullFlyingBarsPerBillet} بار للبيليت) ويتبقى ذيل بطول ${fmt(lastBarLengthPerStrand, 2)} متر`,
+              `المقص البارد يقطع كل بار إلى أسياخ ${commLen} متر، ليصبح إجمالي الأسياخ السليمة للعميل = ${totalCustomerBarsPerBillet} سيخ من البيليت الواحد`
+            ]}
+          />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ======================================================
+   4. حاسبة الباس ديزاين الهندسية الحقيقية (Realistic Roll Pass Schedule)
    ====================================================== */
 const RealisticPassDesignModal = ({ onBack }) => {
   const [mode, setMode] = useState('rebar'); // 'rebar' | 'flat'
   const [billetSide, setBilletSide] = useState(130);
   const [rebarSize, setRebarSize] = useState('16');
+  const [customFinalArea, setCustomFinalArea] = useState(201.0);
   const [strands, setStrands] = useState('1');
   const [finishSpeed, setFinishSpeed] = useState(12);
   const [roughStands, setRoughStands] = useState(4);
@@ -251,7 +497,12 @@ const RealisticPassDesignModal = ({ onBack }) => {
   const [flatT, setFlatT] = useState(10);
   const [flatSpeed, setFlatSpeed] = useState(2.5);
 
-  const spec = REBAR_SPECS.find((r) => String(r.size) === rebarSize) || REBAR_SPECS[3];
+  const handleRebarChange = (sz) => {
+    setRebarSize(sz);
+    const f = REBAR_SPECS.find((r) => String(r.size) === String(sz));
+    if (f) setCustomFinalArea(f.area);
+  };
+
   const k = Number(strands) || 1;
   const totalStands = Math.max(4, Math.min(20, Number(roughStands) + Number(interStands) + Number(finishStands)));
   const A_billet = num(billetSide) * num(billetSide);
@@ -262,7 +513,7 @@ const RealisticPassDesignModal = ({ onBack }) => {
     const fCount = Math.max(2, Number(finishStands));
     const N = rCount + iCount + fCount;
 
-    const A_final_single = spec.area;
+    const A_final_single = Math.max(10, num(customFinalArea));
     const A_total_exit = A_final_single * k;
 
     const weights = [];
@@ -293,7 +544,7 @@ const RealisticPassDesignModal = ({ onBack }) => {
       if (standNum <= 2) shape = standNum % 2 === 1 ? 'صندوقي (Box)' : 'مربع (Square)';
       else if (standNum === N) shape = 'دائري مشرشر (Final Round)';
       else if (standNum === N - 1) shape = 'بيضاوي قائد (Leader Oval)';
-      else shape = standNum % 2 === 1 ? 'بيضاوي (Oval)' : 'مربع / دائري كاذب (Round/Sq)';
+      else shape = standNum % 2 === 1 ? 'بيضاوي (Oval)' : 'مربع / دائري كاذب';
 
       const logStep = totalLogRatio * (weights[idx] / weightSum);
       const nextAreaTotal = idx === N - 1 ? A_total_exit : currentArea / Math.exp(logStep);
@@ -314,25 +565,18 @@ const RealisticPassDesignModal = ({ onBack }) => {
 
       const linearSpeedV = Q_total / nextAreaTotal;
       const rollRpm = (linearSpeedV * 60000) / (Math.PI * workingDiaDw);
-      const gearRatio = standNum <= rCount ? 8.5 - idx * 1.2 : standNum <= rCount + iCount ? 3.5 : 1.5;
-      const motorRpm = rollRpm * Math.max(1, gearRatio);
 
       schedule.push({
         standNum,
         zone,
         shape,
         strandsHere: isSplitZone ? k : 1,
-        entryArea: currentArea,
         exitAreaSingle: singleGrooveArea,
         reductionPct,
         elongFactor,
-        rollDe,
-        grooveFactor,
         workingDiaDw,
         linearSpeedV,
-        rollRpm,
-        gearRatio,
-        motorRpm
+        rollRpm
       });
 
       currentArea = nextAreaTotal;
@@ -370,26 +614,26 @@ const RealisticPassDesignModal = ({ onBack }) => {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-900 p-3.5 rounded-2xl border border-slate-800">
+      <div className="flex flex-wrap items-center justify-between gap-2 bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm">
         <button
           onClick={onBack}
-          className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5"
+          className="bg-slate-100 hover:bg-slate-200 text-slate-800 px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5"
         >
           <ArrowLeft size={15} className="rotate-180" /> رجوع لكل القوانين
         </button>
-        <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-800">
+        <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200">
           <button
             onClick={() => setMode('rebar')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-              mode === 'rebar' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'
+              mode === 'rebar' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            باس ديزاين حديد التسليح (Box-Oval-Round)
+            باس ديزاين حديد التسليح
           </button>
           <button
             onClick={() => setMode('flat')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-              mode === 'flat' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white'
+              mode === 'flat' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             باس ديزاين الخوصة والقطاعات (50×10 / 40×10)
@@ -400,89 +644,90 @@ const RealisticPassDesignModal = ({ onBack }) => {
       {mode === 'rebar' ? (
         <>
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-            <div className="lg:col-span-6 bg-slate-900 p-4 rounded-2xl border border-slate-800 space-y-3">
-              <h3 className="text-sm sm:text-base font-bold text-white border-b border-slate-800 pb-2">
-                مدخلات خط الدرفلة وتوزيع مناطق القوائم
+            <div className="lg:col-span-6 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+              <h3 className="text-sm sm:text-base font-black text-slate-900 border-b border-slate-100 pb-2">
+                مدخلات خط الدرفلة وتوزيع القوائم
               </h3>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-                <Field label="ضلع البيليت (mm)" value={billetSide} onChange={setBilletSide} />
+                <Field label="ضلع البيليت (مم)" value={billetSide} onChange={setBilletSide} />
                 <SelectField
-                  label="مقاس السيخ النهائي"
+                  label="مقاس السيخ"
                   value={rebarSize}
-                  onChange={setRebarSize}
-                  options={REBAR_SPECS.map((r) => [String(r.size), `${r.size} مم (${r.area} mm²)`])}
+                  onChange={handleRebarChange}
+                  options={REBAR_SPECS.map((r) => [String(r.size), `${r.size} مم`])}
                 />
+                <Field label="مساحة المقطع النهائي (مم²)" value={customFinalArea} onChange={setCustomFinalArea} step="0.5" />
                 <SelectField
                   label="نظام الشق (Slitting)"
                   value={strands}
                   onChange={setStrands}
                   options={[
                     ['1', '1 خط (بدون شق)'],
-                    ['2', '2 خط (Two-Slit)'],
-                    ['3', '3 خطوط (Three-Slit)'],
-                    ['4', '4 خطوط (Four-Slit)']
+                    ['2', '2 خط (شق ثنائي)'],
+                    ['3', '3 خطوط'],
+                    ['4', '4 خطوط']
                   ]}
                 />
                 <Field label="قوائم التخشين" value={roughStands} onChange={setRoughStands} />
                 <Field label="قوائم المتوسط" value={interStands} onChange={setInterStands} />
                 <Field label="قوائم التشطيب" value={finishStands} onChange={setFinishStands} />
-                <Field label="سرعة آخر قائم (m/s)" value={finishSpeed} onChange={setFinishSpeed} step="0.5" className="col-span-2 sm:col-span-3" />
+                <Field label="سرعة آخر قائم (م/ث)" value={finishSpeed} onChange={setFinishSpeed} step="0.5" className="col-span-2" />
               </div>
             </div>
 
-            <div className="lg:col-span-6 bg-slate-900 p-4 rounded-2xl border border-blue-500/30 space-y-3">
-              <h3 className="text-sm sm:text-base font-bold text-blue-400 border-b border-slate-800 pb-2">
-                المنطق الهندسي لتدرج التخفيض (كما في مصانع الدرفلة)
+            <div className="lg:col-span-6 bg-white p-4 rounded-2xl border border-blue-200 shadow-sm space-y-3">
+              <h3 className="text-sm sm:text-base font-black text-blue-800 border-b border-slate-100 pb-2">
+                ملخص الباس ديزاين وثابت التدفق
               </h3>
               <div className="grid grid-cols-2 gap-2.5">
-                <Stat label="مساحة البيليت الداخلة" value={fmt(A_billet, 0)} unit="mm²" />
-                <Stat label="مساحة الممر النهائي للسيخ" value={fmt(spec.area, 1)} unit="mm²" color="text-emerald-400" />
-                <Stat label="ثابت التدفق الحجمي Q" value={fmt(rebarData.Q_total, 0)} unit="mm².m/s" color="text-blue-400" />
+                <Stat label="مساحة البيليت الداخلة" value={fmt(A_billet, 0)} unit="مم²" />
+                <Stat label="مساحة السيخ النهائي" value={fmt(customFinalArea, 1)} unit="مم²" color="text-emerald-700" />
+                <Stat label="ثابت التدفق الحجمي للخط" value={fmt(rebarData.Q_total, 0)} unit="مم².م/ث" color="text-blue-700" />
                 <Stat label="إجمالي عدد القوائم" value={totalStands} unit="قائم" />
               </div>
               <SolutionStepsBox
-                formula="Dw = De - [(Area / Width) - Gap]  |  V_i = Q / Area_i  |  RPM = (V_i × 60000) / (π × Dw)"
+                formula="القطر الفعال = القطر الخارجي - معامل الممر  |  سرعة القائم = ثابت التدفق ÷ مساحة المقطع عند القائم"
                 steps={[
-                  'التخشين (Roughing): ممرات صندوقي/مربع بتخفيض عالي (28% - 35%) لأن المعدن في أعلى لدونة حرارية (1150°C).',
-                  'المتوسط (Intermediate): ممرات بيضاوي/دائري كاذب بتخفيض متوسط (20% - 25%).',
-                  'التشطيب (Finishing): الممر ما قبل النهائي بيضاوي قائد (Leader Oval) والممر الأخير دائري مشرشر بتخفيض هادئ (12% - 17%) لضبط أبعاد القلب والشنب.'
+                  'في مرحلة التخشين (Roughing): تكون نسبة التخفيض عالية (28% إلى 35%) لأن الحديد ساخن وطري جداً.',
+                  'في المرحلة المتوسطة (Intermediate): تكون نسبة التخفيض متوسطة (20% إلى 25%).',
+                  'في مرحلة التشطيب (Finishing): يكون الممر قبل الأخير بيضاوي قائد (Leader Oval) والأخير دائري مشرشر بتخفيض هادئ (12% إلى 17%) لضبط أبعاد السيخ.'
                 ]}
               />
             </div>
           </div>
 
-          <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 overflow-x-auto">
-            <h4 className="text-sm font-bold text-white mb-3">
-              جدول تدرج الممرات، الأقطار الفعالة ($D_w$)، وتزامن السرعات
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm overflow-x-auto">
+            <h4 className="text-sm font-black text-slate-900 mb-3">
+              جدول تدرج الممرات، الأقطار الفعالة، وتزامن السرعات
             </h4>
             <table className="w-full text-right text-xs min-w-[720px]">
-              <thead className="bg-slate-950 text-slate-400">
+              <thead className="bg-slate-900 text-white">
                 <tr>
                   <th className="p-2.5 rounded-r-lg">القائم</th>
                   <th className="p-2.5">المنطقة</th>
-                  <th className="p-2.5">شكل الممر (Groove)</th>
-                  <th className="p-2.5">مساحة الممر mm²</th>
+                  <th className="p-2.5">شكل الممر</th>
+                  <th className="p-2.5">مساحة الممر مم²</th>
                   <th className="p-2.5">التخفيض %</th>
-                  <th className="p-2.5">الاستطالة λ</th>
-                  <th className="p-2.5">القطر الفعال Dw</th>
-                  <th className="p-2.5">السرعة m/s</th>
+                  <th className="p-2.5">معامل الاستطالة</th>
+                  <th className="p-2.5">القطر الفعال مم</th>
+                  <th className="p-2.5">السرعة م/ث</th>
                   <th className="p-2.5 rounded-l-lg">لفات الدرفيل RPM</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/70 font-mono">
+              <tbody className="divide-y divide-slate-200 font-mono">
                 {rebarData.schedule.map((row) => (
-                  <tr key={row.standNum} className="hover:bg-slate-800/40">
-                    <td className="p-2.5 font-bold text-white font-sans">
-                      ق {row.standNum} {row.strandsHere > 1 && <span className="text-[10px] text-amber-400">({row.strandsHere}×)</span>}
+                  <tr key={row.standNum} className="hover:bg-slate-50">
+                    <td className="p-2.5 font-black text-slate-900 font-sans">
+                      ق {row.standNum} {row.strandsHere > 1 && <span className="text-[10px] text-amber-600">({row.strandsHere}×)</span>}
                     </td>
-                    <td className="p-2.5 font-sans text-slate-300">{row.zone}</td>
-                    <td className="p-2.5 font-sans text-blue-300 font-bold">{row.shape}</td>
-                    <td className="p-2.5 text-white font-bold">{fmt(row.exitAreaSingle, 1)}</td>
-                    <td className="p-2.5 text-emerald-400">{fmt(row.reductionPct, 1)}%</td>
-                    <td className="p-2.5 text-slate-300">{fmt(row.elongFactor, 2)}</td>
-                    <td className="p-2.5 text-amber-300">{fmt(row.workingDiaDw, 1)} mm</td>
-                    <td className="p-2.5 text-sky-400 font-bold">{fmt(row.linearSpeedV, 2)}</td>
-                    <td className="p-2.5 text-white font-bold">{fmt(row.rollRpm, 1)}</td>
+                    <td className="p-2.5 font-sans text-slate-600 font-bold">{row.zone}</td>
+                    <td className="p-2.5 font-sans text-blue-700 font-bold">{row.shape}</td>
+                    <td className="p-2.5 text-slate-900 font-bold">{fmt(row.exitAreaSingle, 1)}</td>
+                    <td className="p-2.5 text-emerald-700 font-bold">{fmt(row.reductionPct, 1)}%</td>
+                    <td className="p-2.5 text-slate-700">{fmt(row.elongFactor, 2)}</td>
+                    <td className="p-2.5 text-amber-700 font-bold">{fmt(row.workingDiaDw, 1)}</td>
+                    <td className="p-2.5 text-blue-700 font-black">{fmt(row.linearSpeedV, 2)}</td>
+                    <td className="p-2.5 text-slate-900 font-black">{fmt(row.rollRpm, 1)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -491,44 +736,44 @@ const RealisticPassDesignModal = ({ onBack }) => {
         </>
       ) : (
         <div className="space-y-4">
-          <div className="bg-slate-900 p-4 rounded-2xl border border-emerald-500/30 grid grid-cols-1 md:grid-cols-3 gap-3">
-            <Field label="عرض الخوصة النهائي (mm) مثل 50 أو 40" value={flatW} onChange={setFlatW} />
-            <Field label="سمك الخوصة النهائي (mm) مثل 10" value={flatT} onChange={setFlatT} />
-            <Field label="سرعة خروج الخوصة (m/s)" value={flatSpeed} onChange={setFlatSpeed} step="0.1" />
+          <div className="bg-white p-4 rounded-2xl border border-emerald-200 shadow-sm grid grid-cols-1 md:grid-cols-3 gap-3">
+            <Field label="عرض الخوصة النهائي (مم) مثل 50 أو 40" value={flatW} onChange={setFlatW} />
+            <Field label="سمك الخوصة النهائي (مم) مثل 10" value={flatT} onChange={setFlatT} />
+            <Field label="سرعة خروج الخوصة (م/ث)" value={flatSpeed} onChange={setFlatSpeed} step="0.1" />
           </div>
 
-          <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 overflow-x-auto">
-            <h4 className="text-sm font-bold text-emerald-400 mb-3">
-              جدول تزامن القوائم الأفقية والرأسية (Vertical & Horizontal Stands) لإنتاج خوصة {flatW}×{flatT} مم
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm overflow-x-auto">
+            <h4 className="text-sm font-black text-emerald-800 mb-3">
+              جدول تزامن القوائم الأفقية والرأسية لإنتاج خوصة {flatW}×{flatT} مم
             </h4>
             <table className="w-full text-right text-xs min-w-[650px]">
-              <thead className="bg-slate-950 text-slate-400">
+              <thead className="bg-slate-900 text-white">
                 <tr>
                   <th className="p-2.5">القائم</th>
                   <th className="p-2.5">وظيفة الممر</th>
                   <th className="p-2.5">الأبعاد الخارجة (عرض×سمك)</th>
-                  <th className="p-2.5">المساحة mm²</th>
+                  <th className="p-2.5">المساحة مم²</th>
                   <th className="p-2.5">التخفيض %</th>
-                  <th className="p-2.5">القطر الفعال Dw</th>
-                  <th className="p-2.5">السرعة m/s</th>
+                  <th className="p-2.5">القطر الفعال مم</th>
+                  <th className="p-2.5">السرعة م/ث</th>
                   <th className="p-2.5">لفات الدرفيل</th>
                   <th className="p-2.5">لفات الموتور RPM</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800 font-mono">
+              <tbody className="divide-y divide-slate-200 font-mono">
                 {flatData.map((r, i) => (
-                  <tr key={i} className="hover:bg-slate-800/40">
-                    <td className="p-2.5 font-sans font-bold text-white">{r.name}</td>
-                    <td className="p-2.5 font-sans text-slate-300">{r.shape}</td>
-                    <td className="p-2.5 text-amber-300 font-bold">
+                  <tr key={i} className="hover:bg-slate-50">
+                    <td className="p-2.5 font-sans font-black text-slate-900">{r.name}</td>
+                    <td className="p-2.5 font-sans text-slate-600 font-bold">{r.shape}</td>
+                    <td className="p-2.5 text-amber-700 font-bold">
                       {fmt(r.w, 1)} × {fmt(r.h, 1)} مم
                     </td>
-                    <td className="p-2.5 text-white">{fmt(r.area, 0)}</td>
-                    <td className="p-2.5 text-emerald-400">{fmt(r.red, 1)}%</td>
-                    <td className="p-2.5 text-slate-300">{fmt(r.dw, 1)} mm</td>
-                    <td className="p-2.5 text-sky-400 font-bold">{fmt(r.vel, 2)}</td>
-                    <td className="p-2.5 text-white">{fmt(r.rRpm, 1)}</td>
-                    <td className="p-2.5 text-amber-400 font-bold">{fmt(r.mRpm, 0)} RPM</td>
+                    <td className="p-2.5 text-slate-900 font-bold">{fmt(r.area, 0)}</td>
+                    <td className="p-2.5 text-emerald-700 font-bold">{fmt(r.red, 1)}%</td>
+                    <td className="p-2.5 text-slate-700">{fmt(r.dw, 1)}</td>
+                    <td className="p-2.5 text-blue-700 font-black">{fmt(r.vel, 2)}</td>
+                    <td className="p-2.5 text-slate-900 font-bold">{fmt(r.rRpm, 1)}</td>
+                    <td className="p-2.5 text-amber-700 font-black">{fmt(r.mRpm, 0)} RPM</td>
                   </tr>
                 ))}
               </tbody>
@@ -541,268 +786,13 @@ const RealisticPassDesignModal = ({ onBack }) => {
 };
 
 /* ======================================================
-   4. حاسبة قطعيات المقص الطائر (36م / 48م) والأسياخ التجارية للعميل (12م)
-   ====================================================== */
-const BarsAndProductivityModal = ({ onBack }) => {
-  // وضع الحساب: 'flying_shear' (قطعيات المقص الطائر على سرير التبريد) | 'customer_bars' (أسياخ العميل 12م)
-  const [calcTarget, setCalcTarget] = useState('flying_shear');
-  const [side, setSide] = useState(130);
-  const [billetLen, setBilletLen] = useState(12);
-  const [size, setSize] = useState('16');
-  const [yieldPct, setYieldPct] = useState(97.5);
-  const [strands, setStrands] = useState('2');
-  const [cutLen, setCutLen] = useState(36); // افتراضي 36 متر حسب طلبك مع أزرار سريعة 36 / 48 / 54 / 60
-  const [commLen, setCommLen] = useState(12);
-  const [gapSec, setGapSec] = useState(4);
-  const [lineSpeed, setLineSpeed] = useState(12);
-  const [billetsShift, setBilletsShift] = useState(400);
-
-  const spec = REBAR_SPECS.find((r) => String(r.size) === size) || REBAR_SPECS[3];
-  const k = Number(strands) || 1;
-  const billetKg = num(side) * num(side) * 0.00785 * num(billetLen);
-  const prodKg = (billetKg * num(yieldPct)) / 100;
-  const totalLenAllStrands = spec.nomW > 0 ? prodKg / spec.nomW : 0;
-  const lenPerStrand = totalLenAllStrands / k;
-
-  // حسابات المقص الطائر (Flying Shear) لكل خيط وللبليت الكامل
-  const fullFlyingCutsPerStrand = num(cutLen) > 0 ? Math.floor(lenPerStrand / num(cutLen)) : 0;
-  const totalFullFlyingBarsPerBillet = fullFlyingCutsPerStrand * k;
-  const lastBarLengthPerStrand = Math.max(0, lenPerStrand - fullFlyingCutsPerStrand * num(cutLen));
-  // شمل البار الأخير إذا كان أطول من الحد الأدنى للنقل على سرير التبريد (مثلاً >= 12م)
-  const totalFlyingBarsOnBedWithLast =
-    lastBarLengthPerStrand >= 6 ? totalFullFlyingBarsPerBillet + k : totalFullFlyingBarsPerBillet;
-
-  // حسابات المقص البارد للعميل (Commercial Bars 12m)
-  const commBarsPerFlyingCut = num(commLen) > 0 ? Math.floor(num(cutLen) / num(commLen)) : 0;
-  const wastePerFlyingCut = Math.max(0, num(cutLen) - commBarsPerFlyingCut * num(commLen));
-  const commBarsFromLastBar = num(commLen) > 0 ? Math.floor(lastBarLengthPerStrand / num(commLen)) : 0;
-  const shortScrapFromLastBar = Math.max(0, lastBarLengthPerStrand - commBarsFromLastBar * num(commLen));
-  const totalCustomerBarsPerBillet = k * (fullFlyingCutsPerStrand * commBarsPerFlyingCut + commBarsFromLastBar);
-
-  // حساب الإنتاجية بالساعة
-  const rollSec = num(lineSpeed) * spec.nomW * k > 0 ? billetKg / (num(lineSpeed) * spec.nomW * k) : 0;
-  const cycleSec = rollSec + num(gapSec);
-  const billetsPerHr = cycleSec > 0 ? 3600 / cycleSec : 0;
-  const tonsPerHr = (billetsPerHr * prodKg) / 1000;
-
-  return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-900 p-3.5 rounded-2xl border border-slate-800">
-        <button
-          onClick={onBack}
-          className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5"
-        >
-          <ArrowLeft size={15} className="rotate-180" /> رجوع لكل القوانين
-        </button>
-
-        {/* مفتاح اختيار نوع الحساب: المقص الطائر (36م/48م) أم أسياخ العميل (12م) */}
-        <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-800">
-          <button
-            onClick={() => setCalcTarget('flying_shear')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
-              calcTarget === 'flying_shear'
-                ? 'bg-amber-500 text-slate-950 shadow-md'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <Scissors size={14} /> 1. قطعيات المقص الطائر (36م / 48م لسرير التبريد)
-          </button>
-          <button
-            onClick={() => setCalcTarget('customer_bars')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
-              calcTarget === 'customer_bars'
-                ? 'bg-emerald-600 text-white shadow-md'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <Calculator size={14} /> 2. الأسياخ النهائية للعميل (12م بعد المقص البارد)
-          </button>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        {/* المدخلات */}
-        <div className="lg:col-span-6 bg-slate-900 p-4 rounded-2xl border border-slate-800 space-y-3.5">
-          <h3 className="text-sm sm:text-base font-bold text-white border-b border-slate-800 pb-2">
-            مدخلات البيليت والمقص الطائر وسرير التبريد
-          </h3>
-
-          {/* أزرار سريعة لاختيار طول قطعية المقص الطائر */}
-          <div className="bg-slate-950 p-3 rounded-xl border border-amber-500/30 space-y-2">
-            <div className="flex justify-between items-center">
-              <label className="text-xs font-bold text-amber-400">
-                طول قطعية المقص الطائر (Flying Shear Cut Length):
-              </label>
-              <span className="font-mono text-sm font-black text-white">{cutLen} متر</span>
-            </div>
-            <div className="grid grid-cols-5 gap-1.5">
-              {[24, 36, 48, 54, 60].map((presetLen) => (
-                <button
-                  key={presetLen}
-                  type="button"
-                  onClick={() => setCutLen(presetLen)}
-                  className={`py-1.5 rounded-lg font-mono text-xs font-bold border transition-all ${
-                    Number(cutLen) === presetLen
-                      ? 'bg-amber-500 text-slate-950 border-amber-400 shadow'
-                      : 'bg-slate-900 text-slate-300 border-slate-800 hover:border-slate-600'
-                  }`}
-                >
-                  {presetLen}م
-                </button>
-              ))}
-            </div>
-            <input
-              type="number"
-              step="0.5"
-              value={cutLen}
-              onChange={(e) => setCutLen(e.target.value)}
-              placeholder="أو اكتب أي طول قطعية للمقص الطائر بالمتر..."
-              className={inputCls}
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-2.5">
-            <Field label="ضلع البليت (mm)" value={side} onChange={setSide} />
-            <Field label="طول البليت (m)" value={billetLen} onChange={setBilletLen} step="0.5" />
-            <SelectField
-              label="مقاس السيخ"
-              value={size}
-              onChange={setSize}
-              options={REBAR_SPECS.map((r) => [String(r.size), `${r.size} مم (${r.nomW} كجم/م)`])}
-            />
-            <SelectField
-              label="عدد الخيوط (Slitting Strands)"
-              value={strands}
-              onChange={setStrands}
-              options={[
-                ['1', '1 خط (Single)'],
-                ['2', '2 خط (Two-Slit)'],
-                ['3', '3 خطوط (Three-Slit)'],
-                ['4', '4 خطوط (Four-Slit)']
-              ]}
-            />
-            <Field label="طول السيخ التجاري للعميل (m)" value={commLen} onChange={setCommLen} step="0.5" />
-            <Field label="نسبة الإدرار Yield (%)" value={yieldPct} onChange={setYieldPct} step="0.5" />
-            <Field label="سرعة آخر قائم (m/s)" value={lineSpeed} onChange={setLineSpeed} step="0.5" />
-            <Field label="عدد البليت بالوردية" value={billetsShift} onChange={setBilletsShift} />
-          </div>
-        </div>
-
-        {/* النتائج حسب الوضع المختار */}
-        <div className="lg:col-span-6 bg-slate-900 p-4 rounded-2xl border border-emerald-500/30 space-y-3.5">
-          {calcTarget === 'flying_shear' ? (
-            <>
-              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                <h3 className="text-sm sm:text-base font-bold text-amber-400">
-                  نتائج المقص الطائر وسرير التبريد (طول القطعية {cutLen}م)
-                </h3>
-                <span className="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full font-bold">
-                  قبل المقص البارد
-                </span>
-              </div>
-
-              <div className="bg-amber-500/10 border border-amber-500/40 rounded-2xl p-4 text-center">
-                <span className="text-xs text-amber-200 block mb-1">
-                  إجمالي البارات الكاملة (طول {cutLen}م) من البيليت الواحد ({k} خيط)
-                </span>
-                <span className="text-3xl sm:text-4xl font-black font-mono text-amber-400">
-                  {totalFullFlyingBarsPerBillet} <span className="text-sm">بار ({cutLen}م)</span>
-                </span>
-                <p className="text-[11px] text-slate-300 mt-1 font-mono">
-                  ({fullFlyingCutsPerStrand} قطعية كاملة لكل خيط × {k} خيط) + {k} بار أخير بطول {fmt(lastBarLengthPerStrand, 2)} م
-                </p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2.5">
-                <Stat label="طول السيخ الكلي لكل خيط" value={fmt(lenPerStrand, 1)} unit="متر" color="text-blue-400" />
-                <Stat
-                  label="طول البار الأخير (Last Bar)"
-                  value={fmt(lastBarLengthPerStrand, 2)}
-                  unit="متر"
-                  color={lastBarLengthPerStrand < 12 && lastBarLengthPerStrand > 0 ? 'text-red-400' : 'text-emerald-400'}
-                />
-                <Stat label="إجمالي البارات على الفرش (شامل الذيل)" value={totalFlyingBarsOnBedWithLast} unit="بار/بيليت" />
-                <Stat
-                  label="قطعيات المقص الطائر بالوردية"
-                  value={fmt(num(billetsShift) * totalFullFlyingBarsPerBillet, 0)}
-                  unit={`قطعية (${cutLen}م)`}
-                  color="text-amber-400"
-                />
-              </div>
-
-              <SolutionStepsBox
-                formula="L_strand = W_net / (w_meter × k)  |  N_flying = floor(L_strand / L_cut)"
-                steps={[
-                  `وزن البيليت الصافي بعد الهالك = ${fmt(prodKg, 1)} كجم`,
-                  `الطول الكلي الخارج من البيليت = ${fmt(prodKg, 1)} / ${spec.nomW} = ${fmt(totalLenAllStrands, 1)} متر`,
-                  `طول الحديد في الخيط الواحد (${k} خيط) = ${fmt(totalLenAllStrands, 1)} / ${k} = ${fmt(lenPerStrand, 2)} متر`,
-                  `عدد قطعيات المقص الطائر (طول ${cutLen}م) للخيط الواحد = floor(${fmt(lenPerStrand, 2)} / ${cutLen}) = ${fullFlyingCutsPerStrand} قطعية كاملة`,
-                  `يتبقى في ذيل الخيط (Last Bar / Short Bar) = ${fmt(lenPerStrand, 2)} - (${fullFlyingCutsPerStrand} × ${cutLen}) = ${fmt(lastBarLengthPerStrand, 2)} متر`,
-                  `إجمالي قطعيات الـ ${cutLen}م من البيليت (${k} خيط) = ${fullFlyingCutsPerStrand} × ${k} = ${totalFullFlyingBarsPerBillet} بار`
-                ]}
-              />
-            </>
-          ) : (
-            <>
-              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                <h3 className="text-sm sm:text-base font-bold text-emerald-400">
-                  نتائج الأسياخ التجارية النهائية للعميل (طول {commLen}م)
-                </h3>
-                <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full font-bold">
-                  بعد المقص البارد
-                </span>
-              </div>
-
-              <div className="bg-emerald-500/10 border border-emerald-500/40 rounded-2xl p-4 text-center">
-                <span className="text-xs text-emerald-200 block mb-1">
-                  إجمالي الأسياخ السليمة للعميل (طول {commLen}م) من البيليت الواحد
-                </span>
-                <span className="text-3xl sm:text-4xl font-black font-mono text-emerald-400">
-                  {totalCustomerBarsPerBillet} <span className="text-sm">سيخ ({commLen}م)</span>
-                </span>
-                <p className="text-[11px] text-slate-300 mt-1 font-mono">
-                  كل قطعية مقص طائر ({cutLen}م) تعطي {commBarsPerFlyingCut} أسياخ × {commLen}م
-                </p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2.5">
-                <Stat label="أسياخ من كل قطعية مقص طائر" value={commBarsPerFlyingCut} unit={`سيخ (${commLen}م)`} />
-                <Stat label="أسياخ سليمة من البار الأخير" value={commBarsFromLastBar * k} unit={`سيخ (${commLen}م)`} color="text-blue-400" />
-                <Stat label="فضلة القصائر لكل خيط" value={fmt(shortScrapFromLastBar, 2)} unit="متر هالك" color="text-red-400" />
-                <Stat
-                  label="إنتاج الوردية للعميل"
-                  value={fmt(num(billetsShift) * totalCustomerBarsPerBillet, 0)}
-                  unit="سيخ"
-                  color="text-emerald-400"
-                />
-              </div>
-
-              <SolutionStepsBox
-                formula="N_customer = k × [ (N_flying × floor(L_cut / L_comm)) + floor(L_last / L_comm) ]"
-                steps={[
-                  `المقص الطائر يقطع ${fullFlyingCutsPerStrand} بار بطول ${cutLen}م لكل خيط + بار أخير بطول ${fmt(lastBarLengthPerStrand, 2)}م`,
-                  `على المقص البارد: كل بار ${cutLen}م يعطي (${cutLen} / ${commLen}) = ${commBarsPerFlyingCut} أسياخ تجارية ${wastePerFlyingCut > 0 ? `(ويتهدر ${fmt(wastePerFlyingCut, 1)}م)` : '(بدون هدر)'}`,
-                  `البار الأخير (${fmt(lastBarLengthPerStrand, 2)}م) يعطي ${commBarsFromLastBar} سيخ سليم بطول ${commLen}م ويتبقى قصيرة بطول ${fmt(shortScrapFromLastBar, 2)}م`,
-                  `إجمالي الأسياخ للعميل من البيليت = ${k} خيط × [(${fullFlyingCutsPerStrand} × ${commBarsPerFlyingCut}) + ${commBarsFromLastBar}] = ${totalCustomerBarsPerBillet} سيخ`
-                ]}
-              />
-            </>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-/* ======================================================
-   5. موسوعة كل قوانين الدرفلة والكهرباء الموحدة (21 حاسبة)
+   5. موسوعة كل القوانين الموحدة (بشرح عربي واضح بدون رموز معقدة)
    ====================================================== */
 const ALL_CALCULATORS = [
-  // --- حاسبات متقدمة مدمجة ---
   {
     id: 'special_bars_yield',
-    title: 'عدد قطعيات المقص الطائر (36م/48م) وأسياخ العميل (12م)',
-    desc: 'احسب عدد بارات المقص الطائر على سرير التبريد أو الأسياخ التجارية للعميل والبار الأخير.',
+    title: 'حاسبة قطعيات المقص الطائر (36م/48م) وأسياخ العميل (12م)',
+    desc: 'تعرض نتيجة المقص الطائر وأسياخ العميل معاً مع تحكم يدوي في وزن المتر الطولي.',
     icon: Scissors,
     group: 'باس ديزاين وإنتاجية',
     isSpecial: true
@@ -810,7 +800,7 @@ const ALL_CALCULATORS = [
   {
     id: 'special_pass_design',
     title: 'تصميم الممرات وتوزيع السرعات (Pass Design)',
-    desc: 'جدول تدريج المساحات الواقعي (تخشين، متوسط، تشطيب) لحديد التسليح والخوص.',
+    desc: 'جدول تدريج المساحات والسرعات الواقعي لحديد التسليح والخوص.',
     icon: Layers,
     group: 'باس ديزاين وإنتاجية',
     isSpecial: true
@@ -819,65 +809,65 @@ const ALL_CALCULATORS = [
   // --- أ. حاسبات الدرفلة والسرعات ---
   {
     id: 'c1',
-    title: 'السرعة الخطية للمعدن (Linear Speed)',
-    desc: 'حساب سرعة المعدن بالمتر/ثانية من القطر الفعال و RPM.',
+    title: 'السرعة الخطية للمعدن (متر/ثانية)',
+    desc: 'حساب سرعة خروج المعدن من القطر الفعال وعدد لفات الدرفيل.',
     icon: Activity,
     group: 'درفلة وسرعات',
-    formula: 'V (m/s) = (π × Dw × N_roll) / 60000',
+    formula: 'السرعة الخطية (م/ث) = (3.1416 × القطر الفعال بالمم × لفات الدرفيل بالدقيقة) ÷ 60000',
     inputs: [
-      { k: 'd', l: 'القطر الفعال للدرفيل Dw (mm)', def: 465 },
-      { k: 'n', l: 'سرعة دوران الدرفيل N_roll (RPM)', def: 220 }
+      { k: 'd', l: 'القطر الفعال للدرفيل (مم)', def: 465 },
+      { k: 'n', l: 'سرعة دوران الدرفيل (RPM)', def: 220 }
     ],
     calc: (v) => {
       const d = num(v.d);
       const n = num(v.n);
       const res = (Math.PI * d * n) / 60000;
       return {
-        results: { 'السرعة الخطية V (m/s)': fmt(res, 2), 'السرعة بالمتر/دقيقة (m/min)': fmt(res * 60, 1) },
+        results: { 'السرعة الخطية (متر/ثانية)': `${fmt(res, 2)} m/s`, 'السرعة بالمتر/دقيقة': `${fmt(res * 60, 1)} m/min` },
         steps: [
-          `محيط الدرفيل الفعال = π × ${d} = ${fmt(Math.PI * d, 1)} مم = ${fmt((Math.PI * d) / 1000, 3)} متر`,
-          `السرعة بالمتر/دقيقة = ${fmt((Math.PI * d) / 1000, 3)} × ${n} = ${fmt(res * 60, 2)} م/دقيقة`,
-          `نقسم على 60 للتحويل إلى متر/ثانية: V = ${fmt(res, 2)} m/s`
+          `نحسب محيط الدرفيل بالمتر = (3.1416 × ${d} مم) ÷ 1000 = ${fmt((Math.PI * d) / 1000, 3)} متر للفة الواحدة`,
+          `نضرب محيط اللفة في عدد اللفات بالدقيقة (${n}) = ${fmt(res * 60, 2)} متر في الدقيقة`,
+          `نقسم الناتج على 60 ثانية لنحصل على السرعة بالمتر/ثانية = ${fmt(res, 2)} م/ث`
         ]
       };
     }
   },
   {
     id: 'c2',
-    title: 'عدد لفات الدرفيل (Roll RPM)',
-    desc: 'إيجاد لفات الدرفيل المطلوبة لتحقيق سرعة خطية محددة.',
+    title: 'عدد لفات الدرفيل المطلوبة (Roll RPM)',
+    desc: 'إيجاد لفات الدرفيل المطلوبة لتحقيق سرعة خطية محددة للمعدن.',
     icon: RotateCcw,
     group: 'درفلة وسرعات',
-    formula: 'N_roll (RPM) = (V × 60000) / (π × Dw)',
+    formula: 'لفات الدرفيل (RPM) = (السرعة الخطية بالمتر/ثانية × 60000) ÷ (3.1416 × القطر الفعال بالمم)',
     inputs: [
-      { k: 'v', l: 'السرعة الخطية المطلوبة V (m/s)', def: 5.5 },
-      { k: 'd', l: 'القطر الفعال للدرفيل Dw (mm)', def: 465 }
+      { k: 'v', l: 'السرعة الخطية المطلوبة (متر/ثانية)', def: 5.5 },
+      { k: 'd', l: 'القطر الفعال للدرفيل (مم)', def: 465 }
     ],
     calc: (v) => {
       const vel = num(v.v);
       const d = Math.max(1, num(v.d));
       const rpm = (vel * 60000) / (Math.PI * d);
       return {
-        results: { 'لفات الدرفيل (RPM)': fmt(rpm, 1) },
+        results: { 'لفات الدرفيل المطلوبة (RPM)': `${fmt(rpm, 1)} لفة/دقيقة` },
         steps: [
-          `نحول السرعة إلى مم/دقيقة = ${vel} × 60000 = ${fmt(vel * 60000, 0)} مم/دقيقة`,
-          `محيط الدرفيل = π × ${d} = ${fmt(Math.PI * d, 2)} مم`,
-          `RPM = ${fmt(vel * 60000, 0)} / ${fmt(Math.PI * d, 2)} = ${fmt(rpm, 1)} لفة/دقيقة`
+          `نحول السرعة إلى ملليمتر في الدقيقة = ${vel} × 60000 = ${fmt(vel * 60000, 0)} مم/دقيقة`,
+          `نحسب محيط الدرفيل بالملليمتر = 3.1416 × ${d} = ${fmt(Math.PI * d, 2)} مم`,
+          `نقسم المسافة بالدقيقة على محيط الدرفيل = ${fmt(vel * 60000, 0)} ÷ ${fmt(Math.PI * d, 2)} = ${fmt(rpm, 1)} لفة/دقيقة`
         ]
       };
     }
   },
   {
     id: 'c3',
-    title: 'لفات الموتور والـ Over Speed',
-    desc: 'حساب RPM الموتور من نسبة الجيربوكس وسرعة العض الزائدة.',
+    title: 'لفات الموتور وسرعة العض الزائدة (Over Speed)',
+    desc: 'حساب RPM الموتور من نسبة الجيربوكس وإضافة نسبة الـ Over Speed.',
     icon: Gauge,
     group: 'درفلة وسرعات',
-    formula: 'N_motor = N_roll × Gear_Ratio',
+    formula: 'لفات الموتور = لفات الدرفيل × نسبة تخفيض الجيربوكس',
     inputs: [
-      { k: 'nr', l: 'لفات الدرفيل المطلوبة N_roll (RPM)', def: 220 },
-      { k: 'gr', l: 'نسبة التخفيض للجيربوكس (Gear Ratio)', def: 3.4 },
-      { k: 'over', l: 'نسبة الـ Over Speed للعض (%)', def: 3 }
+      { k: 'nr', l: 'لفات الدرفيل المطلوبة (RPM)', def: 220 },
+      { k: 'gr', l: 'نسبة تخفيض الجيربوكس (Gear Ratio)', def: 3.4 },
+      { k: 'over', l: 'نسبة سرعة العض الزائدة Over Speed (%)', def: 3 }
     ],
     calc: (v) => {
       const nr = num(v.nr);
@@ -886,26 +876,29 @@ const ALL_CALCULATORS = [
       const nm = nr * gr;
       const nmOver = nm * (1 + over / 100);
       return {
-        results: { 'لفات الموتور الأساسية (RPM)': fmt(nm, 0), 'لفات الموتور مع Over Speed': fmt(nmOver, 0) },
+        results: {
+          'لفات الموتور الأساسية': `${fmt(nm, 0)} RPM`,
+          'لفات الموتور شاملة الـ Over Speed': `${fmt(nmOver, 0)} RPM`
+        },
         steps: [
-          `سرعة الموتور = ${nr} × ${gr} = ${fmt(nm, 1)} RPM`,
-          `بإضافة نسبة Over Speed (${over}%): ${fmt(nm, 1)} × (1 + ${over}/100) = ${fmt(nmOver, 1)} RPM`
+          `نضرب لفات الدرفيل في نسبة الجيربوكس = ${nr} × ${gr} = ${fmt(nm, 1)} لفة/دقيقة`,
+          `نضيف نسبة السرعة الزائدة للعض (${over}%) = ${fmt(nm, 1)} × (1 + ${over}÷100) = ${fmt(nmOver, 1)} لفة/دقيقة`
         ]
       };
     }
   },
   {
     id: 'c4',
-    title: 'القطر الفعال ومعامل الممر (Dw & Groove Factor)',
-    desc: 'حساب القطر الفعال للدرفيل من مساحة وعرض الممر والجاب.',
+    title: 'القطر الفعال الشغال ومعامل الممر (Working Diameter)',
+    desc: 'حساب القطر الفعال للدرفيل من مساحة وعرض الممر وخلوص الدرفيلين.',
     icon: Circle,
     group: 'درفلة وسرعات',
-    formula: 'Groove Factor = (Area / Width) - Gap  |  Dw = De - Groove Factor',
+    formula: 'معامل الممر = (مساحة الممر ÷ عرض الممر) - خلوص الجاب  |  القطر الفعال = القطر الخارجي - معامل الممر',
     inputs: [
-      { k: 'de', l: 'القطر الخارجي للدرفيل De (mm)', def: 480 },
-      { k: 'area', l: 'مساحة الممر Area (mm²)', def: 650 },
-      { k: 'width', l: 'عرض الممر Width (mm)', def: 45 },
-      { k: 'gap', l: 'خلوص الدرفيلين Gap (mm)', def: 3.5 }
+      { k: 'de', l: 'القطر الخارجي للدرفيل على المخرطة (مم)', def: 480 },
+      { k: 'area', l: 'مساحة مقطع الممر (مم²)', def: 650 },
+      { k: 'width', l: 'عرض الممر (مم)', def: 45 },
+      { k: 'gap', l: 'خلوص الجاب بين الدرفيلين (مم)', def: 3.5 }
     ],
     calc: (v) => {
       const de = num(v.de);
@@ -915,25 +908,25 @@ const ALL_CALCULATORS = [
       const gf = area / w - gap;
       const dw = de - gf;
       return {
-        results: { 'معامل الممر (Groove Factor)': `${fmt(gf, 2)} mm`, 'القطر الفعال الشغال (Dw)': `${fmt(dw, 2)} mm` },
+        results: { 'معامل الممر (Groove Factor)': `${fmt(gf, 2)} مم`, 'القطر الفعال الشغال (Dw)': `${fmt(dw, 2)} مم` },
         steps: [
-          `متوسط عمق الممر = المساحة / العرض = ${area} / ${w} = ${fmt(area / w, 2)} مم`,
-          `معامل الممر = ${fmt(area / w, 2)} - ${gap} = ${fmt(gf, 2)} مم`,
-          `القطر الفعال Dw = ${de} - ${fmt(gf, 2)} = ${fmt(dw, 2)} مم`
+          `نقسم مساحة الممر على عرض الممر = ${area} ÷ ${w} = ${fmt(area / w, 2)} مم`,
+          `نطرح خلوص الجاب (${gap} مم) لنحصل على معامل الممر = ${fmt(area / w, 2)} - ${gap} = ${fmt(gf, 2)} مم`,
+          `نطرح معامل الممر من القطر الخارجي للدرفيل = ${de} - ${fmt(gf, 2)} = ${fmt(dw, 2)} مم`
         ]
       };
     }
   },
   {
     id: 'c5',
-    title: 'نسبة التخفيض والاستطالة (Reduction & λ)',
-    desc: 'حساب النقص المئوي في المساحة ومعامل الاستطالة للممر.',
+    title: 'نسبة التخفيض ومعامل الاستطالة للممر',
+    desc: 'حساب النسبة المئوية للتخفيض ومقدار استطالة المعدن في الممر.',
     icon: DivideSquare,
     group: 'درفلة وسرعات',
-    formula: 'Reduction % = ((A1 - A2) / A1) × 100  |  λ = A1 / A2',
+    formula: 'نسبة التخفيض % = ((مساحة الدخول - مساحة الخروج) ÷ مساحة الدخول) × 100  |  معامل الاستطالة = مساحة الدخول ÷ مساحة الخروج',
     inputs: [
-      { k: 'a1', l: 'مساحة الدخول A1 (mm²)', def: 1600 },
-      { k: 'a2', l: 'مساحة الخروج A2 (mm²)', def: 1200 }
+      { k: 'a1', l: 'مساحة المقطع الداخل للممر (مم²)', def: 1600 },
+      { k: 'a2', l: 'مساحة المقطع الخارج من الممر (مم²)', def: 1200 }
     ],
     calc: (v) => {
       const a1 = Math.max(1, num(v.a1));
@@ -941,26 +934,26 @@ const ALL_CALCULATORS = [
       const red = ((a1 - a2) / a1) * 100;
       const lam = a1 / a2;
       return {
-        results: { 'نسبة التخفيض (Reduction %)': `${fmt(red, 2)}%`, 'معامل الاستطالة (λ)': fmt(lam, 3) },
+        results: { 'نسبة التخفيض المئوية': `${fmt(red, 2)}%`, 'معامل الاستطالة': `${fmt(lam, 3)} مرة` },
         steps: [
-          `فرق المساحة = ${a1} - ${a2} = ${fmt(a1 - a2, 1)} mm²`,
-          `نسبة التخفيض = (${fmt(a1 - a2, 1)} / ${a1}) × 100 = ${fmt(red, 2)}%`,
-          `معامل الاستطالة λ = ${a1} / ${a2} = ${fmt(lam, 3)}`
+          `مقدار النقص في المساحة = ${a1} - ${a2} = ${fmt(a1 - a2, 1)} مم²`,
+          `نسبة التخفيض المئوية = (${fmt(a1 - a2, 1)} ÷ ${a1}) × 100 = ${fmt(red, 2)}%`,
+          `معامل الاستطالة = مساحة الدخول ${a1} ÷ مساحة الخروج ${a2} = ${fmt(lam, 3)}`
         ]
       };
     }
   },
   {
     id: 'c6',
-    title: 'قانون ثبات الحجم وتزامن القوائم (A1V1 = A2V2)',
-    desc: 'ضبط سرعة القائم التالي لمنع الشد أو الكعبلة.',
+    title: 'قانون ثبات الحجم وتزامن القائم التالي',
+    desc: 'حساب سرعة القائم التالي لمنع حدوث شد أو انضغاط (لوب) بين القائمين.',
     icon: Layers,
     group: 'درفلة وسرعات',
-    formula: 'Q = A1 × V1 = A2 × V2 = Constant',
+    formula: 'ثابت الدرفلة = مساحة القائم الأول × سرعة القائم الأول = مساحة القائم الثاني × سرعة القائم الثاني',
     inputs: [
-      { k: 'a1', l: 'مساحة قائم 1 (mm²)', def: 1450 },
-      { k: 'v1', l: 'سرعة قائم 1 (m/s)', def: 2.4 },
-      { k: 'a2', l: 'مساحة قائم 2 (mm²)', def: 1120 }
+      { k: 'a1', l: 'مساحة ممر القائم الأول (مم²)', def: 1450 },
+      { k: 'v1', l: 'سرعة القائم الأول (متر/ثانية)', def: 2.4 },
+      { k: 'a2', l: 'مساحة ممر القائم الثاني (مم²)', def: 1120 }
     ],
     calc: (v) => {
       const a1 = num(v.a1);
@@ -969,25 +962,25 @@ const ALL_CALCULATORS = [
       const q = a1 * v1;
       const v2 = q / a2;
       return {
-        results: { 'ثابت الدرفلة Q (mm².m/s)': fmt(q, 0), 'سرعة القائم الثاني V2 (m/s)': fmt(v2, 2) },
+        results: { 'ثابت تدفق المعدن (Q)': fmt(q, 0), 'السرعة المطلوبة للقائم الثاني': `${fmt(v2, 2)} م/ث` },
         steps: [
-          `ثابت التدفق Q = A1 × V1 = ${a1} × ${v1} = ${fmt(q, 1)}`,
-          `سرعة القائم الثاني V2 = ${fmt(q, 1)} / ${a2} = ${fmt(v2, 2)} m/s`
+          `نحسب تدفق المعدن الخارج من القائم الأول = ${a1} مم² × ${v1} م/ث = ${fmt(q, 1)}`,
+          `نقسم هذا التدفق على مساحة القائم الثاني (${a2} مم²) لنحصل على سرعته المتزنة = ${fmt(q, 1)} ÷ ${a2} = ${fmt(v2, 2)} م/ث`
         ]
       };
     }
   },
   {
     id: 'c7',
-    title: 'سرعة القائم السابق (Cascade Upstream)',
+    title: 'سرعة القائم السابق (التحكم المتتالي Cascade)',
     desc: 'حساب سرعة القائم الخلفي عند تعديل سرعة القائم الأمامي.',
     icon: ArrowLeftRight,
     group: 'درفلة وسرعات',
-    formula: 'V1 = (A2 × V2) / A1',
+    formula: 'سرعة القائم السابق = (مساحة القائم الحالي × سرعة القائم الحالي) ÷ مساحة القائم السابق',
     inputs: [
-      { k: 'a2', l: 'مساحة القائم الحالي A2 (mm²)', def: 850 },
-      { k: 'v2', l: 'سرعة القائم الحالي V2 (m/s)', def: 4.8 },
-      { k: 'a1', l: 'مساحة القائم السابق A1 (mm²)', def: 1120 }
+      { k: 'a2', l: 'مساحة القائم الحالي (مم²)', def: 850 },
+      { k: 'v2', l: 'سرعة القائم الحالي (متر/ثانية)', def: 4.8 },
+      { k: 'a1', l: 'مساحة القائم السابق له (مم²)', def: 1120 }
     ],
     calc: (v) => {
       const a2 = num(v.a2);
@@ -995,26 +988,26 @@ const ALL_CALCULATORS = [
       const a1 = Math.max(1, num(v.a1));
       const v1 = (a2 * v2) / a1;
       return {
-        results: { 'سرعة القائم السابق V1 (m/s)': fmt(v1, 2) },
+        results: { 'سرعة القائم السابق المطلوبة': `${fmt(v1, 2)} م/ث` },
         steps: [
-          `ثابت التدفق Q = ${a2} × ${v2} = ${fmt(a2 * v2, 1)}`,
-          `سرعة القائم السابق V1 = ${fmt(a2 * v2, 1)} / ${a1} = ${fmt(v1, 2)} m/s`
+          `ثابت التدفق في القائم الحالي = ${a2} × ${v2} = ${fmt(a2 * v2, 1)}`,
+          `سرعة القائم السابق = ${fmt(a2 * v2, 1)} ÷ ${a1} = ${fmt(v1, 2)} م/ث`
         ]
       };
     }
   },
   {
     id: 'c8',
-    title: 'الضغطة وزاوية العض وشرط الدرفلة (Roll Bite)',
-    desc: 'حساب أقصى ضغطة مسموحة وشرط عدم انزلاق البيليت.',
+    title: 'الضغطة وأقصى ضغطة وزاوية العض (Roll Bite)',
+    desc: 'حساب قيمة الضغطة بالمم والتأكد من عدم زحلقة البيليت عند الدخول.',
     icon: Maximize2,
     group: 'باس ديزاين وإنتاجية',
-    formula: 'ΔH = H1 - H2  |  ΔH_max = μ² × R  |  cos(α) = 1 - (ΔH / D)',
+    formula: 'الضغطة = ارتفاع الدخول - ارتفاع الخروج  |  أقصى ضغطة مسموحة = مربع معامل الاحتكاك × نصف قطر الدرفيل',
     inputs: [
-      { k: 'h1', l: 'ارتفاع الدخول H1 (mm)', def: 22 },
-      { k: 'h2', l: 'ارتفاع الخروج H2 (mm)', def: 15 },
-      { k: 'd', l: 'قطر الدرفيل D (mm)', def: 420 },
-      { k: 'mu', l: 'معامل الاحتكاك μ (0.3 - 0.4)', def: 0.35 }
+      { k: 'h1', l: 'ارتفاع المعدن قبل الدرفيل (مم)', def: 22 },
+      { k: 'h2', l: 'ارتفاع المعدن بعد الدرفيل (مم)', def: 15 },
+      { k: 'd', l: 'قطر الدرفيل (مم)', def: 420 },
+      { k: 'mu', l: 'معامل الاحتكاك الساخن (0.30 إلى 0.40)', def: 0.35 }
     ],
     calc: (v) => {
       const h1 = num(v.h1);
@@ -1026,17 +1019,18 @@ const ALL_CALCULATORS = [
       const dhMax = mu * mu * r;
       const alphaRad = Math.acos(Math.max(-1, Math.min(1, 1 - dh / d)));
       const alphaDeg = (alphaRad * 180) / Math.PI;
-      const ok = mu >= Math.tan(alphaRad);
+      const ok = dh <= dhMax;
       return {
         results: {
-          'الضغطة المطلقة (ΔH)': `${fmt(dh, 2)} mm`,
-          'أقصى ضغطة مسموحة (ΔH max)': `${fmt(dhMax, 2)} mm`,
-          'زاوية العض (α)': `${fmt(alphaDeg, 1)}° (${ok ? 'يقبل العض' : 'خطر زحلقة!'})`
+          'قيمة الضغطة الحالية': `${fmt(dh, 2)} مم`,
+          'أقصى ضغطة يقبلها الدرفيل': `${fmt(dhMax, 2)} مم`,
+          'زاوية العض وحالة الدخول': `${fmt(alphaDeg, 1)}° (${ok ? 'الدرفيل يعض المعدن بأمان' : 'خطر زحلقة وعدم عض!'})`
         },
         steps: [
-          `الضغطة ΔH = ${h1} - ${h2} = ${fmt(dh, 2)} مم`,
-          `أقصى ضغطة ΔH_max = μ² × R = (${mu})² × ${r} = ${fmt(dhMax, 2)} مم`,
-          `زاوية العض α = ${fmt(alphaDeg, 1)}°`
+          `قيمة الضغطة المطلوبة = ${h1} - ${h2} = ${fmt(dh, 2)} مم`,
+          `نصف قطر الدرفيل = ${d} ÷ 2 = ${r} مم`,
+          `أقصى ضغطة يقبلها الدرفيل بدون زحلقة = (${mu} × ${mu}) × ${r} = ${fmt(dhMax, 2)} مم`,
+          `بما أن الضغطة الحالية (${fmt(dh, 2)} مم) ${ok ? 'أقل من' : 'أكبر من'} الحد الأقصى (${fmt(dhMax, 2)} مم)، فإن حالة العض: ${ok ? 'سليمة' : 'تحتاج فتح الجاب أو تخشين الدرفيل'}`
         ]
       };
     }
@@ -1045,14 +1039,14 @@ const ALL_CALCULATORS = [
   // --- ب. حاسبات الأتمتة والفنش ---
   {
     id: 'a1',
-    title: 'مسافة رمي الأبرون والعلب المغلقة (Apron)',
-    desc: 'حساب عدد العلب المغلقة لفرملة الأسياخ على سرير التبريد.',
+    title: 'مسافة رمي الأبرون والعلب المغلقة (سرير التبريد)',
+    desc: 'حساب عدد العلب المغلقة لفرملة السيخ على الأبرون قبل سرير التبريد.',
     icon: Flame,
     group: 'أتمتة وفنش',
-    formula: 'X (العلب المغلقة بالمتر) = V² / 8',
+    formula: 'عدد العلب المغلقة بالمتر = مربع سرعة آخر قائم ÷ 8',
     inputs: [
-      { k: 'v', l: 'سرعة خروج السيخ من آخر قائم V (m/s)', def: 12 },
-      { k: 'f', l: 'معامل احتكاك الأبرون f (القياسي 0.408)', def: 0.408 }
+      { k: 'v', l: 'سرعة خروج السيخ من آخر قائم (متر/ثانية)', def: 12 },
+      { k: 'f', l: 'معامل احتكاك بلاطات الأبرون (القياسي 0.408)', def: 0.408 }
     ],
     calc: (v) => {
       const vel = num(v.v);
@@ -1060,24 +1054,27 @@ const ALL_CALCULATORS = [
       const xStd = (vel * vel) / 8;
       const xExact = (vel * vel) / (2 * 9.81 * f);
       return {
-        results: { 'عدد العلب المغلقة (V²/8)': `${fmt(xStd, 1)} علبة (متر)`, 'مسافة الفرملة الدقيقة': `${fmt(xExact, 1)} متر` },
+        results: {
+          'عدد العلب المغلقة القياسي': `${fmt(xStd, 1)} علبة (متر)`,
+          'مسافة الفرملة الدقيقة': `${fmt(xExact, 1)} متر`
+        },
         steps: [
-          `مربع سرعة السيخ: V² = ${vel} × ${vel} = ${fmt(vel * vel, 1)}`,
-          `عدد العلب المغلقة X = ${fmt(vel * vel, 1)} / 8 = ${fmt(xStd, 1)} علبة`
+          `نربع سرعة خروج السيخ = ${vel} × ${vel} = ${fmt(vel * vel, 1)}`,
+          `نقسم مربع السرعة على 8 (حيث طول العلبة الواحدة 1 متر) = ${fmt(vel * vel, 1)} ÷ 8 = ${fmt(xStd, 1)} علبة مغلقة`
         ]
       };
     }
   },
   {
     id: 'a2',
-    title: 'ضبط ارتفاعات بكر اللوبر (Looper H & Y)',
-    desc: 'حساب ارتفاع البكرة الثابتة والمتحركة للوبر.',
+    title: 'ضبط ارتفاعات بكر اللوبر (الثابت والمتحرك)',
+    desc: 'حساب مستوى البكرة الثابتة والبكرة المتحركة (Kicker) للوبر.',
     icon: Sliders,
     group: 'أتمتة وفنش',
-    formula: 'H = X + R (الثابتة)  |  Y = H + (H / 3) (المتحركة)',
+    formula: 'ارتفاع البكرة الثابتة = ارتفاع سنتر الدليل + نصف قطر البار  |  ارتفاع البكرة المتحركة = ارتفاع الثابتة + ثلث ارتفاعها',
     inputs: [
-      { k: 'x', l: 'ارتفاع سنتر الدليل عن قاعدة اللوبر X (mm)', def: 150 },
-      { k: 'r', l: 'نصف قطر البار المدرفل R (mm)', def: 8 }
+      { k: 'x', l: 'ارتفاع خط سنتر الدليل عن قاعدة اللوبر (مم)', def: 150 },
+      { k: 'r', l: 'نصف قطر البار المدرفل (مم)', def: 8 }
     ],
     calc: (v) => {
       const x = num(v.x);
@@ -1085,26 +1082,29 @@ const ALL_CALCULATORS = [
       const h = x + r;
       const y = h + h / 3;
       return {
-        results: { 'ارتفاع البكرة الثابتة (H)': `${fmt(h, 1)} mm`, 'ارتفاع البكرة المتحركة (Y)': `${fmt(y, 1)} mm` },
+        results: {
+          'ارتفاع البكرة الثابتة (H)': `${fmt(h, 1)} مم`,
+          'ارتفاع البكرة المتحركة (Y)': `${fmt(y, 1)} مم`
+        },
         steps: [
-          `البكرة الثابتة H = ${x} + ${r} = ${fmt(h, 1)} مم`,
-          `البكرة المتحركة Y = ${fmt(h, 1)} + (${fmt(h, 1)} / 3) = ${fmt(y, 1)} مم`
+          `ارتفاع البكرة الثابتة = ${x} + ${r} = ${fmt(h, 1)} مم`,
+          `نضيف ثلث هذا الارتفاع للبكرة المتحركة = ${fmt(h, 1)} + (${fmt(h, 1)} ÷ 3) = ${fmt(y, 1)} مم`
         ]
       };
     }
   },
   {
     id: 'a3',
-    title: 'تزامن المقص الطائر (Flying Shear Over Speed)',
-    desc: 'حساب السرعة الخطية لسلاح المقص ونسبة الـ Over Speed.',
+    title: 'تزامن المقص الطائر ونسبة السرعة الزائدة',
+    desc: 'حساب السرعة الخطية لسلاح المقص ونسبة الـ Over Speed لمنع انحناء المقدمة.',
     icon: Scissors,
     group: 'أتمتة وفنش',
-    formula: 'V_cv = (2 × π × N_cv / 60) × R  |  Over Speed % = ((V_cv - V_bar) / V_bar) × 100',
+    formula: 'السرعة الخطية للمقص = السرعة الزاوية × نصف قطر دوران السكين',
     inputs: [
-      { k: 'nm', l: 'سرعة موتور المقص N_motor (RPM)', def: 1200 },
+      { k: 'nm', l: 'سرعة موتور المقص (RPM)', def: 1200 },
       { k: 'gr', l: 'نسبة جيربوكس المقص (Gear Ratio)', def: 4 },
-      { k: 'r', l: 'نصف قطر دوران سلاح المقص R (متر)', def: 0.35 },
-      { k: 'vbar', l: 'سرعة المعدن من القائم السابق V_bar (m/s)', def: 10 }
+      { k: 'r', l: 'نصف قطر دوران سلاح المقص (بالمتر)', def: 0.35 },
+      { k: 'vbar', l: 'سرعة السيخ القادم من القائم السابق (م/ث)', def: 10 }
     ],
     calc: (v) => {
       const nm = num(v.nm);
@@ -1116,28 +1116,31 @@ const ALL_CALCULATORS = [
       const vcv = w * r;
       const over = ((vcv - vbar) / vbar) * 100;
       return {
-        results: { 'السرعة الخطية للمقص V_cv (m/s)': fmt(vcv, 2), 'نسبة Shear Over Speed (%)': `${fmt(over, 1)}%` },
+        results: {
+          'السرعة الخطية لسلاح المقص': `${fmt(vcv, 2)} م/ث`,
+          'نسبة زيادة سرعة المقص (Over Speed)': `${fmt(over, 1)}%`
+        },
         steps: [
-          `لفات المقص N_cv = ${nm} / ${gr} = ${fmt(ncv, 1)} RPM`,
-          `السرعة الخطية للمقص V_cv = ${fmt(vcv, 2)} m/s`,
-          `نسبة السرعة الزائدة = ${fmt(over, 1)}%`
+          `عدد لفات عمود المقص = ${nm} ÷ ${gr} = ${fmt(ncv, 1)} لفة/دقيقة`,
+          `السرعة الخطية لحافة السكين = (2 × 3.1416 × ${fmt(ncv, 1)} ÷ 60) × ${r} م = ${fmt(vcv, 2)} م/ث`,
+          `نسبة السرعة الزائدة للمقص فوق سرعة السيخ = ((${fmt(vcv, 2)} - ${vbar}) ÷ ${vbar}) × 100 = ${fmt(over, 1)}%`
         ]
       };
     }
   },
 
-  // --- ج. حاسبات القوى والكهرباء والتحكم للفنيين في أرض العمل ---
+  // --- ج. حاسبات القوى والكهرباء والتحكم للفنيين ---
   {
     id: 'e_cable',
-    title: 'اختيار كابل الموتور وهبوط الجهد (Cable Sizing)',
-    desc: 'حساب مقطع الكابل المناسب بالمم² لموتور معين مع فحص الـ Voltage Drop.',
+    title: 'اختيار كابل الموتور وحساب هبوط الجهد (Cable Sizing)',
+    desc: 'تحديد مقاس كابل النحاس المناسب بالمم² للموتور وفحص نسبة هبوط الجهد.',
     icon: Cable,
     group: 'قوى وكهرباء',
-    formula: 'I_design = 1.25 × I_FL  |  ΔV = (√3 × I × L × cosφ) / (γ_cu × S)',
+    formula: 'تيار تصميم الكابل = 1.25 × أمبير الموتور الكامل  |  هبوط الجهد = (1.732 × التيار × الطول × معامل القدرة) ÷ (56 × مساحة الكابل)',
     inputs: [
-      { k: 'kw', l: 'قدرة الموتور (kW)', def: 75 },
-      { k: 'v', l: 'جهد التشغيل (Volt)', def: 380 },
-      { k: 'len', l: 'طول مسار الكابل بالمتر (m)', def: 65 },
+      { k: 'kw', l: 'قدرة الموتور (كيلووات kW)', def: 75 },
+      { k: 'v', l: 'جهد التشغيل (فولت)', def: 380 },
+      { k: 'len', l: 'طول مسار الكابل (بالمتر)', def: 65 },
       { k: 'pf', l: 'معامل القدرة (PF)', def: 0.85 }
     ],
     calc: (v) => {
@@ -1146,9 +1149,8 @@ const ALL_CALCULATORS = [
       const len = Math.max(1, num(v.len));
       const pf = Math.max(0.1, num(v.pf));
       const iFl = (kw * 1000) / (Math.sqrt(3) * volt * pf * 0.92);
-      const iDesign = iFl * 1.25; // معامل أمان 25% للكابل
+      const iDesign = iFl * 1.25;
 
-      // اختيار الكابل من الجدول القياسي
       let chosen = STANDARD_CABLES.find((c) => c.maxAmp >= iDesign);
       let parallelCount = 1;
       if (!chosen) {
@@ -1156,77 +1158,72 @@ const ALL_CALCULATORS = [
         chosen = STANDARD_CABLES.find((c) => c.maxAmp >= iDesign / parallelCount) || STANDARD_CABLES[STANDARD_CABLES.length - 1];
       }
 
-      // فحص هبوط الجهد (معامل التوصيلية للنحاس γ = 56)
       const totalCrossSection = chosen.size * parallelCount;
       const vDropVolt = (Math.sqrt(3) * iFl * len * pf) / (56 * totalCrossSection);
       const vDropPct = (vDropVolt / volt) * 100;
-
-      // إذا كان هبوط الجهد أكبر من 5% نقترح الكابل الأكبر
       const isDropSafe = vDropPct <= 5.0;
 
       return {
         results: {
-          'أمبير الحمل الكامل للموتور (I_FL)': `${fmt(iFl, 1)} A`,
-          'أمبير تصميم الكابل (1.25 × I_FL)': `${fmt(iDesign, 1)} A`,
-          'مقاس كابل النحاس المقترح': parallelCount === 1 ? `3×${chosen.size} mm²` : `${parallelCount} × (3×${chosen.size} mm²) بالتوازي`,
-          'نسبة هبوط الجهد (Voltage Drop)': `${fmt(vDropPct, 2)}% (${isDropSafe ? 'مطابق آمن' : 'يُنصح بزيادة المقطع درجة'})`
+          'أمبير الحمل الكامل للموتور': `${fmt(iFl, 1)} أمبير`,
+          'أمبير تصميم الكابل (شامل 25% أمان)': `${fmt(iDesign, 1)} أمبير`,
+          'مقاس كابل النحاس المناسب': parallelCount === 1 ? `3 × ${chosen.size} مم²` : `${parallelCount} كابلات بالتوازي (3 × ${chosen.size} مم²)`,
+          'هبوط الجهد عند نهاية الكابل': `${fmt(vDropPct, 2)}% (${isDropSafe ? 'ممتاز أقل من 5%' : 'يفضل اختيار المقاس الأكبر'})`
         },
         steps: [
-          `نحسب تيار الموتور الكامل I_FL = (${kw} × 1000) / (1.732 × ${volt} × ${pf} × 0.92) = ${fmt(iFl, 1)} أمبير`,
-          `نضرب في معامل أمان الكابل (1.25) لتحمل ظروف المصنع = ${fmt(iFl, 1)} × 1.25 = ${fmt(iDesign, 1)} أمبير`,
-          `من جدول كابلات النحاس القياسية نختار مقطع (${parallelCount === 1 ? chosen.size : `${parallelCount}×${chosen.size}`} مم²) الذي يتحمل حتى ${chosen.maxAmp * parallelCount} أمبير`,
-          `نحسب هبوط الجهد لمسافة ${len} متر: ΔV = (1.732 × ${fmt(iFl, 1)} × ${len} × ${pf}) / (56 × ${totalCrossSection}) = ${fmt(vDropVolt, 2)} فولت (${fmt(vDropPct, 2)}%)`
+          `نحسب أمبير الموتور الفعلي = (${kw} × 1000) ÷ (1.732 × ${volt} × ${pf} × 0.92) = ${fmt(iFl, 1)} أمبير`,
+          `نضيف 25% معامل أمان للكابل = ${fmt(iFl, 1)} × 1.25 = ${fmt(iDesign, 1)} أمبير`,
+          `نختار من الجدول القياسي كابل نحاس بمقطع (${chosen.size} مم²) يتحمل بأمان هذا التيار`,
+          `هبوط الجهد لمسافة ${len} متر = ${fmt(vDropVolt, 2)} فولت أي بنسبة ${fmt(vDropPct, 2)}% من الجهد الأصلي`
         ]
       };
     }
   },
   {
     id: 'e_protection',
-    title: 'اختيار القاطع والكونتاكتور والأوفرلود (DOL & Star/Delta)',
-    desc: 'حساب سعة الكونتاكتور، رينج الأوفرلود، والقاطع الرئيسي للموتور.',
+    title: 'اختيار القاطع والكونتاكتور والأوفرلود (مباشر وستار/دلتا)',
+    desc: 'حساب سعة القاطع MCCB والكونتاكتور ورينج الأوفرلود للموتور.',
     icon: ShieldAlert,
     group: 'قوى وكهرباء',
-    formula: 'DOL: I_ovl = I_n , I_cb = 1.5 × I_n  |  Star-Delta: I_main/delta = 0.58 × I_n , I_star = 0.33 × I_n',
+    formula: 'التشغيل المباشر: الأوفرلود = أمبير الموتور  |  ستار/دلتا: كونتاكتور الرئيسي والدلتا والأوفرلود = 58% من أمبير الموتور',
     inputs: [
-      { k: 'kw', l: 'قدرة الموتور (kW)', def: 45 },
-      { k: 'v', l: 'الجهد الكهربائي (Volt)', def: 380 }
+      { k: 'kw', l: 'قدرة الموتور (كيلووات kW)', def: 45 },
+      { k: 'v', l: 'جهد التشغيل (فولت)', def: 380 }
     ],
     calc: (v) => {
       const kw = num(v.kw);
       const volt = Math.max(1, num(v.v));
       const inAmp = (kw * 1000) / (Math.sqrt(3) * volt * 0.85 * 0.91);
       const cbAmp = inAmp * 1.5;
-      const dolOvl = inAmp;
       const sdMainDelta = inAmp * 0.58;
       const sdStar = inAmp * 0.34;
 
       return {
         results: {
-          'أمبير الموتور الاسمي (I_n)': `${fmt(inAmp, 1)} A`,
-          'القاطع الرئيسي المقترح (MCCB)': `${fmt(cbAmp, 0)} A`,
-          'في حالة DOL (أوفرلود وكونتاكتور)': `كونتاكتور ≥ ${fmt(inAmp * 1.2, 0)}A | أوفرلود على ${fmt(dolOvl, 1)}A`,
-          'في حالة Star/Delta (المكونات)': `رئيسي ودلتا: ${fmt(sdMainDelta, 0)}A | ستار: ${fmt(sdStar, 0)}A | أوفرلود: ${fmt(sdMainDelta, 1)}A`
+          'أمبير الموتور الاسمي': `${fmt(inAmp, 1)} A`,
+          'القاطع الرئيسي المناسب (MCCB)': `${fmt(cbAmp, 0)} A`,
+          'في حالة التشغيل المباشر (DOL)': `كونتاكتور ${fmt(inAmp * 1.2, 0)}A + أوفرلود يضبط على ${fmt(inAmp, 1)}A`,
+          'في حالة ستار / دلتا (Star/Delta)': `رئيسي ودلتا: ${fmt(sdMainDelta, 0)}A | ستار: ${fmt(sdStar, 0)}A | أوفرلود: ${fmt(sdMainDelta, 1)}A`
         },
         steps: [
-          `تيار الموتور الاسمي التقريبي I_n = ${fmt(inAmp, 1)} أمبير`,
-          `سعة القاطع الرئيسي (MCCB) = 1.5 × ${fmt(inAmp, 1)} = ${fmt(cbAmp, 0)} أمبير`,
-          `في دائرة ستار/دلتا يمر في الكونتاكتور الرئيسي والدلتا والأوفرلود (I_n / √3 = 58%): ${fmt(sdMainDelta, 1)} أمبير`,
-          `بينما يمر في كونتاكتور الستار ثلث التيار (33% × I_n) = ${fmt(sdStar, 1)} أمبير`
+          `أمبير الموتور الاسمي التقريبي = ${fmt(inAmp, 1)} أمبير`,
+          `سعة القاطع الرئيسي لحماية الدائرة = 1.5 × ${fmt(inAmp, 1)} = ${fmt(cbAmp, 0)} أمبير`,
+          `في توصيلة ستار/دلتا يمر في الكونتاكتور الرئيسي والدلتا 58% فقط من التيار = ${fmt(sdMainDelta, 1)} أمبير، ويمر في كونتاكتور الستار 34% = ${fmt(sdStar, 1)} أمبير`
         ]
       };
     }
   },
   {
     id: 'e_braking',
-    title: 'حاسبة مقاومة الفرملة للإنفرتر (VFD Braking Resistor)',
-    desc: 'حساب قيمة الأوم (Ω) والكيلووات لمقاومة الفرملة لمنع عطل Overvoltage.',
+    title: 'حاسبة مقاومة الفرملة للإنفرتر (Braking Resistor)',
+    desc: 'حساب قيمة الأوم والكيلووات لمقاومة الفرملة لمنع عطل Overvoltage.',
     icon: Zap,
     group: 'قوى وكهرباء',
-    formula: 'R_min (Ω) = V_dc_max² / P_peak  |  P_resistor = P_motor × Braking_Duty%',
+    formula: 'قيمة المقاومة بالأوم = مربع جهد دائرة الـ DC ÷ قدرة الموتور بالوات',
     inputs: [
       { k: 'kw', l: 'قدرة موتور الدرفلة أو المقص (kW)', def: 90 },
-      { k: 'vdc', l: 'جهد الـ DC Link أثناء الفرملة (لـ 380V يكون ~ 700V)', def: 700 },
-      { k: 'duty', l: 'نسبة دورة الفرملة Braking Duty (%)', def: 15 }
+      { k: 'vdc', l: 'جهد دائرة الـ DC أثناء الفرملة (لـ 380V يكون 700V)', def: 700 },
+      { k: 'duty', l: 'نسبة تكرار الفرملة Braking Duty (%)', def: 15 }
     ],
     calc: (v) => {
       const kw = Math.max(1, num(v.kw));
@@ -1238,29 +1235,29 @@ const ALL_CALCULATORS = [
 
       return {
         results: {
-          'قيمة مقاومة الفرملة المناسبة (Ω)': `${fmt(rOhm, 1)} Ohm (Ω)`,
-          'القدرة الحرارية لمقاومة الفرملة (kW)': `${fmt(resKw, 1)} kW`,
-          'تيار الشوبر الأقصى (Chopper Current)': `${fmt(vdc / Math.max(0.1, rOhm), 1)} A`
+          'قيمة مقاومة الفرملة المطلوبة': `${fmt(rOhm, 1)} أوم (Ω)`,
+          'قدرة المقاومة الحرارية': `${fmt(resKw, 1)} كيلووات (kW)`,
+          'أقصى تيار فرملة': `${fmt(vdc / Math.max(0.1, rOhm), 1)} أمبير`
         },
         steps: [
-          `أثناء تباطؤ الموتور يرتفع جهد دائرة الـ DC Link إلى حوالي ${vdc} فولت مستمر (VDC)`,
-          `قيمة المقاومة بالأوم R = V_dc² / P_watt = (${vdc})² / (${kw * 1000}) = ${fmt(rOhm, 1)} أوم`,
-          `القدرة المستمرة للمقاومة حسب دورة التشغيل (${duty}%) = ${kw} × (${duty}/100) = ${fmt(resKw, 1)} كيلووات`
+          `مربع جهد دائرة التيار المستمر = ${vdc} × ${vdc} = ${vdc * vdc}`,
+          `نقسم على قدرة الموتور بالوات (${pPeakWatt} وات) = ${fmt(rOhm, 1)} أوم`,
+          `القدرة الحرارية للمقاومة حسب نسبة الفرملة (${duty}%) = ${kw} × (${duty}÷100) = ${fmt(resKw, 1)} كيلووات`
         ]
       };
     }
   },
   {
     id: 'e_pfc',
-    title: 'حاسبة مكثفات تحسين معامل القدرة (PF Correction kVAR)',
-    desc: 'حساب سعة البانل بالكيلوفار لرفع معامل القدرة وتقليل الأمبير.',
+    title: 'مكثفات تحسين معامل القدرة (Power Factor kVAR)',
+    desc: 'حساب سعة لوحة المكثفات بالكيلوفار لرفع معامل القدرة وتقليل الأمبير.',
     icon: BatteryCharging,
     group: 'قوى وكهرباء',
-    formula: 'Q (kVAR) = P (kW) × [ tan(arccos(PF_1)) - tan(arccos(PF_2)) ]',
+    formula: 'سعة المكثفات المطلوبة (kVAR) = القدرة الفعالة بالكيلووات × فرق ظل زاوية معامل القدرة قبل وبعد التحسين',
     inputs: [
       { k: 'kw', l: 'الحمل الفعال للمصنع أو اللوحة (kW)', def: 500 },
-      { k: 'pf1', l: 'معامل القدرة الحالي المنخفض (PF 1)', def: 0.76 },
-      { k: 'pf2', l: 'معامل القدرة المستهدف (PF 2)', def: 0.95 }
+      { k: 'pf1', l: 'معامل القدرة الحالي المنخفض', def: 0.76 },
+      { k: 'pf2', l: 'معامل القدرة المستهدف', def: 0.95 }
     ],
     calc: (v) => {
       const kw = num(v.kw);
@@ -1273,28 +1270,27 @@ const ALL_CALCULATORS = [
 
       return {
         results: {
-          'سعة المكثفات المطلوبة (kVAR)': `${fmt(kvar, 1)} kVAR`,
-          'أمبير لوحة المكثفات عند 380V': `${fmt(capAmp, 1)} A`
+          'سعة المكثفات المطلوبة': `${fmt(kvar, 1)} kVAR`,
+          'تيار لوحة المكثفات عند 380V': `${fmt(capAmp, 1)} أمبير`
         },
         steps: [
-          `زاوية الطور الحالية φ1: tan(φ1) = ${fmt(tan1, 3)}`,
-          `زاوية الطور المستهدفة φ2: tan(φ2) = ${fmt(tan2, 3)}`,
-          `سعة المكثفات Q = ${kw} × (${fmt(tan1, 3)} - ${fmt(tan2, 3)}) = ${fmt(kvar, 1)} kVAR`
+          `معامل الظل للوضع الحالي (${pf1}) = ${fmt(tan1, 3)}، وللوضع المستهدف (${pf2}) = ${fmt(tan2, 3)}`,
+          `نضرب الحمل (${kw} كيلووات) في الفرق بينهما = ${kw} × (${fmt(tan1 - tan2, 3)}) = ${fmt(kvar, 1)} كيلوفار`
         ]
       };
     }
   },
   {
     id: 'e_plc_scale',
-    title: 'تحجيم إشارات الحساسات والـ PLC (4-20mA Analog Scaling)',
-    desc: 'تحويل إشارة 4-20mA أو 0-10V إلى حرارة أو ضغط أو سرعة وقيمة الـ PLC.',
+    title: 'تحويل إشارات الحساسات والـ PLC (4-20mA Scaling)',
+    desc: 'تحويل قراءة المللي أمبير إلى حرارة أو ضغط وقيمة الـ PLC الرقمية.',
     icon: Radio,
     group: 'قوى وكهرباء',
-    formula: 'Value = Min + [ ((mA - 4) / 16) × (Max - Min) ]  |  Siemens Raw = ((mA - 4) / 16) × 27648',
+    formula: 'النسبة المئوية للإشارة = ((قراءة المللي أمبير - 4) ÷ 16) × 100',
     inputs: [
-      { k: 'ma', l: 'قراءة التيار المقاسة بالأفوميتر (mA من 4 إلى 20)', def: 12 },
-      { k: 'min', l: 'أقل قيمة لتدريج الحساس (Min Range)', def: 0 },
-      { k: 'max', l: 'أعلى قيمة لتدريج الحساس (Max Range مثلاً 250 بار)', def: 250 }
+      { k: 'ma', l: 'قراءة المللي أمبير على الأفوميتر (من 4 إلى 20)', def: 12 },
+      { k: 'min', l: 'بداية تدريج الحساس (Min)', def: 0 },
+      { k: 'max', l: 'نهاية تدريج الحساس (Max مثلاً 250 بار)', def: 250 }
     ],
     calc: (v) => {
       const ma = num(v.ma);
@@ -1306,28 +1302,28 @@ const ALL_CALCULATORS = [
 
       return {
         results: {
-          'النسبة المئوية للإشارة (%)': `${fmt(pct, 1)}%`,
-          'القيمة الفيزيائية المقابلة (Engineering Value)': fmt(engVal, 2),
-          'القيمة الرقمية داخل Siemens PLC (0-27648)': siemensRaw
+          'نسبة الإشارة المئوية': `${fmt(pct, 1)}%`,
+          'القراءة الفعلية للحساس (ضغط/حرارة)': fmt(engVal, 2),
+          'القيمة داخل Siemens PLC (من 27648)': siemensRaw
         },
         steps: [
-          `نسبة الإشارة من مدى الـ 16mA = (${ma} - 4) / 16 = ${fmt((ma - 4) / 16, 3)} (${fmt(pct, 1)}%)`,
-          `القيمة الفيزيائية = ${min} + (${fmt((ma - 4) / 16, 3)} × (${max} - ${min})) = ${fmt(engVal, 2)}`,
-          `قيمة المسجل في Siemens S7 (PIW/IW) = ${fmt((ma - 4) / 16, 3)} × 27648 = ${siemensRaw}`
+          `نطرح 4 مللي أمبير (نقطة الصفر) ونقسم على مدى الإشارة (16 مللي أمبير) = (${ma} - 4) ÷ 16 = ${fmt(pct, 1)}%`,
+          `نضرب النسبة في مدى الحساس (${max} - ${min}) = ${fmt(engVal, 2)}`,
+          `قيمة المسجل الرقمي داخل PLC سيمنز = النسبة × 27648 = ${siemensRaw}`
         ]
       };
     }
   },
   {
     id: 'e_encoder',
-    title: 'حاسبة نبضات الإنكودر والسرعة (Encoder PPR & kHz)',
-    desc: 'حساب تردد نبضات الإنكودر بالـ kHz وتشخيص توافق كارت السرعة.',
+    title: 'حاسبة نبضات الإنكودر والسرعة (Encoder PPR)',
+    desc: 'حساب تردد نبضات الإنكودر بالكيلوهرتز للتأكد من سلامة القراءة.',
     icon: Cpu,
     group: 'قوى وكهرباء',
-    formula: 'f_pulse (Hz) = (RPM × PPR) / 60',
+    formula: 'تردد النبضات بالهرتز = (سرعة الموتور بالدقيقة × عدد نبضات اللفة الواحدة) ÷ 60',
     inputs: [
-      { k: 'ppr', l: 'عدد نبضات الإنكودر للفة (PPR مثلاً 1024)', def: 1024 },
-      { k: 'rpm', l: 'سرعة دوران عمود الموتور (RPM)', def: 1500 }
+      { k: 'ppr', l: 'عدد نبضات الإنكودر في اللفة (PPR)', def: 1024 },
+      { k: 'rpm', l: 'سرعة دوران الموتور (RPM)', def: 1500 }
     ],
     calc: (v) => {
       const ppr = num(v.ppr);
@@ -1337,29 +1333,29 @@ const ALL_CALCULATORS = [
 
       return {
         results: {
-          'تردد النبضات بالهرتز (Hz)': `${fmt(hz, 0)} نبضة/ثانية`,
+          'عدد النبضات في الثانية (Hz)': `${fmt(hz, 0)} نبضة/ثانية`,
           'التردد بالكيلوهرتز (kHz)': `${fmt(khz, 2)} kHz`
         },
         steps: [
-          `عدد لفات الموتور في الثانية الواحدة = ${rpm} / 60 = ${fmt(rpm / 60, 2)} لفة/ثانية`,
-          `تردد النبضات = ${fmt(rpm / 60, 2)} × ${ppr} نبضة = ${fmt(hz, 0)} Hz (${fmt(khz, 2)} kHz)`
+          `عدد لفات الموتور في الثانية الواحدة = ${rpm} ÷ 60 = ${fmt(rpm / 60, 2)} لفة/ثانية`,
+          `نضرب لفات الثانية في نبضات اللفة الواحدة (${ppr}) = ${fmt(hz, 0)} نبضة/ثانية (${fmt(khz, 2)} كيلوهرتز)`
         ]
       };
     }
   },
   {
     id: 'e1',
-    title: 'حمل وعزم وقدرة الدرفلة (Load, Torque & Power)',
-    desc: 'حساب قوس التلامس، قوة الدرفلة kN، العزم، والكيلووات.',
+    title: 'حمل وعزم وقدرة الدرفلة الميكانيكية',
+    desc: 'حساب طول قوس التلامس، قوة الدرفلة بالكيلونيوتن، والعزم والقدرة.',
     icon: Flame,
     group: 'قوى وكهرباء',
-    formula: 'Lp = √(R × Δh)  |  Load = σ × W × Lp  |  P = (2π × N × T) / 60',
+    formula: 'طول قوس التلامس = الجذر التربيعي لـ (نصف قطر الدرفيل × الضغطة)  |  حمل الدرفلة = مقاومة المعدن × العرض × قوس التلامس',
     inputs: [
-      { k: 'sigma', l: 'مقاومة المعدن للتشكيل σ (MPa)', def: 110 },
-      { k: 'w', l: 'عرض المعدن الملامس W (mm)', def: 45 },
-      { k: 'r', l: 'نصف قطر الدرفيل R (mm)', def: 210 },
-      { k: 'dh', l: 'مقدار الضغطة Δh (mm)', def: 6 },
-      { k: 'rpm', l: 'سرعة دوران الدرفيل N_roll (RPM)', def: 240 }
+      { k: 'sigma', l: 'مقاومة المعدن للتشكيل الساخن (MPa)', def: 110 },
+      { k: 'w', l: 'عرض المعدن الملامس للدرفيل (مم)', def: 45 },
+      { k: 'r', l: 'نصف قطر الدرفيل (مم)', def: 210 },
+      { k: 'dh', l: 'مقدار الضغطة (مم)', def: 6 },
+      { k: 'rpm', l: 'سرعة دوران الدرفيل (RPM)', def: 240 }
     ],
     calc: (v) => {
       const s = num(v.sigma);
@@ -1373,62 +1369,16 @@ const ALL_CALCULATORS = [
       const powerKw = (torqueKnm * 2 * Math.PI * rpm) / 60;
       return {
         results: {
-          'طول قوس التلامس Lp (mm)': fmt(lp, 2),
-          'حمل الدرفلة (Load)': `${fmt(loadKn, 1)} kN`,
-          'عزم الدرفلة (Torque)': `${fmt(torqueKnm, 2)} kN.m`,
-          'قدرة الدرفلة (Power)': `${fmt(powerKw, 1)} kW`
+          'طول قوس التلامس (Lp)': `${fmt(lp, 2)} مم`,
+          'قوة وحمل الدرفلة': `${fmt(loadKn, 1)} كيلو نيوتن`,
+          'عزم الدرفلة المطلوب': `${fmt(torqueKnm, 2)} kN.m`,
+          'القدرة المطلوبة للدرفلة': `${fmt(powerKw, 1)} كيلووات`
         },
         steps: [
-          `قوس التلامس Lp = √(${r} × ${dh}) = ${fmt(lp, 2)} مم`,
-          `حمل الدرفلة = ${fmt(loadKn, 1)} kN`,
-          `القدرة الميكانيكية = ${fmt(powerKw, 1)} كيلووات`
+          `طول قوس التلامس بين المعدن والدرفيل = جذر (${r} × ${dh}) = ${fmt(lp, 2)} مم`,
+          `حمل الدرفلة = (${s} × ${w} × ${fmt(lp, 2)}) ÷ 1000 = ${fmt(loadKn, 1)} كيلو نيوتن`,
+          `القدرة الميكانيكية اللازمة لتدوير الدرفيلين = ${fmt(powerKw, 1)} كيلووات`
         ]
-      };
-    }
-  },
-  {
-    id: 'e2',
-    title: 'حساب أمبير الموتور ثلاثي الأوجه (Amperes)',
-    desc: 'حساب التيار المتوقع سحبه للموتور من الكيلووات والجهد.',
-    icon: Cpu,
-    group: 'قوى وكهرباء',
-    formula: 'I (Amp) = (P_kW × 1000) / (√3 × V × PF × η)',
-    inputs: [
-      { k: 'kw', l: 'قدرة الموتور (kW)', def: 400 },
-      { k: 'v', l: 'الجهد الكهربائي (Volt)', def: 400 },
-      { k: 'pf', l: 'معامل القدرة (PF)', def: 0.86 },
-      { k: 'eff', l: 'كفاءة الموتور η', def: 0.94 }
-    ],
-    calc: (v) => {
-      const kw = num(v.kw);
-      const volt = Math.max(1, num(v.v));
-      const pf = Math.max(0.1, num(v.pf));
-      const eff = Math.max(0.1, num(v.eff));
-      const amp = (kw * 1000) / (Math.sqrt(3) * volt * pf * eff);
-      return {
-        results: { 'التيار المسحوب المتوقع (Amperes)': `${fmt(amp, 1)} A` },
-        steps: [`القدرة بالوات = ${kw * 1000} W`, `الأمبير المسحوب I = ${fmt(amp, 1)} أمبير`]
-      };
-    }
-  },
-  {
-    id: 'e3',
-    title: 'تردد الإنفرتر والسرعة التزامنية (VFD Hz)',
-    desc: 'حساب التردد بالهرتز المطلوب إخراجه من الدرايف.',
-    icon: Zap,
-    group: 'قوى وكهرباء',
-    formula: 'f (Hz) = (N_motor × Poles) / 120',
-    inputs: [
-      { k: 'rpm', l: 'سرعة الموتور المطلوبة (RPM)', def: 1250 },
-      { k: 'poles', l: 'عدد أقطاب الموتور (4 أو 6)', def: 4 }
-    ],
-    calc: (v) => {
-      const rpm = num(v.rpm);
-      const p = Math.max(2, num(v.poles));
-      const hz = (rpm * p) / 120;
-      return {
-        results: { 'تردد خرج الـ VFD المطلوب (Hz)': `${fmt(hz, 1)} Hz` },
-        steps: [`التردد f = (${rpm} × ${p}) / 120 = ${fmt(hz, 1)} Hz`]
       };
     }
   }
@@ -1471,26 +1421,26 @@ const UnifiedCalculatorsView = () => {
             setActiveCalcId(null);
             setVals({});
           }}
-          className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5"
+          className="bg-white hover:bg-slate-100 text-slate-800 border border-slate-200 px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm"
         >
           <ArrowLeft size={15} className="rotate-180" /> رجوع لكل القوانين
         </button>
 
-        <div className="bg-slate-900 p-4 sm:p-6 rounded-2xl border border-slate-800 max-w-2xl mx-auto shadow-xl">
-          <div className="flex items-center gap-3 mb-4 border-b border-slate-800 pb-3.5">
-            <div className="bg-blue-600/20 p-2.5 rounded-xl border border-blue-500/30 shrink-0">
-              <c.icon className="w-5 h-5 sm:w-6 sm:h-6 text-blue-400" />
+        <div className="bg-white p-4 sm:p-6 rounded-3xl border border-slate-200 max-w-2xl mx-auto shadow-lg">
+          <div className="flex items-center gap-3 mb-4 border-b border-slate-100 pb-3.5">
+            <div className="bg-blue-50 p-2.5 rounded-xl border border-blue-200 shrink-0">
+              <c.icon className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
             </div>
             <div>
-              <span className="text-[11px] text-blue-400 font-bold">{c.group}</span>
-              <h2 className="text-base sm:text-xl font-black text-white">{c.title}</h2>
+              <span className="text-[11px] text-blue-600 font-bold">{c.group}</span>
+              <h2 className="text-base sm:text-xl font-black text-slate-900">{c.title}</h2>
             </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {c.inputs.map((inp) => (
               <div key={inp.k}>
-                <label className="block text-[11px] sm:text-xs font-bold text-slate-400 mb-1">{inp.l}</label>
+                <label className="block text-[11px] sm:text-xs font-bold text-slate-600 mb-1">{inp.l}</label>
                 <input
                   type="number"
                   step="any"
@@ -1502,11 +1452,11 @@ const UnifiedCalculatorsView = () => {
             ))}
           </div>
 
-          <div className="mt-4 bg-slate-950 p-4 rounded-xl border border-blue-500/40 space-y-2">
+          <div className="mt-5 bg-blue-50/60 p-4 rounded-2xl border border-blue-200 space-y-2.5">
             {Object.entries(results).map(([k, v]) => (
-              <div key={k} className="flex justify-between items-center border-b border-slate-800/80 last:border-0 pb-2 last:pb-0 gap-2">
-                <span className="text-slate-300 font-bold text-xs sm:text-sm">{k}</span>
-                <span className="text-blue-400 font-black font-mono text-sm sm:text-lg text-left">{v}</span>
+              <div key={k} className="flex justify-between items-center border-b border-blue-100 last:border-0 pb-2 last:pb-0 gap-2">
+                <span className="text-slate-700 font-bold text-xs sm:text-sm">{k}</span>
+                <span className="text-blue-700 font-black font-mono text-sm sm:text-lg text-left">{v}</span>
               </div>
             ))}
           </div>
@@ -1522,15 +1472,16 @@ const UnifiedCalculatorsView = () => {
 
   return (
     <div className="space-y-4">
+      {/* شريط الفلاتر باللون الأبيض النظيف */}
       <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
         {groups.map((grp) => (
           <button
             key={grp}
             onClick={() => setSelectedGroup(grp)}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all shrink-0 ${
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all shrink-0 ${
               selectedGroup === grp
-                ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
-                : 'bg-slate-900 text-slate-400 border border-slate-800 hover:text-white'
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'bg-white text-slate-600 border border-slate-200 hover:text-slate-900'
             }`}
           >
             {grp}
@@ -1538,37 +1489,38 @@ const UnifiedCalculatorsView = () => {
         ))}
       </div>
 
+      {/* شبكة البطاقات البيضاء المريحة للعين على الموبايل */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {visibleCalcs.map((c) => (
           <button
             key={c.id}
             onClick={() => openCalculator(c)}
-            className={`text-right p-3.5 sm:p-4 rounded-2xl border transition-all flex items-start gap-3 group hover:-translate-y-0.5 ${
+            className={`text-right p-4 rounded-2xl border transition-all flex items-start gap-3 group hover:-translate-y-0.5 shadow-sm hover:shadow-md ${
               c.isSpecial
-                ? 'bg-gradient-to-l from-blue-950/60 to-slate-900 border-blue-500/40 hover:border-blue-400'
-                : 'bg-slate-900 hover:bg-slate-800/90 border-slate-800 hover:border-blue-500/50'
+                ? 'bg-gradient-to-l from-blue-50/80 to-white border-blue-300 hover:border-blue-500'
+                : 'bg-white border-slate-200 hover:border-blue-400'
             }`}
           >
             <div
               className={`w-10 h-10 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-105 ${
                 c.isSpecial
-                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
-                  : 'bg-slate-950 border border-slate-800 text-blue-400'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'bg-blue-50 border border-blue-100 text-blue-600'
               }`}
             >
               <c.icon className="w-5 h-5" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between gap-1">
-                <span className="text-[10px] font-bold text-blue-400">{c.group}</span>
+                <span className="text-[10px] font-bold text-blue-600">{c.group}</span>
                 {c.isSpecial && (
-                  <span className="text-[9px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1.5 py-0.5 rounded font-bold">
-                    مطور
+                  <span className="text-[9px] bg-amber-100 text-amber-800 border border-amber-300 px-2 py-0.5 rounded-full font-black">
+                    شامل ذكي
                   </span>
                 )}
               </div>
-              <h3 className="text-xs sm:text-sm font-black text-white mt-0.5 truncate">{c.title}</h3>
-              <p className="text-[11px] text-slate-400 line-clamp-1 mt-0.5">{c.desc}</p>
+              <h3 className="text-xs sm:text-sm font-black text-slate-900 mt-0.5 truncate">{c.title}</h3>
+              <p className="text-[11px] text-slate-500 font-medium line-clamp-1 mt-0.5">{c.desc}</p>
             </div>
           </button>
         ))}
@@ -1595,10 +1547,10 @@ const TablesAndConverterView = () => {
       })();
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        <div className="lg:col-span-5 bg-slate-900 p-4 rounded-2xl border border-slate-800 space-y-3">
-          <h3 className="text-sm sm:text-base font-bold text-white border-b border-slate-800 pb-2">
+        <div className="lg:col-span-5 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+          <h3 className="text-sm sm:text-base font-black text-slate-900 border-b border-slate-100 pb-2">
             محول الوحدات الهندسي الفوري
           </h3>
           <SelectField
@@ -1616,45 +1568,45 @@ const TablesAndConverterView = () => {
           </div>
         </div>
 
-        <div className="lg:col-span-7 bg-slate-900 p-4 rounded-2xl border border-rose-500/30 space-y-3">
-          <h3 className="text-sm sm:text-base font-bold text-rose-400 border-b border-slate-800 pb-2">القيم المكافئة</h3>
+        <div className="lg:col-span-7 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+          <h3 className="text-sm sm:text-base font-black text-blue-700 border-b border-slate-100 pb-2">القيم المكافئة</h3>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
             {all.map(([u, v]) => (
               <Stat
                 key={u}
                 label={u}
                 value={Math.abs(v) >= 1e6 || (Math.abs(v) < 1e-3 && v !== 0) ? v.toExponential(2) : fmt(v, 3)}
-                color={u === unit ? 'text-rose-400' : 'text-white'}
+                color={u === unit ? 'text-blue-600' : 'text-slate-900'}
               />
             ))}
           </div>
         </div>
       </div>
 
-      <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 overflow-x-auto">
-        <h3 className="text-sm sm:text-base font-bold text-white mb-3">
+      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm overflow-x-auto">
+        <h3 className="text-sm sm:text-base font-black text-slate-900 mb-3">
           جدول الأوزان القياسية والتجاوزات لحديد التسليح (ISO 6935-2 / ES 262)
         </h3>
         <table className="w-full text-right text-xs min-w-[480px]">
-          <thead className="bg-slate-950 text-slate-400">
+          <thead className="bg-slate-900 text-white">
             <tr>
               <th className="p-2.5 rounded-r-lg">المقاس</th>
-              <th className="p-2.5">المساحة mm²</th>
-              <th className="p-2.5">أقل وزن</th>
+              <th className="p-2.5">المساحة مم²</th>
+              <th className="p-2.5">أقل وزن مسموح</th>
               <th className="p-2.5">الوزن الاسمي (كجم/م)</th>
-              <th className="p-2.5">أقصى وزن</th>
+              <th className="p-2.5">أقصى وزن مسموح</th>
               <th className="p-2.5 rounded-l-lg">كود اللون</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-800/60 font-mono">
+          <tbody className="divide-y divide-slate-200 font-mono">
             {REBAR_SPECS.map((r) => (
-              <tr key={r.size} className="hover:bg-slate-800/40">
-                <td className="p-2.5 font-bold text-white">{r.size} مم</td>
-                <td className="p-2.5 text-slate-300">{r.area}</td>
-                <td className="p-2.5 text-red-400">{r.minW}</td>
-                <td className="p-2.5 text-emerald-400 font-bold">{r.nomW}</td>
-                <td className="p-2.5 text-amber-400">{r.maxW}</td>
-                <td className="p-2.5 font-sans text-blue-300">{r.color}</td>
+              <tr key={r.size} className="hover:bg-slate-50">
+                <td className="p-2.5 font-black text-slate-900">{r.size} مم</td>
+                <td className="p-2.5 text-slate-600 font-bold">{r.area}</td>
+                <td className="p-2.5 text-red-600 font-bold">{r.minW}</td>
+                <td className="p-2.5 text-emerald-700 font-black">{r.nomW}</td>
+                <td className="p-2.5 text-amber-700 font-bold">{r.maxW}</td>
+                <td className="p-2.5 font-sans font-bold text-blue-700">{r.color}</td>
               </tr>
             ))}
           </tbody>
@@ -1665,7 +1617,7 @@ const TablesAndConverterView = () => {
 };
 
 /* ======================================================
-   7. مجتمع المهندسين المطور وموسوعة الأعطال (Community Pro)
+   7. مجتمع المهندسين وموسوعة الأعطال (Clean Light Community)
    ====================================================== */
 const CommunityProView = () => {
   const [subMode, setSubMode] = useState('feed');
@@ -1766,12 +1718,12 @@ const CommunityProView = () => {
 
   return (
     <div className="space-y-4">
-      <div className="bg-slate-900 border border-slate-800 p-3.5 rounded-2xl flex flex-wrap justify-between items-center gap-3">
-        <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-800">
+      <div className="bg-white border border-slate-200 p-3.5 rounded-2xl shadow-sm flex flex-wrap justify-between items-center gap-3">
+        <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200">
           <button
             onClick={() => setSubMode('feed')}
             className={`px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
-              subMode === 'feed' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'
+              subMode === 'feed' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             <MessageCircle size={14} /> المنشورات والنقاشات
@@ -1779,7 +1731,7 @@ const CommunityProView = () => {
           <button
             onClick={() => setSubMode('faults')}
             className={`px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
-              subMode === 'faults' ? 'bg-amber-500 text-slate-950' : 'text-slate-400 hover:text-white'
+              subMode === 'faults' ? 'bg-amber-500 text-slate-950 shadow-sm' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             <Wrench size={14} /> موسوعة العيوب والأعطال
@@ -1788,19 +1740,19 @@ const CommunityProView = () => {
 
         <div className="flex items-center gap-2 flex-1 sm:flex-initial justify-end">
           <div className="relative flex-1 sm:w-60">
-            <Search size={14} className="absolute right-3 top-2.5 text-slate-500" />
+            <Search size={14} className="absolute right-3 top-2.5 text-slate-400" />
             <input
               type="text"
               placeholder="ابحث في النقاشات أو الأعطال..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl pr-8 pl-3 py-1.5 text-xs text-white outline-none focus:border-blue-500"
+              className="w-full bg-slate-50 border border-slate-300 rounded-xl pr-8 pl-3 py-1.5 text-xs text-slate-900 outline-none focus:border-blue-600"
             />
           </div>
           {subMode === 'feed' && (
             <button
               onClick={() => setShowNewPostForm(!showNewPostForm)}
-              className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 shrink-0 shadow"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 shrink-0 shadow-sm"
             >
               <PlusCircle size={14} /> إضافة منشور
             </button>
@@ -1816,10 +1768,10 @@ const CommunityProView = () => {
                 <button
                   key={cat}
                   onClick={() => setCategoryFilter(cat)}
-                  className={`px-3 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap transition-all ${
+                  className={`px-3 py-1.5 rounded-lg text-[11px] font-bold whitespace-nowrap transition-all ${
                     categoryFilter === cat
-                      ? 'bg-blue-600/20 text-blue-400 border border-blue-500/40'
-                      : 'bg-slate-900 text-slate-400 border border-slate-800'
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'bg-white text-slate-600 border border-slate-200 hover:text-slate-900'
                   }`}
                 >
                   {cat}
@@ -1828,9 +1780,9 @@ const CommunityProView = () => {
             </div>
 
             {showNewPostForm && (
-              <form onSubmit={handleCreatePost} className="bg-slate-900 border border-blue-500/40 rounded-2xl p-4 space-y-3 shadow-xl">
-                <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
-                  <Sparkles size={15} className="text-blue-400" /> مشاركة معلومة فنية أو سؤال للزملاء
+              <form onSubmit={handleCreatePost} className="bg-white border-2 border-blue-400 rounded-2xl p-4 space-y-3 shadow-lg">
+                <h3 className="text-sm font-black text-slate-900 flex items-center gap-1.5">
+                  <Sparkles size={15} className="text-blue-600" /> مشاركة معلومة فنية أو سؤال للزملاء
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                   <input
@@ -1857,7 +1809,7 @@ const CommunityProView = () => {
                   placeholder="عنوان السؤال أو المعلومة..."
                   value={newPostTitle}
                   onChange={(e) => setNewPostTitle(e.target.value)}
-                  className={inputCls + ' font-bold'}
+                  className={inputCls}
                 />
                 <textarea
                   rows="3"
@@ -1870,11 +1822,11 @@ const CommunityProView = () => {
                   <button
                     type="button"
                     onClick={() => setShowNewPostForm(false)}
-                    className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-bold"
+                    className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold"
                   >
                     إلغاء
                   </button>
-                  <button type="submit" className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold">
+                  <button type="submit" className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold">
                     نشر الآن
                   </button>
                 </div>
@@ -1882,44 +1834,48 @@ const CommunityProView = () => {
             )}
 
             {visiblePosts.map((post) => (
-              <div key={post.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-3.5 shadow-md">
+              <div key={post.id} className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-3.5 shadow-sm">
                 <div className="flex justify-between items-start gap-2">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-white font-black text-base shrink-0">
+                    <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white font-black text-base shrink-0">
                       {post.author.charAt(0)}
                     </div>
                     <div>
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <h4 className="font-bold text-white text-sm">{post.author}</h4>
-                        <span className="text-[10px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full font-bold">
+                        <h4 className="font-black text-slate-900 text-sm">{post.author}</h4>
+                        <span className="text-[10px] bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full font-bold">
                           {post.badge}
                         </span>
                       </div>
-                      <p className="text-[11px] text-slate-400">
+                      <p className="text-[11px] text-slate-500 font-bold">
                         {post.role} • {post.time}
                       </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-1.5">
                     {post.solved && (
-                      <span className="text-[10px] bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
+                      <span className="text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
                         <Check size={11} /> محلول
                       </span>
                     )}
-                    <span className="text-[10px] bg-slate-800 text-slate-300 px-2.5 py-0.5 rounded-full">{post.category}</span>
+                    <span className="text-[10px] bg-slate-100 text-slate-700 font-bold px-2.5 py-0.5 rounded-full">
+                      {post.category}
+                    </span>
                   </div>
                 </div>
 
                 <div>
-                  <h3 className="text-sm sm:text-base font-bold text-blue-300 mb-1.5">{post.title}</h3>
-                  <p className="text-xs sm:text-sm text-slate-200 leading-relaxed whitespace-pre-line">{post.content}</p>
+                  <h3 className="text-sm sm:text-base font-black text-blue-800 mb-1.5">{post.title}</h3>
+                  <p className="text-xs sm:text-sm text-slate-700 font-medium leading-relaxed whitespace-pre-line">
+                    {post.content}
+                  </p>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2 pt-2.5 border-t border-slate-800 text-xs">
+                <div className="flex flex-wrap items-center gap-2 pt-2.5 border-t border-slate-100 text-xs">
                   <button
                     onClick={() => handleReaction(post.id, 'like')}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold transition-colors ${
-                      post.liked ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                      post.liked ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                     }`}
                   >
                     <ThumbsUp size={13} /> مفيد ({post.likes})
@@ -1927,41 +1883,41 @@ const CommunityProView = () => {
                   <button
                     onClick={() => handleReaction(post.id, 'fire')}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold transition-colors ${
-                      post.fired ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                      post.fired ? 'bg-amber-500 text-slate-950' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                     }`}
                   >
                     <Flame size={13} /> معلومة ذهبية ({post.fires})
                   </button>
-                  <span className="text-slate-400 font-bold mr-auto flex items-center gap-1">
-                    <MessageCircle size={13} /> {post.comments.length} ردود
+                  <span className="text-slate-500 font-bold mr-auto flex items-center gap-1">
+                    <MessageCircle size={13} /> {post.comments.length} تعليقات
                   </span>
                 </div>
 
-                <div className="bg-slate-950 p-3 rounded-xl border border-slate-800/90 space-y-2.5">
+                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2.5">
                   {post.comments.map((c) => (
                     <div
                       key={c.id}
                       className={`p-2.5 rounded-xl border ${
-                        c.isBest ? 'bg-emerald-950/30 border-emerald-500/40' : 'bg-slate-900 border-slate-800/80'
+                        c.isBest ? 'bg-emerald-50 border-emerald-300' : 'bg-white border-slate-200'
                       }`}
                     >
                       <div className="flex justify-between items-center mb-1">
                         <div className="flex items-center gap-1.5">
-                          <span className="text-xs font-bold text-emerald-400">{c.user}</span>
+                          <span className="text-xs font-black text-slate-900">{c.user}</span>
                           {c.isBest && (
-                            <span className="text-[9px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded font-bold">
+                            <span className="text-[9px] bg-emerald-600 text-white px-1.5 py-0.5 rounded font-bold">
                               ✓ أفضل إجابة فنية
                             </span>
                           )}
                         </div>
                         <button
                           onClick={() => toggleBestComment(post.id, c.id)}
-                          className="text-[10px] text-slate-500 hover:text-emerald-400"
+                          className="text-[10px] text-slate-400 hover:text-emerald-600 font-bold"
                         >
                           {c.time}
                         </button>
                       </div>
-                      <p className="text-xs text-slate-200 leading-relaxed">{c.text}</p>
+                      <p className="text-xs text-slate-700 font-medium leading-relaxed">{c.text}</p>
                     </div>
                   ))}
 
@@ -1971,21 +1927,21 @@ const CommunityProView = () => {
                       placeholder="اسمك..."
                       value={commentAuthor}
                       onChange={(e) => setCommentAuthor(e.target.value)}
-                      className="sm:w-32 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white outline-none"
+                      className="sm:w-32 bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 outline-none"
                     />
                     <div className="flex flex-1 gap-1.5">
                       <input
                         type="text"
-                        placeholder="أضف ردك أو خبرتك الفنية..."
+                        placeholder="أضف تعليقك أو خبرتك الفنية..."
                         value={commentInputs[post.id] || ''}
                         onChange={(e) => setCommentInputs({ ...commentInputs, [post.id]: e.target.value })}
-                        className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white outline-none"
+                        className="flex-1 bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 outline-none"
                       />
                       <button
                         onClick={() => handleAddComment(post.id)}
-                        className="bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-1.5 rounded-lg text-xs font-bold shrink-0"
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-lg text-xs font-bold shrink-0"
                       >
-                        رد
+                        تعليق
                       </button>
                     </div>
                   </div>
@@ -1995,9 +1951,9 @@ const CommunityProView = () => {
           </div>
 
           <div className="lg:col-span-4 space-y-4">
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
-              <h3 className="text-sm font-bold text-amber-400 flex items-center gap-1.5">
-                <Award size={17} /> لوحة شرف خبراء الدرفلة
+            <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3 shadow-sm">
+              <h3 className="text-sm font-black text-slate-900 flex items-center gap-1.5">
+                <Award size={17} className="text-amber-500" /> لوحة شرف خبراء الدرفلة
               </h3>
               <div className="space-y-2 text-xs">
                 {[
@@ -2005,17 +1961,17 @@ const CommunityProView = () => {
                   { name: 'م. عادل عزالدين', role: 'مهندس أتمتة وتحكم', pts: 140 },
                   { name: 'م. إسلام عرفات', role: 'خبير درفلة وباس ديزاين', pts: 125 }
                 ].map((u, i) => (
-                  <div key={u.name} className="bg-slate-950 p-2.5 rounded-xl border border-slate-800 flex justify-between items-center">
+                  <div key={u.name} className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 flex justify-between items-center">
                     <div className="flex items-center gap-2">
-                      <span className="w-5 h-5 rounded-full bg-amber-500/20 text-amber-400 font-mono text-[11px] font-bold flex items-center justify-center">
+                      <span className="w-5 h-5 rounded-full bg-amber-100 text-amber-800 font-mono text-[11px] font-black flex items-center justify-center">
                         {i + 1}
                       </span>
                       <div>
-                        <p className="font-bold text-white">{u.name}</p>
-                        <p className="text-[10px] text-slate-400">{u.role}</p>
+                        <p className="font-black text-slate-900">{u.name}</p>
+                        <p className="text-[10px] text-slate-500 font-bold">{u.role}</p>
                       </div>
                     </div>
-                    <span className="font-mono font-bold text-emerald-400">{u.pts} نقطة</span>
+                    <span className="font-mono font-black text-emerald-700">{u.pts} نقطة</span>
                   </div>
                 ))}
               </div>
@@ -2025,19 +1981,21 @@ const CommunityProView = () => {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
           {filteredFaults.map((f) => (
-            <div key={f.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col gap-2">
+            <div key={f.id} className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col gap-2 shadow-sm">
               <div className="flex justify-between items-center">
-                <span className="bg-red-500/20 text-red-400 font-black px-2.5 py-0.5 rounded-lg text-xs border border-red-500/30">
+                <span className="bg-red-50 text-red-700 font-black px-2.5 py-0.5 rounded-lg text-xs border border-red-200">
                   {f.code}
                 </span>
-                <span className="text-[11px] bg-slate-800 text-slate-300 px-2.5 py-0.5 rounded-full">{f.brand}</span>
+                <span className="text-[11px] bg-slate-100 text-slate-700 font-bold px-2.5 py-0.5 rounded-full">
+                  {f.brand}
+                </span>
               </div>
-              <h3 className="text-sm font-bold text-white">{f.title}</h3>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                <strong className="text-amber-400">السبب: </strong> {f.cause}
+              <h3 className="text-sm font-black text-slate-900">{f.title}</h3>
+              <p className="text-xs text-slate-600 font-medium leading-relaxed">
+                <strong className="text-amber-700">السبب: </strong> {f.cause}
               </p>
-              <div className="bg-slate-950 p-3 rounded-xl border border-emerald-900/40 text-xs text-emerald-300 font-bold mt-auto">
-                <strong className="text-emerald-400">الحل العملي: </strong> {f.solution}
+              <div className="bg-emerald-50 p-3 rounded-xl border border-emerald-200 text-xs text-emerald-900 font-bold mt-auto">
+                <strong className="text-emerald-700">الحل العملي: </strong> {f.solution}
               </div>
             </div>
           ))}
@@ -2048,7 +2006,7 @@ const CommunityProView = () => {
 };
 
 /* ======================================================
-   8. المكون الرئيسي لبوابة المهندسين (PublicPortal)
+   8. المكون الرئيسي لبوابة المهندسين (PublicPortal - Light Mode)
    ====================================================== */
 export default function PublicPortal({ onBack }) {
   const [activeTab, setActiveTab] = useState('calculators');
@@ -2059,38 +2017,40 @@ export default function PublicPortal({ onBack }) {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-200 font-sans" dir="rtl">
-      <header className="sticky top-0 z-30 bg-slate-950/90 backdrop-blur-md border-b border-slate-800/80">
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans" dir="rtl">
+      <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-sm">
         <div className="max-w-6xl mx-auto px-3 py-2.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="bg-blue-600 p-1.5 sm:p-2 rounded-xl shadow-md shadow-blue-600/20">
+              <div className="bg-blue-600 p-1.5 sm:p-2 rounded-xl shadow-sm">
                 <Calculator className="text-white w-4 h-4 sm:w-5 sm:h-5" />
               </div>
               <div>
-                <h1 className="text-sm sm:text-base font-black text-white leading-tight">بوابة المهندسين والحسابات</h1>
-                <p className="text-[10px] text-slate-400 font-bold hidden sm:block">
-                  قوانين الدرفلة، الكهرباء، الباس ديزاين، والمجتمع الفني
+                <h1 className="text-sm sm:text-base font-black text-slate-900 leading-tight">
+                  بوابة المهندسين والحسابات
+                </h1>
+                <p className="text-[10px] text-slate-500 font-bold hidden sm:block">
+                  قوانين الدرفلة، المقصات، الكهرباء، والمجتمع الفني
                 </p>
               </div>
             </div>
 
             <button
               onClick={onBack}
-              className="sm:hidden bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 font-bold px-2.5 py-1.5 rounded-xl text-xs flex items-center gap-1"
+              className="sm:hidden bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 font-bold px-2.5 py-1.5 rounded-xl text-xs flex items-center gap-1"
             >
               <Home size={13} /> الرئيسية
             </button>
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="grid grid-cols-3 sm:flex bg-slate-900 p-1 rounded-xl border border-slate-800 w-full sm:w-auto">
+            <div className="grid grid-cols-3 sm:flex bg-slate-100 p-1 rounded-xl border border-slate-200 w-full sm:w-auto">
               {tabs.map((t) => (
                 <button
                   key={t.id}
                   onClick={() => setActiveTab(t.id)}
                   className={`px-2.5 sm:px-3.5 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
-                    activeTab === t.id ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-white'
+                    activeTab === t.id ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
                   <t.icon className="w-3.5 h-3.5 shrink-0" />
@@ -2101,7 +2061,7 @@ export default function PublicPortal({ onBack }) {
 
             <button
               onClick={onBack}
-              className="hidden sm:flex bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/20 font-bold px-3.5 py-2 rounded-xl text-xs items-center gap-1.5 shrink-0"
+              className="hidden sm:flex bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 font-bold px-3.5 py-2 rounded-xl text-xs items-center gap-1.5 shrink-0"
             >
               <Home size={14} /> الرئيسية
             </button>
