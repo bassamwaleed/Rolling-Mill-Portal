@@ -1,26 +1,26 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Calculator, Layers, Ruler, MessageCircle, RotateCcw, Activity,
   Gauge, DivideSquare, Maximize2, Circle, ArrowLeftRight, Zap,
   Cpu, Wrench, PlusCircle, ThumbsUp, Flame, Scissors, BookOpen,
   ChevronDown, ChevronUp, Sliders, Search, Award, Sparkles,
   Check, ArrowLeft, Home, ShieldAlert, Cable, BatteryCharging,
-  Radio, Square, Percent, Info, Trash2
+  Radio, Square, Percent, Info, Trash2, Scale, Droplets, Compass, Wifi, WifiOff
 } from 'lucide-react';
 
 /* ======================================================
    1. البيانات القياسية والجداول (ISO 6935-2 / ES 262)
    ====================================================== */
 const REBAR_SPECS = [
-  { size: 10, area: 78.5, minW: 0.580, nomW: 0.617, maxW: 0.654, color: 'بدون لون' },
-  { size: 12, area: 113.0, minW: 0.835, nomW: 0.888, maxW: 0.941, color: 'أحمر' },
-  { size: 14, area: 154.0, minW: 1.150, nomW: 1.210, maxW: 1.271, color: 'أبيض' },
-  { size: 16, area: 201.0, minW: 1.501, nomW: 1.580, maxW: 1.659, color: 'أزرق' },
-  { size: 18, area: 254.0, minW: 1.900, nomW: 2.000, maxW: 2.100, color: 'أصفر' },
-  { size: 20, area: 314.0, minW: 2.340, nomW: 2.470, maxW: 2.590, color: 'بني' },
-  { size: 22, area: 380.0, minW: 2.836, nomW: 2.986, maxW: 3.135, color: 'رمادي' },
-  { size: 25, area: 491.0, minW: 3.696, nomW: 3.850, maxW: 4.004, color: 'أسود' },
-  { size: 32, area: 804.0, minW: 6.057, nomW: 6.310, maxW: 6.562, color: 'أخضر' }
+  { size: 10, area: 78.5, minW: 0.580, nomW: 0.617, maxW: 0.654, minRib: 0.65, maxLrib: 1.0, color: 'بدون لون' },
+  { size: 12, area: 113.0, minW: 0.835, nomW: 0.888, maxW: 0.941, minRib: 0.78, maxLrib: 1.2, color: 'أحمر' },
+  { size: 14, area: 154.0, minW: 1.150, nomW: 1.210, maxW: 1.271, minRib: 0.91, maxLrib: 1.4, color: 'أبيض' },
+  { size: 16, area: 201.0, minW: 1.501, nomW: 1.580, maxW: 1.659, minRib: 1.04, maxLrib: 1.5, color: 'أزرق' },
+  { size: 18, area: 254.0, minW: 1.900, nomW: 2.000, maxW: 2.100, minRib: 1.17, maxLrib: 1.6, color: 'أصفر' },
+  { size: 20, area: 314.0, minW: 2.340, nomW: 2.470, maxW: 2.590, minRib: 1.30, maxLrib: 1.8, color: 'بني' },
+  { size: 22, area: 380.0, minW: 2.836, nomW: 2.986, maxW: 3.135, minRib: 1.43, maxLrib: 2.0, color: 'رمادي' },
+  { size: 25, area: 491.0, minW: 3.696, nomW: 3.850, maxW: 4.004, minRib: 1.62, maxLrib: 2.2, color: 'أسود' },
+  { size: 32, area: 804.0, minW: 6.057, nomW: 6.310, maxW: 6.562, minRib: 2.08, maxLrib: 2.7, color: 'أخضر' }
 ];
 
 const STANDARD_CABLES = [
@@ -155,12 +155,81 @@ const toCelsius = (v, u) => (u === '°F' ? ((v - 32) * 5) / 9 : u === 'K' ? v - 
 const fromCelsius = (c, u) => (u === '°F' ? (c * 9) / 5 + 32 : u === 'K' ? c + 273.15 : c);
 
 /* ======================================================
-   2. عناصر واجهة مساعدة (Clean Light Mode UI Helpers)
+   2. عناصر واجهة مساعدة + دالة حساب أبعاد الكاليبر (B × H أو Ø D)
    ====================================================== */
 const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 const fmt = (n, d = 2) => (Number.isFinite(Number(n)) ? Number(n).toFixed(d) : '—');
 const inputCls =
   'w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-slate-900 font-mono text-sm font-bold focus:border-blue-600 focus:bg-white outline-none transition-colors';
+
+// دالة هندسية تحول (مساحة الممر + شكل الممر) إلى أبعاد فعلية بالمم (عرض × ارتفاع أو قطر) ومعامل الممر (Groove Factor)
+const computeGrooveGeometry = (areaMm2, shapeType, gapMm = 3.0) => {
+  const A = Math.max(1, num(areaMm2));
+  if (shapeType.includes('مبروم') || shapeType.includes('دائري')) {
+    const d = Math.sqrt((4 * A) / Math.PI);
+    const gf = Math.max(2, d - gapMm);
+    return {
+      dimText: `Ø ${fmt(d, 1)} مم`,
+      width: d,
+      height: d,
+      grooveFactor: gf,
+      maxSafeRed: 22
+    };
+  }
+  if (shapeType.includes('بيضاوي قائد')) {
+    // Leader Oval: نسبة العرض للارتفاع ~ 1.85 ، والمساحة = 2/3 * B * H
+    const ratio = 1.85;
+    const h = Math.sqrt((1.5 * A) / ratio);
+    const b = ratio * h;
+    const gf = Math.max(2, A / b - gapMm);
+    return {
+      dimText: `${fmt(b, 1)} × ${fmt(h, 1)} مم`,
+      width: b,
+      height: h,
+      grooveFactor: gf,
+      maxSafeRed: 26
+    };
+  }
+  if (shapeType.includes('بيضاوي')) {
+    // Oval Pass: نسبة العرض للارتفاع ~ 2.25 ، والمساحة = 2/3 * B * H
+    const ratio = 2.25;
+    const h = Math.sqrt((1.5 * A) / ratio);
+    const b = ratio * h;
+    const gf = Math.max(2, A / b - gapMm);
+    return {
+      dimText: `${fmt(b, 1)} × ${fmt(h, 1)} مم`,
+      width: b,
+      height: h,
+      grooveFactor: gf,
+      maxSafeRed: 34
+    };
+  }
+  if (shapeType.includes('صندوقي')) {
+    // Box Pass: نسبة العرض للارتفاع ~ 1.15
+    const ratio = 1.15;
+    const h = Math.sqrt(A / ratio);
+    const b = ratio * h;
+    const gf = Math.max(3, h - gapMm);
+    return {
+      dimText: `${fmt(b, 1)} × ${fmt(h, 1)} مم`,
+      width: b,
+      height: h,
+      grooveFactor: gf,
+      maxSafeRed: 38
+    };
+  }
+  // مربع أو معين (Square / Diamond)
+  const side = Math.sqrt(A);
+  const diag = side * 1.414;
+  const gf = Math.max(2.5, side * 0.85 - gapMm);
+  return {
+    dimText: `ضلع ${fmt(side, 1)} مم (قطر ${fmt(diag, 1)})`,
+    width: diag,
+    height: diag,
+    grooveFactor: gf,
+    maxSafeRed: 32
+  };
+};
 
 const Field = ({ label, value, onChange, step = 'any', className = '' }) => (
   <div className={className}>
@@ -299,14 +368,14 @@ const GrooveAndCrossSectionModal = ({ onBack }) => {
       whenToUse: 'تُستخدم لحساب مساحة ووزن الخوص الحديدية (مثل خوصة 50×10 أو 40×10) أو لحساب مساحة مقطع البيليت الخام (مثل 130×130 مم).'
     },
     circle: {
-      title: 'قانون الدائرة وحساب الممر الدائري أو البار المبروم',
+      title: 'قانون الدائرة وحساب الممر المبروم أو السيخ',
       explanation: 'تحسب مساحة المقطع الدائري من خلال ضرب (0.7854 × القطر × القطر)، ومنها تحسب وزن المتر الطولي للسيخ أو البار المبروم مباشرة.',
-      whenToUse: 'تُستخدم لحساب مساحة مقطع أسياخ حديد التسليح والبارات المبرومة، أو مساحة ممر التشطيب الدائري النهائي (Round Pass).'
+      whenToUse: 'تُستخدم لحساب مساحة مقطع أسياخ حديد التسليح والبارات المبرومة، أو مساحة ممر التشطيب المبروم (Round Pass).'
     },
     oval: {
       title: 'حساب مساحة الممر البيضاوي (Oval Pass)',
       explanation: 'الممر البيضاوي يكون منحني القوسين، وتُحسب مساحته الهندسية في الدرفلة بضرب (ثلثين 2/3 × عرض البيضاوي × ارتفاع البيضاوي).',
-      whenToUse: 'تُستخدم في قوائم المتوسط والتشطيب (خصوصاً الممر البيضاوي القائد Leader Oval الذي يسبق الممر الدائري الأخير).'
+      whenToUse: 'تُستخدم في قوائم المتوسط والتشطيب (سلسلة بيضاوي - مبروم).'
     },
     box: {
       title: 'حساب مساحة الممر الصندوقي (Box Pass)',
@@ -316,7 +385,7 @@ const GrooveAndCrossSectionModal = ({ onBack }) => {
     diamond: {
       title: 'حساب مساحة الممر المعين (Diamond Pass)',
       explanation: 'الممر المعين هو مربع مائل على سيفه، وتُحسب مساحته بضرب (القطر الأفقي للممر × القطر الرأسي للممر) ثم قسمة الناتج على 2.',
-      whenToUse: 'تُستخدم في سلاسل درفلة (معين - مربع) في مرحلة التخشين والمتوسط لتشكيل الكتلة بانتظام من جميع الجوانب.'
+      whenToUse: 'تُستخدم في سلاسل درفلة (معين - مربع) في مرحلة التخشين.'
     }
   };
 
@@ -348,7 +417,7 @@ const GrooveAndCrossSectionModal = ({ onBack }) => {
       `نربع القطر D = ${D} × ${D} = ${fmt(D * D, 2)}`,
       `نضرب في 3.1416 ونقسم على 4 = (3.1416 × ${fmt(D * D, 2)}) ÷ 4 = ${fmt(calcArea, 2)} مم²`,
       `محيط الدائرة = 3.1416 × ${D} = ${fmt(perimeter, 2)} مم`,
-      `وزن المتر الطولي للبار الدائري = ${fmt(calcArea, 2)} × 0.00785 = ${fmt(calcArea * 0.00785, 3)} كجم/متر`
+      `وزن المتر الطولي للبار المبروم = ${fmt(calcArea, 2)} × 0.00785 = ${fmt(calcArea * 0.00785, 3)} كجم/متر`
     ];
   } else if (shape === 'oval') {
     const B = num(ovalWidth);
@@ -413,7 +482,7 @@ const GrooveAndCrossSectionModal = ({ onBack }) => {
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
           {[
             ['rect', 'طول × عرض', 'مستطيل / خوصة / مربع'],
-            ['circle', 'قانون الدائرة', 'ممر دائري / سيخ'],
+            ['circle', 'قانون الدائرة', 'ممر مبروم / سيخ'],
             ['oval', 'ممر بيضاوي', 'Oval Pass'],
             ['box', 'ممر صندوقي', 'Box Pass'],
             ['diamond', 'ممر معين', 'Diamond Pass']
@@ -458,7 +527,7 @@ const GrooveAndCrossSectionModal = ({ onBack }) => {
 
           {shape === 'circle' && (
             <div>
-              <Field label="قطر الدائرة أو السيخ (مم)" value={circleDia} onChange={setCircleDia} step="0.5" />
+              <Field label="قطر الدائرة أو الممر المبروم (مم)" value={circleDia} onChange={setCircleDia} step="0.5" />
             </div>
           )}
 
@@ -749,25 +818,33 @@ const BarsAndProductivityModal = ({ onBack }) => {
 };
 
 /* ======================================================
-   5. حاسبة الباس ديزاين الهندسية + التبويب الثالث الجديد (تعديل الأقطار والمخفضات والتخفيض يدوياً)
+   5. حاسبة الباس ديزاين الهندسية (بيضاوي ← مبروم في المتوسط والفنش + أبعاد الكاليبر B×H + اختيار شكل الممر)
    ====================================================== */
+const GROOVE_SHAPES_LIST = [
+  'صندوقي (Box)',
+  'مربع (Square)',
+  'بيضاوي (Oval)',
+  'مبروم (Round)',
+  'بيضاوي قائد (Leader Oval)',
+  'مبروم مشرشر (Final Rebar)'
+];
+
 const INITIAL_CUSTOM_STANDS = [
-  { id: 1, name: 'ق 1 (تخشين)', shape: 'صندوقي', dw: 455, gr: 8.5, area: 12200 },
-  { id: 2, name: 'ق 2 (تخشين)', shape: 'مربع', dw: 450, gr: 7.2, area: 8800 },
-  { id: 3, name: 'ق 3 (تخشين)', shape: 'بيضاوي', dw: 440, gr: 6.0, area: 6200 },
-  { id: 4, name: 'ق 4 (تخشين)', shape: 'مربع', dw: 435, gr: 4.8, area: 4400 },
-  { id: 5, name: 'ق 5 (متوسط)', shape: 'بيضاوي', dw: 365, gr: 3.8, area: 3150 },
-  { id: 6, name: 'ق 6 (متوسط)', shape: 'دائري كاذب', dw: 360, gr: 3.2, area: 2250 },
-  { id: 7, name: 'ق 7 (متوسط)', shape: 'بيضاوي', dw: 355, gr: 2.6, area: 1600 },
-  { id: 8, name: 'ق 8 (متوسط)', shape: 'دائري كاذب', dw: 350, gr: 2.2, area: 1150 },
-  { id: 9, name: 'ق 9 (تشطيب)', shape: 'بيضاوي', dw: 318, gr: 1.8, area: 820 },
-  { id: 10, name: 'ق 10 (تشطيب)', shape: 'دائري كاذب', dw: 315, gr: 1.5, area: 560 },
-  { id: 11, name: 'ق 11 (تشطيب)', shape: 'بيضاوي قائد', dw: 312, gr: 1.25, area: 245 },
-  { id: 12, name: 'ق 12 (نهائي)', shape: 'دائري مشرشر', dw: 310, gr: 1.0, area: 201 }
+  { id: 1, name: 'ق 1 (تخشين)', shape: 'صندوقي (Box)', dw: 455, gr: 8.5, area: 12200 },
+  { id: 2, name: 'ق 2 (تخشين)', shape: 'مربع (Square)', dw: 450, gr: 7.2, area: 8800 },
+  { id: 3, name: 'ق 3 (تخشين)', shape: 'بيضاوي (Oval)', dw: 440, gr: 6.0, area: 6200 },
+  { id: 4, name: 'ق 4 (تخشين)', shape: 'مربع (Square)', dw: 435, gr: 4.8, area: 4400 },
+  { id: 5, name: 'ق 5 (متوسط)', shape: 'بيضاوي (Oval)', dw: 365, gr: 3.8, area: 3150 },
+  { id: 6, name: 'ق 6 (متوسط)', shape: 'مبروم (Round)', dw: 360, gr: 3.2, area: 2250 },
+  { id: 7, name: 'ق 7 (متوسط)', shape: 'بيضاوي (Oval)', dw: 355, gr: 2.6, area: 1600 },
+  { id: 8, name: 'ق 8 (متوسط)', shape: 'مبروم (Round)', dw: 350, gr: 2.2, area: 1150 },
+  { id: 9, name: 'ق 9 (تشطيب)', shape: 'بيضاوي (Oval)', dw: 318, gr: 1.8, area: 820 },
+  { id: 10, name: 'ق 10 (تشطيب)', shape: 'مبروم (Round)', dw: 315, gr: 1.5, area: 560 },
+  { id: 11, name: 'ق 11 (تشطيب)', shape: 'بيضاوي قائد (Leader Oval)', dw: 312, gr: 1.25, area: 245 },
+  { id: 12, name: 'ق 12 (نهائي)', shape: 'مبروم مشرشر (Final Rebar)', dw: 310, gr: 1.0, area: 201 }
 ];
 
 const RealisticPassDesignModal = ({ onBack }) => {
-  // 3 أوضاع: 'rebar' (تلقائي تسليح) | 'flat' (تلقائي خوصة) | 'custom' (إدخال وتعديل الأقطار والمخفضات والتخفيض يدوياً)
   const [mode, setMode] = useState('rebar');
   const [billetSide, setBilletSide] = useState(130);
   const [rebarSize, setRebarSize] = useState('16');
@@ -778,13 +855,15 @@ const RealisticPassDesignModal = ({ onBack }) => {
   const [interStands, setInterStands] = useState(4);
   const [finishStands, setFinishStands] = useState(4);
 
+  // إمكانية تخصيص شكل الممر لأي قائم في الجدول التلقائي
+  const [shapeOverrides, setShapeOverrides] = useState({});
+
   const [flatW, setFlatW] = useState(50);
   const [flatT, setFlatT] = useState(10);
   const [flatSpeed, setFlatSpeed] = useState(2.5);
 
-  // متغيرات التبويب الثالث الجديد: محاكاة الأقطار والمخفضات المخصصة للمصنع
-  const [customBilletArea, setCustomBilletArea] = useState(16900); // 130x130
-  const [customDeliverySpeed, setCustomDeliverySpeed] = useState(11.5); // سرعة آخر قائم m/s
+  const [customBilletArea, setCustomBilletArea] = useState(16900);
+  const [customDeliverySpeed, setCustomDeliverySpeed] = useState(11.5);
   const [customStands, setCustomStands] = useState(INITIAL_CUSTOM_STANDS);
 
   const handleRebarChange = (sz) => {
@@ -830,11 +909,23 @@ const RealisticPassDesignModal = ({ onBack }) => {
           ? 'متوسط (Interm.)'
           : 'تشطيب (Finishing)';
 
-      let shape = 'بيضاوي (Oval)';
-      if (standNum <= 2) shape = standNum % 2 === 1 ? 'صندوقي (Box)' : 'مربع (Square)';
-      else if (standNum === N) shape = 'دائري مشرشر (Final Round)';
-      else if (standNum === N - 1) shape = 'بيضاوي قائد (Leader Oval)';
-      else shape = standNum % 2 === 1 ? 'بيضاوي (Oval)' : 'مربع / دائري كاذب';
+      // التسلسل القياسي: التخشين (صندوقي/مربع ثم بيضاوي/مربع)، والمتوسط والفنش (بيضاوي ← مبروم بالتناوب حتى النهائي)
+      let defaultShape = 'بيضاوي (Oval)';
+      if (standNum <= 2) {
+        defaultShape = standNum % 2 === 1 ? 'صندوقي (Box)' : 'مربع (Square)';
+      } else if (standNum <= rCount) {
+        defaultShape = standNum % 2 === 1 ? 'بيضاوي (Oval)' : 'مربع (Square)';
+      } else if (standNum === N) {
+        defaultShape = 'مبروم مشرشر (Final Rebar)';
+      } else if (standNum === N - 1) {
+        defaultShape = 'بيضاوي قائد (Leader Oval)';
+      } else {
+        // في المنطقة المتوسطة والفنش: تناوب عكسي من النهاية لضمان أن ما قبل البيضاوي القائد يكون مبروم، وقبله بيضاوي وهكذا (بيضاوي ← مبروم)
+        const stepsFromEnd = N - standNum;
+        defaultShape = stepsFromEnd % 2 === 1 ? 'بيضاوي (Oval)' : 'مبروم (Round)';
+      }
+
+      const shape = shapeOverrides[standNum] || defaultShape;
 
       const logStep = totalLogRatio * (weights[idx] / weightSum);
       const nextAreaTotal = idx === N - 1 ? A_total_exit : currentArea / Math.exp(logStep);
@@ -845,13 +936,11 @@ const RealisticPassDesignModal = ({ onBack }) => {
       const isSplitZone = k > 1 && standNum >= N - 1;
       const singleGrooveArea = isSplitZone ? nextAreaTotal / k : nextAreaTotal;
 
-      const eqDia = Math.sqrt((4 * singleGrooveArea) / Math.PI);
-      const estWidth = shape.includes('بيضاوي') ? eqDia * 1.45 : eqDia * 1.05;
-      const estGap = standNum <= rCount ? 5.0 : standNum <= rCount + iCount ? 3.5 : 2.2;
-      const grooveFactor = Math.max(2, singleGrooveArea / Math.max(1, estWidth) - estGap);
+      const estGap = standNum <= rCount ? 4.5 : standNum <= rCount + iCount ? 3.2 : 2.0;
+      const geom = computeGrooveGeometry(singleGrooveArea, shape, estGap);
 
       const rollDe = standNum <= rCount ? 480 : standNum <= rCount + iCount ? 380 : 330;
-      const workingDiaDw = rollDe - grooveFactor;
+      const workingDiaDw = Math.max(150, rollDe - geom.grooveFactor);
 
       const linearSpeedV = Q_total / nextAreaTotal;
       const rollRpm = (linearSpeedV * 60000) / (Math.PI * workingDiaDw);
@@ -861,6 +950,8 @@ const RealisticPassDesignModal = ({ onBack }) => {
         standNum,
         zone,
         shape,
+        dimText: geom.dimText,
+        maxSafeRed: geom.maxSafeRed,
         strandsHere: isSplitZone ? k : 1,
         exitAreaSingle: singleGrooveArea,
         reductionPct,
@@ -904,18 +995,14 @@ const RealisticPassDesignModal = ({ onBack }) => {
   const rebarData = buildRealisticRebarSchedule();
   const flatData = buildFlatBarSchedule();
 
-  // دوال التحكم في التبويب الثالث (الأقطار والمخفضات ونسب التخفيض المخصصة)
   const handleCustomStandUpdate = (index, field, rawVal) => {
     const updated = [...customStands];
     const current = { ...updated[index] };
 
     if (field === 'redPct') {
-      // إذا عدل المستخدم نسبة التخفيض % مباشرة، نحسب المساحة الخارجة الجديدة تلقائياً
       const prevArea = index === 0 ? Math.max(1, num(customBilletArea)) : Math.max(1, num(updated[index - 1].area));
       const clampedRed = Math.max(1, Math.min(85, num(rawVal)));
       current.area = +(prevArea * (1 - clampedRed / 100)).toFixed(1);
-    } else if (field === 'name' || field === 'shape') {
-      current[field] = rawVal;
     } else {
       current[field] = rawVal;
     }
@@ -946,7 +1033,7 @@ const RealisticPassDesignModal = ({ onBack }) => {
       {
         id: Date.now(),
         name: `ق ${nextId}`,
-        shape: 'دائري / بيضاوي',
+        shape: nextId % 2 === 1 ? 'بيضاوي (Oval)' : 'مبروم (Round)',
         dw: last.dw,
         gr: last.gr,
         area: +(num(last.area) * 0.85).toFixed(1)
@@ -959,7 +1046,6 @@ const RealisticPassDesignModal = ({ onBack }) => {
     setCustomStands(customStands.filter((_, i) => i !== idx));
   };
 
-  // حسابات جدول المحاكاة المخصص بناءً على أقطار ومخفضات المستخدم
   const lastStandArea = Math.max(1, num(customStands[customStands.length - 1]?.area || 201));
   const customConstantQ = lastStandArea * Math.max(0.1, num(customDeliverySpeed));
 
@@ -968,14 +1054,15 @@ const RealisticPassDesignModal = ({ onBack }) => {
     const curArea = Math.max(1, num(st.area));
     const redPct = ((prevArea - curArea) / prevArea) * 100;
     const elong = prevArea / curArea;
+    const geom = computeGrooveGeometry(curArea, st.shape || 'بيضاوي (Oval)', 2.5);
     const dw = Math.max(1, num(st.dw));
     const gr = Math.max(0.1, num(st.gr));
-    // السرعة من قانون ثبات الحجم Q = A * V
     const speedMps = customConstantQ / curArea;
     const rollRpm = (speedMps * 60000) / (Math.PI * dw);
     const motorRpm = rollRpm * gr;
     return {
       ...st,
+      dimText: geom.dimText,
       prevArea,
       redPct,
       elong,
@@ -1001,7 +1088,7 @@ const RealisticPassDesignModal = ({ onBack }) => {
               mode === 'rebar' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            1. باس ديزاين التسليح (تلقائي)
+            1. باس ديزاين التسليح (بيضاوي-مبروم)
           </button>
           <button
             onClick={() => setMode('flat')}
@@ -1023,13 +1110,9 @@ const RealisticPassDesignModal = ({ onBack }) => {
       </div>
 
       <ToolDetailsExplainer
-        title="شرح أداة تصميم الممرات ومحاكي الأقطار والمخفضات"
-        explanation={
-          mode === 'custom'
-            ? 'في هذا الوضع المخصص، يمكنك كتابة القطر الفعال (Dw) ونسبة الجيربوكس (Gear Ratio) ومساحة الممر أو نسبة التخفيض لكل قائم بنفسك كما هو موجود في مصنعك، وسيقوم النظام فوراً بحساب السرعة الخطية وRPM الدرفيل وRPM الموتور للتحقق من سرعات الخط.'
-            : 'تقوم هذه الأداة بتوزيع نسبة التخفيض من مساحة البيليت حتى مساحة المنتج النهائي بشكل تدريجي واقعي وتحسب السرعة الخطية ولفات الدرفيل لكل قائم بناءً على قانون ثبات الحجم.'
-        }
-        whenToUse="استخدم الوضع (1 و 2) للتصميم السريع، واستخدم الوضع (3) عندما يكون لديك أقطار درافيل ومخفضات فعلية على الخط وتريد التحقق من سرعات المواتير ونسب التخفيض عند تغيير أي قطر."
+        title="شرح أداة تصميم الممرات (بيضاوي ← مبروم) وأبعاد الكاليبر"
+        explanation="يعرض هذا الجدول تدرج الممرات في المنطقة المتوسطة والفنش بنظام (بيضاوي Oval ← مبروم Round) القياسي، ويحسب لكل قائم أبعاد الممر بالملليمتر (العرض × الارتفاع للبيضاوي والصندوقي، أو القطر Ø للمبروم). كما يمكنك تغيير شكل أي ممر من القائمة المنسدلة لترى تأثيره المباشر على الأبعاد والقطر الفعال وسرعة الدرفيل."
+        whenToUse="استخدمه لمعرفة مقاسات الكاليبرات (كام × كام مم) وتوزيع السرعات، أو انتقل للوضع رقم (3) لإدخال أقطار الدرافيل ونسب الجيربوكس الفعلية لمصنعك."
       />
 
       {mode === 'rebar' && (
@@ -1077,11 +1160,11 @@ const RealisticPassDesignModal = ({ onBack }) => {
                 <Stat label="إجمالي عدد القوائم" value={totalStands} unit="قائم" />
               </div>
               <SolutionStepsBox
-                formula="القطر الفعال = القطر الخارجي - معامل الممر  |  سرعة القائم = ثابت التدفق ÷ مساحة المقطع عند القائم"
+                formula="الممر البيضاوي: المساحة = 2/3 × العرض × الارتفاع  |  الممر المبروم: القطر = جذر (4 × المساحة ÷ 3.1416)"
                 steps={[
-                  'في مرحلة التخشين (Roughing): تكون نسبة التخفيض عالية (28% إلى 35%) لأن الحديد ساخن وطري جداً.',
-                  'في المرحلة المتوسطة (Intermediate): تكون نسبة التخفيض متوسطة (20% إلى 25%).',
-                  'في مرحلة التشطيب (Finishing): يكون الممر قبل الأخير بيضاوي قائد (Leader Oval) والأخير دائري مشرشر بتخفيض هادئ (12% إلى 17%) لضبط أبعاد السيخ.'
+                  'في مرحلة التخشين (Roughing): يعمل النظام بممرات (صندوقي ← مربع ← بيضاوي ← مربع) بتخفيض عالي لتشكيل البيليت.',
+                  'في المنطقة المتوسطة والتشطيب (Intermediate & Finishing): يعمل النظام بتسلسل (بيضاوي Oval ← مبروم Round) بالتناوب لضمان استقرار المعدن ودقة أبعاد السيخ.',
+                  'يمكنك الضغط على شكل الممر لأي قائم في الجدول بالأسفل لتغييره ومشاهدة أبعاده الجديدة (كام × كام مم) فوراً.'
                 ]}
               />
             </div>
@@ -1090,29 +1173,40 @@ const RealisticPassDesignModal = ({ onBack }) => {
           <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm overflow-x-auto">
             <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
               <h4 className="text-sm font-black text-slate-900">
-                جدول تدرج الممرات، الأقطار الفعالة، وتزامن السرعات
+                جدول تدرج الممرات (بيضاوي ← مبروم)، أبعاد الكاليبر (كام × كام مم)، والسرعات
               </h4>
-              <button
-                type="button"
-                onClick={() => {
-                  handleCopyFromAutoSchedule();
-                  setMode('custom');
-                }}
-                className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-3 py-1.5 rounded-xl text-xs shadow-sm"
-              >
-                فتح هذا الجدول للتعديل الحر في الأقطار والمخفضات ←
-              </button>
+              <div className="flex gap-2">
+                {Object.keys(shapeOverrides).length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShapeOverrides({})}
+                    className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3 py-1.5 rounded-xl text-xs"
+                  >
+                    استعادة التسلسل الافتراضي
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleCopyFromAutoSchedule();
+                    setMode('custom');
+                  }}
+                  className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-3 py-1.5 rounded-xl text-xs shadow-sm"
+                >
+                  فتح الجدول لتعديل الأقطار والمخفضات يدوياً ←
+                </button>
+              </div>
             </div>
-            <table className="w-full text-right text-xs min-w-[720px]">
+            <table className="w-full text-right text-xs min-w-[820px]">
               <thead className="bg-slate-900 text-white">
                 <tr>
                   <th className="p-2.5 rounded-r-lg">القائم</th>
                   <th className="p-2.5">المنطقة</th>
-                  <th className="p-2.5">شكل الممر</th>
-                  <th className="p-2.5">مساحة الممر مم²</th>
+                  <th className="p-2.5">شكل الممر (قابل للتغيير)</th>
+                  <th className="p-2.5">أبعاد الممر (عرض×ارتفاع / قطر)</th>
+                  <th className="p-2.5">المساحة مم²</th>
                   <th className="p-2.5">التخفيض %</th>
-                  <th className="p-2.5">معامل الاستطالة</th>
-                  <th className="p-2.5">القطر الفعال مم</th>
+                  <th className="p-2.5">القطر الفعال Dw</th>
                   <th className="p-2.5">السرعة م/ث</th>
                   <th className="p-2.5 rounded-l-lg">لفات الدرفيل RPM</th>
                 </tr>
@@ -1124,11 +1218,23 @@ const RealisticPassDesignModal = ({ onBack }) => {
                       ق {row.standNum} {row.strandsHere > 1 && <span className="text-[10px] text-amber-600">({row.strandsHere}×)</span>}
                     </td>
                     <td className="p-2.5 font-sans text-slate-600 font-bold">{row.zone}</td>
-                    <td className="p-2.5 font-sans text-blue-700 font-bold">{row.shape}</td>
+                    <td className="p-2 font-sans">
+                      <select
+                        value={row.shape}
+                        onChange={(e) => setShapeOverrides({ ...shapeOverrides, [row.standNum]: e.target.value })}
+                        className="bg-blue-50 border border-blue-200 text-blue-800 rounded-lg px-2 py-1 text-xs font-bold outline-none cursor-pointer"
+                      >
+                        {GROOVE_SHAPES_LIST.map((sh) => (
+                          <option key={sh} value={sh}>
+                            {sh}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="p-2.5 font-sans font-black text-amber-800 bg-amber-50/50">{row.dimText}</td>
                     <td className="p-2.5 text-slate-900 font-bold">{fmt(row.exitAreaSingle, 1)}</td>
                     <td className="p-2.5 text-emerald-700 font-bold">{fmt(row.reductionPct, 1)}%</td>
-                    <td className="p-2.5 text-slate-700">{fmt(row.elongFactor, 2)}</td>
-                    <td className="p-2.5 text-amber-700 font-bold">{fmt(row.workingDiaDw, 1)}</td>
+                    <td className="p-2.5 text-slate-700 font-bold">{fmt(row.workingDiaDw, 1)} مم</td>
                     <td className="p-2.5 text-blue-700 font-black">{fmt(row.linearSpeedV, 2)}</td>
                     <td className="p-2.5 text-slate-900 font-black">{fmt(row.rollRpm, 1)}</td>
                   </tr>
@@ -1187,17 +1293,16 @@ const RealisticPassDesignModal = ({ onBack }) => {
         </div>
       )}
 
-      {/* التبويب الثالث الجديد: محاكاة وتعديل الأقطار والمخفضات ونسب التخفيض يدوياً لكل قائم */}
       {mode === 'custom' && (
         <div className="space-y-4">
           <div className="bg-white p-4 rounded-2xl border-2 border-amber-300 shadow-sm space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
               <div>
                 <h3 className="text-sm sm:text-base font-black text-slate-900">
-                  محاكاة الخط بأقطار الدرافيل والمخفضات الفعلية (تعديل حر لكل قائم)
+                  محاكاة الخط بأقطار الدرافيل والمخفضات وأشكال الممرات الفعلية (تعديل حر)
                 </h3>
                 <p className="text-[11px] text-slate-500 font-bold">
-                  غيّر قطر الدرفيل أو نسبة الجيربوكس أو المساحة/التخفيض لأي قائم للتحقق الفوري من السرعة وRPM الموتور
+                  غيّر شكل الممر أو القطر الفعال أو نسبة الجيربوكس أو المساحة/التخفيض لأي قائم للتحقق الفوري من الأبعاد والسرعة
                 </p>
               </div>
               <div className="flex flex-wrap gap-1.5">
@@ -1240,17 +1345,18 @@ const RealisticPassDesignModal = ({ onBack }) => {
           </div>
 
           <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm overflow-x-auto">
-            <table className="w-full text-right text-xs min-w-[820px]">
+            <table className="w-full text-right text-xs min-w-[920px]">
               <thead className="bg-slate-900 text-white">
                 <tr>
                   <th className="p-2.5 rounded-r-lg">القائم</th>
-                  <th className="p-2.5">القطر الفعال Dw (مم)</th>
-                  <th className="p-2.5">نسبة الجيربوكس (i)</th>
-                  <th className="p-2.5">مساحة الممر (مم²)</th>
-                  <th className="p-2.5">نسبة التخفيض %</th>
-                  <th className="p-2.5">الاستطالة λ</th>
-                  <th className="p-2.5">السرعة الخطية (م/ث)</th>
-                  <th className="p-2.5">لفات الدرفيل RPM</th>
+                  <th className="p-2.5">شكل الممر</th>
+                  <th className="p-2.5">أبعاد الممر (كام×كام مم)</th>
+                  <th className="p-2.5">القطر الفعال Dw</th>
+                  <th className="p-2.5">الجيربوكس (i)</th>
+                  <th className="p-2.5">المساحة (مم²)</th>
+                  <th className="p-2.5">التخفيض %</th>
+                  <th className="p-2.5">السرعة (م/ث)</th>
+                  <th className="p-2.5">لفات الدرفيل</th>
                   <th className="p-2.5">لفات الموتور RPM</th>
                   <th className="p-2.5 rounded-l-lg">حذف</th>
                 </tr>
@@ -1263,8 +1369,24 @@ const RealisticPassDesignModal = ({ onBack }) => {
                         type="text"
                         value={row.name}
                         onChange={(e) => handleCustomStandUpdate(idx, 'name', e.target.value)}
-                        className="w-28 bg-slate-50 border border-slate-300 rounded-lg px-2 py-1 text-xs font-black text-slate-900"
+                        className="w-24 bg-slate-50 border border-slate-300 rounded-lg px-2 py-1 text-xs font-black text-slate-900"
                       />
+                    </td>
+                    <td className="p-2 font-sans">
+                      <select
+                        value={row.shape || 'بيضاوي (Oval)'}
+                        onChange={(e) => handleCustomStandUpdate(idx, 'shape', e.target.value)}
+                        className="bg-blue-50 border border-blue-200 text-blue-900 rounded-lg px-2 py-1 text-[11px] font-bold"
+                      >
+                        {GROOVE_SHAPES_LIST.map((sh) => (
+                          <option key={sh} value={sh}>
+                            {sh}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="p-2 font-sans font-black text-amber-900 bg-amber-50/50 whitespace-nowrap">
+                      {row.dimText}
                     </td>
                     <td className="p-2">
                       <input
@@ -1305,11 +1427,10 @@ const RealisticPassDesignModal = ({ onBack }) => {
                         <span className="text-emerald-700 font-bold">%</span>
                       </div>
                     </td>
-                    <td className="p-2 text-slate-600 font-bold">{fmt(row.elong, 2)}</td>
                     <td className="p-2 text-blue-700 font-black text-sm">{fmt(row.speedMps, 2)}</td>
                     <td className="p-2 text-slate-900 font-bold">{fmt(row.rollRpm, 1)}</td>
                     <td className="p-2">
-                      <span className="bg-slate-900 text-amber-400 px-2.5 py-1 rounded-lg font-black text-xs inline-block">
+                      <span className="bg-slate-900 text-amber-400 px-2.5 py-1 rounded-lg font-black text-xs inline-block whitespace-nowrap">
                         {fmt(row.motorRpm, 0)} RPM
                       </span>
                     </td>
@@ -1328,15 +1449,6 @@ const RealisticPassDesignModal = ({ onBack }) => {
               </tbody>
             </table>
           </div>
-
-          <SolutionStepsBox
-            formula="سرعة القائم (م/ث) = ثابت التدفق Q ÷ مساحة ممر القائم  |  لفات الدرفيل = (السرعة × 60000) ÷ (3.1416 × القطر الفعال)  |  لفات الموتور = لفات الدرفيل × نسبة الجيربوكس"
-            steps={[
-              `يتم حساب ثابت التدفق الحجمي للخط من آخر قائم: Q = مساحة آخر قائم (${lastStandArea} مم²) × سرعته (${customDeliverySpeed} م/ث) = ${fmt(customConstantQ, 0)} مم².م/ث`,
-              'عندما تغير قطر أي درفيل (Dw) في الجدول، تظل السرعة الخطية للمعدن ثابتة بينما تتغير لفات الدرفيل ولفات الموتور (RPM) فوراً لتعويض فرق القطر.',
-              'وعندما تغير نسبة الجيربوكس (Gear Ratio)، تتغير لفات الموتور المطلوبة مباشرة لتناسب الجيربوكس الجديد.'
-            ]}
-          />
         </div>
       )}
     </div>
@@ -1344,7 +1456,7 @@ const RealisticPassDesignModal = ({ onBack }) => {
 };
 
 /* ======================================================
-   6. نافذة محول الوحدات وجدول المواصفات (مدمجة داخل الأدوات)
+   6. نافذة محول الوحدات وجدول المواصفات
    ====================================================== */
 const UnitConverterModal = ({ onBack }) => {
   const [cat, setCat] = useState('speed');
@@ -1449,9 +1561,18 @@ const UnitConverterModal = ({ onBack }) => {
 };
 
 /* ======================================================
-   7. موسوعة كل القوانين والأدوات الموحدة
+   7. موسوعة كل القوانين والأدوات الموحدة (شاملة قسم معمل الجودة والاختبارات الجديد)
    ====================================================== */
 const ALL_CALCULATORS = [
+  {
+    id: 'special_pass_design',
+    title: 'تصميم الممرات والأقطار',
+    shortTag: 'بيضاوي-مبروم + محاكي الأقطار',
+    desc: 'جدول الباس ديزاين بنظام (بيضاوي ← مبروم) مع أبعاد الكاليبر ومحاكي الأقطار.',
+    icon: Layers,
+    group: 'باس ديزاين وإنتاجية',
+    isSpecial: true
+  },
   {
     id: 'special_groove_areas',
     title: 'مساحات الممرات والقطاعات',
@@ -1471,24 +1592,189 @@ const ALL_CALCULATORS = [
     isSpecial: true
   },
   {
-    id: 'special_pass_design',
-    title: 'تصميم الممرات والأقطار',
-    shortTag: 'باس ديزاين + محاكي الأقطار',
-    desc: 'جدول الباس ديزاين التلقائي + محاكاة تعديل أقطار الدرافيل والمخفضات يدوياً.',
-    icon: Layers,
-    group: 'باس ديزاين وإنتاجية',
-    isSpecial: true
-  },
-  {
     id: 'special_unit_converter',
     title: 'محول الوحدات وجدول الأوزان',
     shortTag: 'التحويلات والمواصفات',
     desc: 'تحويل وحدات السرعة والقدرة والأوزان مع جدول أوزان حديد التسليح.',
     icon: Ruler,
-    group: 'باس ديزاين وإنتاجية',
+    group: 'معمل الجودة والاختبارات',
     isSpecial: true
   },
 
+  // --- قسم معمل الجودة والاختبارات (Quality Control & Lab Tests) ---
+  {
+    id: 'q_meter_weight',
+    title: 'وزن المتر الطولي (جرام ومتر)',
+    shortTag: 'فحص وزن العينة والمواصفة',
+    desc: 'احسب وزن المتر الطولي من وزن العينة بالجرام وطولها بالمتر مع مطابقة المواصفة.',
+    details: 'يقوم فني الجودة بقطع عينة من السيخ ووزنها على الميزان الحساس بالجرام وقياس طولها بالمتر (مثلاً 0.5 متر أو 1 متر)، فتحسب هذه الأداة وزن المتر الطولي الفعلي بالكيلوجرام وتقارنه بالحد الأدنى والأقصى المسموح للمقاس في المواصفة القياسية.',
+    whenToUse: 'تُستخدم عند سحب عينة من سرير التبريد للتأكد من مطابقة وزن السيخ وضبط خلوص القائم النهائي.',
+    icon: Scale,
+    group: 'معمل الجودة والاختبارات',
+    formula: 'وزن المتر الطولي (كجم/م) = (وزن العينة بالجرام ÷ 1000) ÷ طول العينة بالمتر',
+    inputs: [
+      { k: 'grams', l: 'وزن القطعة على الميزان (بالجرام g)', def: 785 },
+      { k: 'lenM', l: 'طول القطعة المقاس (بالمتر m مثلاً 0.5 أو 1)', def: 0.5 },
+      { k: 'nomSize', l: 'مقاس السيخ للمقارنة بالمواصفة (مم)', def: 16 }
+    ],
+    calc: (v) => {
+      const g = Math.max(1, num(v.grams));
+      const l = Math.max(0.05, num(v.lenM));
+      const sz = Math.round(num(v.nomSize));
+      const kgPerM = g / 1000 / l;
+      const effDia = 12.74 * Math.sqrt(kgPerM);
+      const spec = REBAR_SPECS.find((r) => r.size === sz) || REBAR_SPECS[3];
+      const devPct = ((kgPerM - spec.nomW) / spec.nomW) * 100;
+      const isOk = kgPerM >= spec.minW && kgPerM <= spec.maxW;
+
+      return {
+        results: {
+          'وزن المتر الطولي الفعلي': `${fmt(kgPerM, 3)} كجم/متر`,
+          'الوزن القياسي للمقاس (الاسمي)': `${spec.nomW} كجم/م (${spec.minW} إلى ${spec.maxW})`,
+          'نسبة الانحراف عن الاسمي': `${devPct >= 0 ? '+' : ''}${fmt(devPct, 2)}%`,
+          'حالة مطابقة المواصفة': isOk ? 'مطابق للمواصفة القياسية ✅' : kgPerM < spec.minW ? 'وزن ناقص تحت المسموح ❌' : 'وزن ثقيل فوق المسموح ⚠️',
+          'القطر الفعلي المكافئ للعينة': `${fmt(effDia, 2)} مم`
+        },
+        steps: [
+          `نحول وزن العينة من جرام إلى كيلوجرام = ${g} ÷ 1000 = ${fmt(g / 1000, 3)} كجم`,
+          `نقسم الوزن بالكيلوجرام على طول العينة (${l} متر) = ${fmt(g / 1000, 3)} ÷ ${l} = ${fmt(kgPerM, 3)} كجم/متر`,
+          `بمقارنة الناتج بمدى مقاس ${spec.size} مم (${spec.minW} إلى ${spec.maxW} كجم/م): العينة ${isOk ? 'مطابقة' : 'خارج حدود المواصفة'}`
+        ]
+      };
+    }
+  },
+  {
+    id: 'q_tensile_test',
+    title: 'اختبار الشد والاستطالة (المعمل)',
+    shortTag: 'الإجهاد والشد والممطولية',
+    desc: 'حساب إجهاد الخضوع والشد الأقصى ونسبة الاستطالة المئوية لعينة المعمل.',
+    details: 'تحول قراءة ماكينة الشد الهيدروليكية في معمل الجودة (حمل الخضوع وحمل الكسر بالكيلونيوتن kN) إلى إجهاد بالميجاباسكال (MPa)، وتحسب نسبة الممطولية (TS/YS) ونسبة الاستطالة المئوية بعد الكسر.',
+    whenToUse: 'تُستخدم في معمل مراقبة الجودة للحكم على رتبة الحديد (مثل B500DWR أو B400).',
+    icon: Activity,
+    group: 'معمل الجودة والاختبارات',
+    formula: 'الإجهاد (MPa) = (الحمل بالكيلونيوتن × 1000) ÷ المساحة الفعلية  |  الاستطالة % = ((الطول بعد الكسر - الطول الأصلي) ÷ الطول الأصلي) × 100',
+    inputs: [
+      { k: 'd', l: 'قطر السيخ الاسمي أو الفعلي (مم)', def: 16 },
+      { k: 'fy', l: 'حمل الخضوع من ماكينة الشد Fy (kN)', def: 108 },
+      { k: 'fu', l: 'أقصى حمل شد قبل الكسر Fu (kN)', def: 132 },
+      { k: 'l0', l: 'طول القياس الأصلي قبل الشد L0 (5×القطر مم)', def: 80 },
+      { k: 'lu', l: 'طول القياس بعد الكسر Lu (مم)', def: 94.5 }
+    ],
+    calc: (v) => {
+      const d = Math.max(1, num(v.d));
+      const area = (Math.PI * d * d) / 4;
+      const fy = num(v.fy);
+      const fu = num(v.fu);
+      const l0 = Math.max(1, num(v.l0));
+      const lu = Math.max(l0, num(v.lu));
+
+      const yieldMpa = (fy * 1000) / area;
+      const tensileMpa = (fu * 1000) / area;
+      const ductRatio = yieldMpa > 0 ? tensileMpa / yieldMpa : 0;
+      const elongPct = ((lu - l0) / l0) * 100;
+      const passB500 = yieldMpa >= 500 && ductRatio >= 1.15 && elongPct >= 14;
+
+      return {
+        results: {
+          'مساحة مقطع العينة (A0)': `${fmt(area, 1)} مم²`,
+          'إجهاد الخضوع (Yield Strength ReH)': `${fmt(yieldMpa, 1)} MPa`,
+          'إجهاد الشد الأقصى (Tensile Rm)': `${fmt(tensileMpa, 1)} MPa`,
+          'نسبة الممطولية (Rm / ReH)': `${fmt(ductRatio, 2)} (${ductRatio >= 1.15 ? 'ممتازة ≥ 1.15' : 'منخفضة'})`,
+          'نسبة الاستطالة بعد الكسر (A%)': `${fmt(elongPct, 1)}% (${passB500 ? 'مطابق B500DWR ✅' : 'راجع شروط الرتبة'})`
+        },
+        steps: [
+          `مساحة مقطع العينة = 0.7854 × ${d} × ${d} = ${fmt(area, 1)} مم²`,
+          `إجهاد الخضوع = (${fy} × 1000) ÷ ${fmt(area, 1)} = ${fmt(yieldMpa, 1)} MPa`,
+          `إجهاد الشد الأقصى = (${fu} × 1000) ÷ ${fmt(area, 1)} = ${fmt(tensileMpa, 1)} MPa`,
+          `نسبة الاستطالة المئوية = ((${lu} - ${l0}) ÷ ${l0}) × 100 = ${fmt(elongPct, 1)}%`
+        ]
+      };
+    }
+  },
+  {
+    id: 'q_qtb_tempcore',
+    title: 'مساعد ضبط مياه التبريد (QTB)',
+    shortTag: 'ضبط الإجهاد والـ Tempcore',
+    desc: 'حساب تعديل تدفق مياه صندوق التبريد (QTB) لضبط إجهاد الخضوع للسيخ.',
+    details: 'في عملية الـ Tempcore، إذا خرج إجهاد الخضوع في المعمل أعلى أو أقل من المستهدف، تساعدك هذه الأداة في حساب التعديل المطلوب في كمية مياه صندوق التبريد ودرجة حرارة خروج السيخ على سرير التبريد.',
+    whenToUse: 'تُستخدم بواسطة مشغل الكنترول ومهندس الجودة عند ضبط صمامات مياه الـ QTB.',
+    icon: Droplets,
+    group: 'معمل الجودة والاختبارات',
+    formula: 'كل تغير 10°C في حرارة المراجعة الذاتية للسيخ يغير إجهاد الخضوع بحوالي 20 إلى 25 MPa',
+    inputs: [
+      { k: 'curYield', l: 'إجهاد الخضوع الحالي في المعمل (MPa)', def: 565 },
+      { k: 'targetYield', l: 'إجهاد الخضوع المستهدف (MPa)', def: 530 },
+      { k: 'curFlow', l: 'تدفق مياه التبريد الحالي (m³/h)', def: 410 },
+      { k: 'curTemp', l: 'حرارة السيخ بعد الصندوق حالياً (°C)', def: 610 }
+    ],
+    calc: (v) => {
+      const curY = num(v.curYield);
+      const tarY = num(v.targetYield);
+      const curF = Math.max(10, num(v.curFlow));
+      const curT = num(v.curTemp);
+      const diffMpa = tarY - curY;
+      // لرفع الإجهاد نزود المياه ونخفض حرارة الخروج، ولخفض الإجهاد نقلل المياه
+      const flowChangePct = (diffMpa / 22) * 4.5;
+      const newFlow = Math.max(0, curF * (1 + flowChangePct / 100));
+      const targetTemp = curT - diffMpa / 2.2;
+
+      return {
+        results: {
+          'فرق الإجهاد المطلوب تعويضه': `${diffMpa >= 0 ? '+' : ''}${fmt(diffMpa, 0)} MPa`,
+          'تدفق مياه QTB المقترح الجديد': `${fmt(newFlow, 0)} m³/h (${flowChangePct >= 0 ? 'زيادة' : 'تقليل'} ${fmt(Math.abs(flowChangePct), 1)}%)`,
+          'حرارة السيخ المستهدفة بعد الصندوق': `${fmt(targetTemp, 0)} °C`
+        },
+        steps: [
+          `الفرق بين الإجهاد المستهدف والحالي = ${tarY} - ${curY} = ${diffMpa} MPa`,
+          diffMpa < 0
+            ? `بما أن الإجهاد الحالي عالي (ناشف)، نحتاج لتقليل مياه التبريد بنسبة ${fmt(Math.abs(flowChangePct), 1)}% لترتفع حرارة مراجعة السيخ إلى ${fmt(targetTemp, 0)}°C.`
+            : `بما أن الإجهاد الحالي منخفض، نحتاج لزيادة مياه التبريد بنسبة ${fmt(Math.abs(flowChangePct), 1)}% لتنخفض حرارة السيخ بعد الصندوق إلى ${fmt(targetTemp, 0)}°C.`
+        ]
+      };
+    }
+  },
+  {
+    id: 'q_ovality_ribs',
+    title: 'فحص البيضاوية والشرشرة والشنب',
+    shortTag: 'فحص أبعاد القدمة Ovality',
+    desc: 'فحص استدارة البار، ارتفاع الشرشرة، والنتوء الطولي (الشنب) بالقدمة.',
+    details: 'يدخل فني الدرفلة أو الجودة قراءتي قطر السيخ في اتجاهين متعامدين (D1 و D2) وارتفاع الشرشرة والشنب، فتحسب الأداة قيمة البيضاوية (Ovality) وتقارن ارتفاع الشنب بالحد المسموح.',
+    whenToUse: 'تُستخدم أمام القائم النهائي مباشرة بعد سحب عينة وفحصها بالقدمة ذات الورنية.',
+    icon: Compass,
+    group: 'معمل الجودة والاختبارات',
+    formula: 'البيضاوية (Ovality) = |القطر الأول D1 - القطر الثاني D2|',
+    inputs: [
+      { k: 'size', l: 'المقاس الاسمي للسيخ (مم)', def: 16 },
+      { k: 'd1', l: 'قراءة القطر عند الشنب D1 (مم)', def: 16.2 },
+      { k: 'd2', l: 'قراءة القطر العمودي (البطن) D2 (مم)', def: 15.6 },
+      { k: 'ribH', l: 'ارتفاع الشرشرة العرضية المقاس (مم)', def: 1.15 }
+    ],
+    calc: (v) => {
+      const sz = Math.round(num(v.size));
+      const d1 = num(v.d1);
+      const d2 = num(v.d2);
+      const ribH = num(v.ribH);
+      const spec = REBAR_SPECS.find((r) => r.size === sz) || REBAR_SPECS[3];
+      const ovality = Math.abs(d1 - d2);
+      const avgCore = (d1 + d2) / 2;
+      const ribOk = ribH >= spec.minRib;
+      const ovalOk = ovality <= spec.maxLrib;
+
+      return {
+        results: {
+          'قيمة البيضاوية (فرق القطرين)': `${fmt(ovality, 2)} مم (${ovalOk ? 'مقبول ✅' : 'بيضاوية/شنب عالي ⚠️'})`,
+          'متوسط قطر القلب (Core Dia)': `${fmt(avgCore, 2)} مم`,
+          'حالة ارتفاع الشرشرة': `${ribH} مم (${ribOk ? `مطابق ≥ ${spec.minRib} مم ✅` : `واطي أقل من ${spec.minRib} مم ❌`})`
+        },
+        steps: [
+          `الفرق بين القطرين المتعامدين = |${d1} - ${d2}| = ${fmt(ovality, 2)} مم`,
+          `أقل ارتفاع شرشرة مسموح لمقاس ${spec.size} مم هو ${spec.minRib} مم ← القراءة الحالية (${ribH} مم) ${ribOk ? 'سليمة' : 'تحتاج مراجعة الجاب أو الممر'}`
+        ]
+      };
+    }
+  },
+
+  // --- باقي الحاسبات الهندسية ---
   {
     id: 'c_billet_yield_scrap',
     title: 'يلد الهالك في الكتلة كلها',
@@ -1575,7 +1861,7 @@ const ALL_CALCULATORS = [
     icon: Circle,
     group: 'درفلة وسرعات',
     formula: 'مساحة الدائرة (مم²) = (3.1416 × القطر × القطر) ÷ 4',
-    inputs: [{ k: 'd', l: 'قطر الدائرة أو الممر الدائري (مم)', def: 16 }],
+    inputs: [{ k: 'd', l: 'قطر الدائرة أو الممر المبروم (مم)', def: 16 }],
     calc: (v) => {
       const d = num(v.d);
       const area = (Math.PI * d * d) / 4;
@@ -1583,7 +1869,7 @@ const ALL_CALCULATORS = [
       return {
         results: {
           'مساحة الدائرة الكاملة': `${fmt(area, 2)} مم²`,
-          'وزن المتر الطولي للبار الدائري': `${fmt(weight, 3)} كجم/متر`,
+          'وزن المتر الطولي للبار المبروم': `${fmt(weight, 3)} كجم/متر`,
           'محيط الدائرة': `${fmt(Math.PI * d, 2)} مم`
         },
         steps: [
@@ -1772,78 +2058,12 @@ const ALL_CALCULATORS = [
     }
   },
   {
-    id: 'c7',
-    title: 'سرعة القائم السابق (Cascade)',
-    shortTag: 'الرجوع للخلف',
-    desc: 'حساب سرعة القائم الخلفي عند تعديل سرعة القائم الأمامي.',
-    details: 'تحسب سرعة القائم السابق بناءً على سرعة ومساحة القائم الحالي كما يفعل نظام الـ Cascade في غرفة التحكم.',
-    whenToUse: 'تُستخدم عند تثبيت سرعة الفنش والرغبة في معرفة سرعة القوائم التي قبله.',
-    icon: ArrowLeftRight,
-    group: 'درفلة وسرعات',
-    formula: 'سرعة القائم السابق = (مساحة الحالي × سرعة الحالي) ÷ مساحة السابق',
-    inputs: [
-      { k: 'a2', l: 'مساحة القائم الحالي (مم²)', def: 850 },
-      { k: 'v2', l: 'سرعة القائم الحالي (متر/ثانية)', def: 4.8 },
-      { k: 'a1', l: 'مساحة القائم السابق له (مم²)', def: 1120 }
-    ],
-    calc: (v) => {
-      const a2 = num(v.a2);
-      const v2 = num(v.v2);
-      const a1 = Math.max(1, num(v.a1));
-      const v1 = (a2 * v2) / a1;
-      return {
-        results: { 'سرعة القائم السابق المطلوبة': `${fmt(v1, 2)} م/ث` },
-        steps: [`سرعة القائم السابق = (${a2} × ${v2}) ÷ ${a1} = ${fmt(v1, 2)} م/ث`]
-      };
-    }
-  },
-  {
-    id: 'c8',
-    title: 'الضغطة وزاوية العض (Roll Bite)',
-    shortTag: 'منع الزحلقة',
-    desc: 'حساب قيمة الضغطة بالمم والتأكد من عدم زحلقة البيليت عند الدخول.',
-    details: 'تقارن الضغطة المطلوبة بأقصى ضغطة يقبلها قطر الدرفيل ومعامل الاحتكاك للتأكد من أن الدرفيل سيعض البيليت دون زحلقة (Slipping).',
-    whenToUse: 'تُستخدم عند حدوث زحلقة لمقدمة البيليت على قوائم التخشين.',
-    icon: Maximize2,
-    group: 'باس ديزاين وإنتاجية',
-    formula: 'الضغطة = ارتفاع الدخول - ارتفاع الخروج  |  أقصى ضغطة مسموحة = مربع معامل الاحتكاك × نصف قطر الدرفيل',
-    inputs: [
-      { k: 'h1', l: 'ارتفاع المعدن قبل الدرفيل (مم)', def: 22 },
-      { k: 'h2', l: 'ارتفاع المعدن بعد الدرفيل (مم)', def: 15 },
-      { k: 'd', l: 'قطر الدرفيل (مم)', def: 420 },
-      { k: 'mu', l: 'معامل الاحتكاك الساخن (0.30 إلى 0.40)', def: 0.35 }
-    ],
-    calc: (v) => {
-      const h1 = num(v.h1);
-      const h2 = num(v.h2);
-      const d = Math.max(1, num(v.d));
-      const mu = num(v.mu);
-      const dh = Math.max(0, h1 - h2);
-      const r = d / 2;
-      const dhMax = mu * mu * r;
-      const alphaRad = Math.acos(Math.max(-1, Math.min(1, 1 - dh / d)));
-      const alphaDeg = (alphaRad * 180) / Math.PI;
-      const ok = dh <= dhMax;
-      return {
-        results: {
-          'قيمة الضغطة الحالية': `${fmt(dh, 2)} مم`,
-          'أقصى ضغطة يقبلها الدرفيل': `${fmt(dhMax, 2)} مم`,
-          'زاوية العض وحالة الدخول': `${fmt(alphaDeg, 1)}° (${ok ? 'يعض بأمان' : 'خطر زحلقة!'})`
-        },
-        steps: [
-          `الضغطة = ${h1} - ${h2} = ${fmt(dh, 2)} مم`,
-          `أقصى ضغطة مسموحة = (${mu} × ${mu}) × ${r} = ${fmt(dhMax, 2)} مم`
-        ]
-      };
-    }
-  },
-  {
     id: 'a1',
     title: 'مسافة رمي الأبرون والعلب',
     shortTag: 'سرير التبريد V²/8',
     desc: 'حساب عدد العلب المغلقة لفرملة السيخ على الأبرون قبل سرير التبريد.',
     details: 'تحسب المسافة (عدد العلب المغلقة بطول 1 متر للعلبة) اللازمة لفرملة السيخ القادم من آخر قائم حتى يتوقف في مكانه الصحيح على سرير التبريد.',
-    whenToUse: 'تُستخدم عند زيادة سرعة الخط لضبط مسافة رمي الأسياخ على الفرش ومنع خبط الأسياخ في النهاية.',
+    whenToUse: 'تُستخدم عند زيادة سرعة الخط لضبط مسافة رمي الأسياخ على الفرش.',
     icon: Flame,
     group: 'أتمتة وفنش',
     formula: 'عدد العلب المغلقة بالمتر = مربع سرعة آخر قائم ÷ 8',
@@ -1892,43 +2112,6 @@ const ALL_CALCULATORS = [
         steps: [
           `البكرة الثابتة = ${x} + ${r} = ${fmt(h, 1)} مم`,
           `البكرة المتحركة = ${fmt(h, 1)} + (${fmt(h, 1)} ÷ 3) = ${fmt(y, 1)} مم`
-        ]
-      };
-    }
-  },
-  {
-    id: 'a3',
-    title: 'تزامن المقص الطائر',
-    shortTag: 'Shear Over Speed',
-    desc: 'حساب السرعة الخطية لسلاح المقص ونسبة الـ Over Speed.',
-    details: 'يجب أن تكون سرعة سكين المقص الطائر لحظة القطع أعلى قليلاً من سرعة السيخ (Over Speed) حتى لا ينحني رأس السيخ أثناء القطع.',
-    whenToUse: 'تُستخدم عند مراجعة تزامن المقص الطائر ومقصات التطهير.',
-    icon: Scissors,
-    group: 'أتمتة وفنش',
-    formula: 'السرعة الخطية للمقص = السرعة الزاوية × نصف قطر دوران السكين',
-    inputs: [
-      { k: 'nm', l: 'سرعة موتور المقص (RPM)', def: 1200 },
-      { k: 'gr', l: 'نسبة جيربوكس المقص (Gear Ratio)', def: 4 },
-      { k: 'r', l: 'نصف قطر دوران سلاح المقص (بالمتر)', def: 0.35 },
-      { k: 'vbar', l: 'سرعة السيخ القادم من القائم السابق (م/ث)', def: 10 }
-    ],
-    calc: (v) => {
-      const nm = num(v.nm);
-      const gr = Math.max(0.1, num(v.gr));
-      const r = num(v.r);
-      const vbar = Math.max(0.1, num(v.vbar));
-      const ncv = nm / gr;
-      const w = (2 * Math.PI * ncv) / 60;
-      const vcv = w * r;
-      const over = ((vcv - vbar) / vbar) * 100;
-      return {
-        results: {
-          'السرعة الخطية لسلاح المقص': `${fmt(vcv, 2)} م/ث`,
-          'نسبة زيادة سرعة المقص (Over Speed)': `${fmt(over, 1)}%`
-        },
-        steps: [
-          `لفات عمود المقص = ${nm} ÷ ${gr} = ${fmt(ncv, 1)} RPM`,
-          `سرعة السكين = ${fmt(vcv, 2)} م/ث (بزيادة ${fmt(over, 1)}%)`
         ]
       };
     }
@@ -2014,126 +2197,6 @@ const ALL_CALCULATORS = [
         steps: [`أمبير الموتور = ${fmt(inAmp, 1)}A | قاطع الحماية = ${fmt(cbAmp, 0)}A`]
       };
     }
-  },
-  {
-    id: 'e_braking',
-    title: 'مقاومة الفرملة للإنفرتر',
-    shortTag: 'Braking Resistor Ω',
-    desc: 'حساب قيمة الأوم والكيلووات لمقاومة الفرملة لمنع عطل Overvoltage.',
-    details: 'تحسب قيمة المقاومة بالأوم وقدرتها بالكيلووات لتفريغ الطاقة الراجعة من الموتور أثناء التباطؤ السريع.',
-    whenToUse: 'تُستخدم عند ظهور عطل F0002 / DC Link Overvoltage في الدرايفات.',
-    icon: Zap,
-    group: 'قوى وكهرباء',
-    formula: 'قيمة المقاومة بالأوم = مربع جهد دائرة الـ DC ÷ قدرة الموتور بالوات',
-    inputs: [
-      { k: 'kw', l: 'قدرة موتور الدرفلة أو المقص (kW)', def: 90 },
-      { k: 'vdc', l: 'جهد دائرة الـ DC أثناء الفرملة (V)', def: 700 },
-      { k: 'duty', l: 'نسبة تكرار الفرملة Braking Duty (%)', def: 15 }
-    ],
-    calc: (v) => {
-      const kw = Math.max(1, num(v.kw));
-      const vdc = num(v.vdc);
-      const duty = num(v.duty);
-      const pPeakWatt = kw * 1000;
-      const rOhm = (vdc * vdc) / pPeakWatt;
-      const resKw = kw * (duty / 100);
-
-      return {
-        results: {
-          'قيمة مقاومة الفرملة': `${fmt(rOhm, 1)} أوم (Ω)`,
-          'قدرة المقاومة الحرارية': `${fmt(resKw, 1)} كيلووات (kW)`
-        },
-        steps: [`المقاومة = (${vdc} × ${vdc}) ÷ ${pPeakWatt} = ${fmt(rOhm, 1)} أوم`]
-      };
-    }
-  },
-  {
-    id: 'e_pfc',
-    title: 'مكثفات معامل القدرة',
-    shortTag: 'لوحة الـ kVAR',
-    desc: 'حساب سعة لوحة المكثفات بالكيلوفار لرفع معامل القدرة وتقليل الأمبير.',
-    details: 'تحسب كم كيلوفار (kVAR) من المكثفات تحتاجه اللوحة لرفع معامل القدرة وتجنب غرامات الكهرباء.',
-    whenToUse: 'تُستخدم عند صيانة لوحات تحسين معامل القدرة بالمصنع.',
-    icon: BatteryCharging,
-    group: 'قوى وكهرباء',
-    formula: 'سعة المكثفات (kVAR) = القدرة بالكيلووات × فرق ظل الزاوية',
-    inputs: [
-      { k: 'kw', l: 'الحمل الفعال للمصنع أو اللوحة (kW)', def: 500 },
-      { k: 'pf1', l: 'معامل القدرة الحالي المنخفض', def: 0.76 },
-      { k: 'pf2', l: 'معامل القدرة المستهدف', def: 0.95 }
-    ],
-    calc: (v) => {
-      const kw = num(v.kw);
-      const pf1 = Math.max(0.3, Math.min(0.99, num(v.pf1)));
-      const pf2 = Math.max(0.5, Math.min(0.99, num(v.pf2)));
-      const tan1 = Math.tan(Math.acos(pf1));
-      const tan2 = Math.tan(Math.acos(pf2));
-      const kvar = Math.max(0, kw * (tan1 - tan2));
-      return {
-        results: { 'سعة المكثفات المطلوبة': `${fmt(kvar, 1)} kVAR` },
-        steps: [`سعة المكثفات = ${fmt(kvar, 1)} كيلوفار`]
-      };
-    }
-  },
-  {
-    id: 'e_plc_scale',
-    title: 'إشارات الحساسات 4-20mA',
-    shortTag: 'PLC Analog Scaling',
-    desc: 'تحويل قراءة المللي أمبير إلى حرارة أو ضغط وقيمة الـ PLC الرقمية.',
-    details: 'تحول قراءة الأفوميتر بالمللي أمبير (من 4 إلى 20mA) إلى القيمة المقابلة للحساس (بار أو درجة مئوية) وقيمة مسجل الـ PLC.',
-    whenToUse: 'تُستخدم عند فحص حساسات ضغط الهيدروليك أو حرارة الأفران.',
-    icon: Radio,
-    group: 'قوى وكهرباء',
-    formula: 'النسبة المئوية للإشارة = ((قراءة المللي أمبير - 4) ÷ 16) × 100',
-    inputs: [
-      { k: 'ma', l: 'قراءة المللي أمبير على الأفوميتر (4 إلى 20)', def: 12 },
-      { k: 'min', l: 'بداية تدريج الحساس (Min)', def: 0 },
-      { k: 'max', l: 'نهاية تدريج الحساس (Max)', def: 250 }
-    ],
-    calc: (v) => {
-      const ma = num(v.ma);
-      const min = num(v.min);
-      const max = num(v.max);
-      const pct = ((ma - 4) / 16) * 100;
-      const engVal = min + ((ma - 4) / 16) * (max - min);
-      const siemensRaw = Math.round(((ma - 4) / 16) * 27648);
-
-      return {
-        results: {
-          'نسبة الإشارة المئوية': `${fmt(pct, 1)}%`,
-          'القراءة الفعلية للحساس': fmt(engVal, 2),
-          'القيمة داخل Siemens PLC': siemensRaw
-        },
-        steps: [`نسبة الإشارة = ${fmt(pct, 1)}% ← القراءة = ${fmt(engVal, 2)}`]
-      };
-    }
-  },
-  {
-    id: 'e_encoder',
-    title: 'نبضات الإنكودر والسرعة',
-    shortTag: 'Encoder PPR & kHz',
-    desc: 'حساب تردد نبضات الإنكودر بالكيلوهرتز للتأكد من سلامة القراءة.',
-    details: 'تحسب عدد النبضات في الثانية الواحدة الخارجة من الإنكودر عند سرعة معينة للموتور.',
-    whenToUse: 'تُستخدم عند تغيير إنكودر موتور درفلة أو مقص طائر.',
-    icon: Cpu,
-    group: 'قوى وكهرباء',
-    formula: 'تردد النبضات بالهرتز = (سرعة الموتور بالدقيقة × عدد نبضات اللفة) ÷ 60',
-    inputs: [
-      { k: 'ppr', l: 'عدد نبضات الإنكودر في اللفة (PPR)', def: 1024 },
-      { k: 'rpm', l: 'سرعة دوران الموتور (RPM)', def: 1500 }
-    ],
-    calc: (v) => {
-      const ppr = num(v.ppr);
-      const rpm = num(v.rpm);
-      const hz = (rpm * ppr) / 60;
-      return {
-        results: {
-          'عدد النبضات في الثانية': `${fmt(hz, 0)} Hz`,
-          'التردد بالكيلوهرتز': `${fmt(hz / 1000, 2)} kHz`
-        },
-        steps: [`التردد = (${rpm} × ${ppr}) ÷ 60 = ${fmt(hz, 0)} نبضة/ثانية`]
-      };
-    }
   }
 ];
 
@@ -2142,7 +2205,7 @@ const UnifiedCalculatorsView = () => {
   const [activeCalcId, setActiveCalcId] = useState(null);
   const [vals, setVals] = useState({});
 
-  const groups = ['الكل', 'باس ديزاين وإنتاجية', 'درفلة وسرعات', 'قوى وكهرباء', 'أتمتة وفنش'];
+  const groups = ['الكل', 'معمل الجودة والاختبارات', 'باس ديزاين وإنتاجية', 'درفلة وسرعات', 'قوى وكهرباء', 'أتمتة وفنش'];
 
   const openCalculator = (c) => {
     if (c.isSpecial) {
@@ -2261,6 +2324,8 @@ const UnifiedCalculatorsView = () => {
             className={`text-right p-3.5 sm:p-4 rounded-2xl border transition-all flex flex-col justify-between group hover:-translate-y-0.5 shadow-sm hover:shadow-md ${
               c.isSpecial
                 ? 'bg-gradient-to-b from-blue-50/70 to-white border-blue-300 hover:border-blue-500'
+                : c.group === 'معمل الجودة والاختبارات'
+                ? 'bg-gradient-to-b from-emerald-50/50 to-white border-emerald-300 hover:border-emerald-500'
                 : 'bg-white border-slate-200 hover:border-blue-400'
             }`}
           >
@@ -2268,16 +2333,24 @@ const UnifiedCalculatorsView = () => {
               <div className="flex items-center justify-between gap-1 mb-2.5">
                 <div
                   className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-105 ${
-                    c.isSpecial ? 'bg-blue-600 text-white shadow-sm' : 'bg-blue-50 border border-blue-100 text-blue-600'
+                    c.isSpecial
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : c.group === 'معمل الجودة والاختبارات'
+                      ? 'bg-emerald-600 text-white shadow-sm'
+                      : 'bg-blue-50 border border-blue-100 text-blue-600'
                   }`}
                 >
                   <c.icon className="w-5 h-5" />
                 </div>
-                {c.isSpecial && (
+                {c.isSpecial ? (
                   <span className="text-[9px] bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded-full font-black">
                     شامل
                   </span>
-                )}
+                ) : c.group === 'معمل الجودة والاختبارات' ? (
+                  <span className="text-[9px] bg-emerald-100 text-emerald-900 border border-emerald-300 px-2 py-0.5 rounded-full font-black">
+                    جودة
+                  </span>
+                ) : null}
               </div>
 
               <h3 className="text-xs sm:text-sm font-black text-slate-900 leading-snug">{c.title}</h3>
@@ -2298,7 +2371,7 @@ const UnifiedCalculatorsView = () => {
 };
 
 /* ======================================================
-   8. مجتمع المهندسين وموسوعة الأعطال (Clean Light Community)
+   8. مجتمع المهندسين وموسوعة الأعطال
    ====================================================== */
 const CommunityProView = () => {
   const [subMode, setSubMode] = useState('feed');
@@ -2687,12 +2760,25 @@ const CommunityProView = () => {
 };
 
 /* ======================================================
-   9. المكون الرئيسي لبوابة المهندسين (شريط علوي مبسط من زرين فقط)
+   9. المكون الرئيسي لبوابة المهندسين (شامل مؤشر العمل بدون إنترنت Offline Ready)
    ====================================================== */
 export default function PublicPortal({ onBack }) {
   const [activeTab, setActiveTab] = useState('calculators');
+  const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
+
+  useEffect(() => {
+    const goOnline = () => setIsOnline(true);
+    const goOffline = () => setIsOnline(false);
+    window.addEventListener('online', goOnline);
+    window.addEventListener('offline', goOffline);
+    return () => {
+      window.removeEventListener('online', goOnline);
+      window.removeEventListener('offline', goOffline);
+    };
+  }, []);
+
   const tabs = [
-    { id: 'calculators', label: 'الحاسبات والأدوات الهندسية', icon: Calculator },
+    { id: 'calculators', label: 'الحاسبات ومعمل الجودة', icon: Calculator },
     { id: 'community', label: 'المجتمع وموسوعة الأعطال', icon: MessageCircle }
   ];
 
@@ -2706,11 +2792,23 @@ export default function PublicPortal({ onBack }) {
                 <Calculator className="text-white w-4 h-4 sm:w-5 sm:h-5" />
               </div>
               <div>
-                <h1 className="text-sm sm:text-base font-black text-slate-900 leading-tight">
-                  بوابة المهندسين والحسابات
-                </h1>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-sm sm:text-base font-black text-slate-900 leading-tight">
+                    بوابة المهندسين والحسابات
+                  </h1>
+                  <span
+                    className={`inline-flex items-center gap-1 text-[9px] font-black px-2 py-0.5 rounded-full border ${
+                      isOnline
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        : 'bg-amber-100 text-amber-900 border-amber-300'
+                    }`}
+                  >
+                    {isOnline ? <Wifi size={10} /> : <WifiOff size={10} />}
+                    {isOnline ? 'يعمل أوفلاين وأونلاين' : 'وضع العمل بدون إنترنت'}
+                  </span>
+                </div>
                 <p className="text-[10px] text-slate-500 font-bold hidden sm:block">
-                  قوانين الدرفلة، الممرات، المقصات، الكهرباء، والمجتمع الفني
+                  قوانين الدرفلة، الممرات (بيضاوي-مبروم)، معمل الجودة، والكهرباء
                 </p>
               </div>
             </div>
