@@ -4,7 +4,7 @@ import {
   Gauge, DivideSquare, Maximize2, Circle, ArrowLeftRight, Zap,
   Cpu, Wrench, PlusCircle, ThumbsUp, Flame, Scissors, BookOpen,
   ChevronDown, ChevronUp, Sliders, Search, Award, Sparkles,
-  Check, ArrowLeft, Home, ShieldAlert, Cable, BatteryCharging, Radio
+  Check, ArrowLeft, Home, ShieldAlert, Cable, BatteryCharging, Radio, Square
 } from 'lucide-react';
 
 /* ======================================================
@@ -190,9 +190,8 @@ const Stat = ({ label, value, unit, color = 'text-slate-900', big = false }) => 
   </div>
 );
 
-// مكون خطوات الحل (مغلق افتراضياً ويفتح عند الضغط عليه، ومكتوب بالعربي الواضح)
 const SolutionStepsBox = ({ formula, steps }) => {
-  const [open, setOpen] = useState(false); // مغلق افتراضياً بناءً على طلبك
+  const [open, setOpen] = useState(false); // مغلق افتراضياً ويفتح عند الضغط
   if (!steps || steps.length === 0) return null;
 
   return (
@@ -214,9 +213,7 @@ const SolutionStepsBox = ({ formula, steps }) => {
           {formula && (
             <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
               <span className="text-slate-500 text-[11px] font-bold block mb-1">القاعدة الهندسية بالعربي:</span>
-              <p className="text-blue-800 font-black text-xs sm:text-sm leading-relaxed">
-                {formula}
-              </p>
+              <p className="text-blue-800 font-black text-xs sm:text-sm leading-relaxed">{formula}</p>
             </div>
           )}
           <div className="space-y-2">
@@ -237,18 +234,267 @@ const SolutionStepsBox = ({ formula, steps }) => {
 };
 
 /* ======================================================
-   3. حاسبة قطعيات المقص الطائر وأسياخ العميل معاً + وزن المتر اليدوي
+   3. الحاسبة الشاملة لمساحات الممرات والقطاعات (الدائرة، المستطيل، البيضاوي، الصندوقي، المعين)
+   ====================================================== */
+const GrooveAndCrossSectionModal = ({ onBack }) => {
+  const [shape, setShape] = useState('rect'); // 'rect' | 'circle' | 'oval' | 'box' | 'diamond'
+
+  // 1) متغيرات المستطيل / المربع / الخوصة (طول × عرض)
+  const [rectLen, setRectLen] = useState(50);
+  const [rectWid, setRectWid] = useState(10);
+  const [cornerR, setCornerR] = useState(0); // نصف قطر تقوس السوكة إن وجد
+
+  // 2) متغيرات الدائرة والممر الدائري
+  const [circleDia, setCircleDia] = useState(16);
+  const [roundGap, setRoundGap] = useState(2.0);
+
+  // 3) متغيرات الممر البيضاوي (Oval Pass)
+  const [ovalWidth, setOvalWidth] = useState(28);
+  const [ovalHeight, setOvalHeight] = useState(12);
+
+  // 4) متغيرات الممر الصندوقي (Box Pass)
+  const [boxBottomW, setBoxBottomW] = useState(75);
+  const [boxTopW, setBoxTopW] = useState(82);
+  const [boxHeight, setBoxHeight] = useState(68);
+
+  // 5) متغيرات الممر المعين (Diamond Pass)
+  const [diaD1, setDiaD1] = useState(48);
+  const [diaD2, setDiaD2] = useState(42);
+
+  // متغير فحص نسبة امتلاء الممر (Groove Filling Ratio)
+  const [metalAreaInGroove, setMetalAreaInGroove] = useState(190);
+
+  // الحسابات الهندسية حسب الشكل المختار
+  let calcArea = 0;
+  let perimeter = 0;
+  let eqDia = 0;
+  let formulaStr = '';
+  let stepsArr = [];
+
+  if (shape === 'rect') {
+    const L = num(rectLen);
+    const W = num(rectWid);
+    const r = Math.max(0, num(cornerR));
+    const cornerDeduction = r > 0 ? (4 - Math.PI) * r * r : 0;
+    calcArea = Math.max(0, L * W - cornerDeduction);
+    perimeter = 2 * (L + W);
+    eqDia = Math.sqrt((4 * calcArea) / Math.PI);
+    formulaStr = 'مساحة المستطيل أو الخوصة = الطول (العرض) × السمك (الارتفاع)  |  وزن المتر الطولي = المساحة × 0.00785';
+    stepsArr = [
+      `نضرب الطول في العرض = ${L} مم × ${W} مم = ${fmt(L * W, 2)} مم²`,
+      ...(r > 0 ? [`نخصم تقوس الأركان الأربعة (نصف قطر ${r} مم) = ${fmt(L * W, 2)} - ${fmt(cornerDeduction, 2)} = ${fmt(calcArea, 2)} مم²`] : []),
+      `محيط المقطع = 2 × (${L} + ${W}) = ${fmt(perimeter, 1)} مم`,
+      `وزن المتر الطولي للحديد = ${fmt(calcArea, 2)} × 0.00785 = ${fmt(calcArea * 0.00785, 3)} كجم/متر`
+    ];
+  } else if (shape === 'circle') {
+    const D = num(circleDia);
+    const g = Math.max(0, num(roundGap));
+    const fullCircle = (Math.PI * D * D) / 4;
+    // المساحة الفعلية لممر الدرفيل الدائري مع فتح الجاب
+    calcArea = fullCircle;
+    const grooveEffectiveArea = Math.max(0, fullCircle - g * 0.15 * D);
+    perimeter = Math.PI * D;
+    eqDia = D;
+    formulaStr = 'مساحة الدائرة = (3.1416 × القطر × القطر) ÷ 4  (أو 0.7854 × مربع القطر)';
+    stepsArr = [
+      `نربع القطر D = ${D} × ${D} = ${fmt(D * D, 2)}`,
+      `نضرب في 3.1416 ونقسم على 4 = (3.1416 × ${fmt(D * D, 2)}) ÷ 4 = ${fmt(fullCircle, 2)} مم²`,
+      `محيط الدائرة = 3.1416 × ${D} = ${fmt(perimeter, 2)} مم`,
+      `مساحة ممر الدرفيل الصافية (عند جاب ${g} مم) ≈ ${fmt(grooveEffectiveArea, 2)} مم²`,
+      `وزن المتر الطولي للبار المبروم = ${fmt(fullCircle, 2)} × 0.00785 = ${fmt(fullCircle * 0.00785, 3)} كجم/متر`
+    ];
+  } else if (shape === 'oval') {
+    const B = num(ovalWidth);
+    const H = num(ovalHeight);
+    calcArea = (2 / 3) * B * H;
+    perimeter = Math.PI * Math.sqrt(2 * (Math.pow(B / 2, 2) + Math.pow(H / 2, 2)));
+    eqDia = Math.sqrt((4 * calcArea) / Math.PI);
+    formulaStr = 'مساحة الممر البيضاوي (Oval Pass) = (2 ÷ 3) × عرض الممر × ارتفاع الممر الكلي';
+    stepsArr = [
+      `نضرب عرض الممر البيضاوي في ارتفاعه = ${B} × ${H} = ${fmt(B * H, 2)} مم²`,
+      `نضرب في معامل شكل القوس البيضاوي (2/3 أي 0.667) = 0.667 × ${fmt(B * H, 2)} = ${fmt(calcArea, 2)} مم²`,
+      `معامل الممر البيضاوي (Groove Factor) = المساحة ÷ العرض = ${fmt(calcArea, 1)} ÷ ${B} = ${fmt(calcArea / Math.max(1, B), 2)} مم`,
+      `وزن المتر الطولي للبار البيضاوي الخارج = ${fmt(calcArea * 0.00785, 3)} كجم/متر`
+    ];
+  } else if (shape === 'box') {
+    const b1 = num(boxBottomW);
+    const b2 = num(boxTopW);
+    const h = num(boxHeight);
+    const avgW = (b1 + b2) / 2;
+    calcArea = avgW * h;
+    perimeter = b1 + b2 + 2 * h;
+    eqDia = Math.sqrt((4 * calcArea) / Math.PI);
+    formulaStr = 'مساحة الممر الصندوقي (Box Pass) = متوسط العرض [(عرض القاع + عرض الفتحة) ÷ 2] × الارتفاع الكلي';
+    stepsArr = [
+      `نحسب متوسط عرض الممر الصندوقي = (${b1} + ${b2}) ÷ 2 = ${fmt(avgW, 2)} مم`,
+      `نضرب متوسط العرض في الارتفاع الكلي للممر (${h} مم) = ${fmt(avgW, 2)} × ${h} = ${fmt(calcArea, 2)} مم²`,
+      `وزن المتر الطولي للكتلة الخارجة من الممر = ${fmt(calcArea * 0.00785, 3)} كجم/متر`
+    ];
+  } else if (shape === 'diamond') {
+    const d1 = num(diaD1);
+    const d2 = num(diaD2);
+    calcArea = 0.5 * d1 * d2;
+    const side = Math.sqrt(Math.pow(d1 / 2, 2) + Math.pow(d2 / 2, 2));
+    perimeter = 4 * side;
+    eqDia = Math.sqrt((4 * calcArea) / Math.PI);
+    formulaStr = 'مساحة الممر المعين أو المربع المائل (Diamond / Square Pass) = (القطر الأفقي × القطر الرأسي) ÷ 2';
+    stepsArr = [
+      `نضرب القطر الأفقي في القطر الرأسي = ${d1} × ${d2} = ${fmt(d1 * d2, 2)}`,
+      `نقسم الناتج على 2 = ${fmt(d1 * d2, 2)} ÷ 2 = ${fmt(calcArea, 2)} مم²`,
+      `طول ضلع المعين = ${fmt(side, 2)} مم`
+    ];
+  }
+
+  const meterWeightKg = calcArea * 0.00785;
+  const fillPct = calcArea > 0 ? (num(metalAreaInGroove) / calcArea) * 100 : 0;
+  const fillStatus =
+    fillPct > 100
+      ? 'امتلاء زائد! خطر ظهور شنب وقشرة (Overfill)'
+      : fillPct < 80
+      ? 'أقل من الطبيعي! خطر بطح وعدم اكتمال (Underfill)'
+      : 'امتلاء مثالي وسليم للممر (80% - 98%)';
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-2">
+        <button
+          onClick={onBack}
+          className="bg-slate-100 hover:bg-slate-200 text-slate-800 px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5"
+        >
+          <ArrowLeft size={15} className="rotate-180" /> رجوع لكل القوانين
+        </button>
+
+        {/* أزرار اختيار شكل المقطع أو الممر */}
+        <div className="flex flex-wrap gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
+          {[
+            ['rect', 'طول × عرض (مستطيل/خوصة/مربع)'],
+            ['circle', 'قانون الدائرة (ممر دائري)'],
+            ['oval', 'ممر بيضاوي (Oval)'],
+            ['box', 'ممر صندوقي (Box)'],
+            ['diamond', 'ممر معين (Diamond)']
+          ].map(([id, label]) => (
+            <button
+              key={id}
+              onClick={() => setShape(id)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                shape === id ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        {/* مدخلات الشكل المختار */}
+        <div className="lg:col-span-5 bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4 h-fit">
+          <h3 className="text-sm sm:text-base font-black text-slate-900 border-b border-slate-100 pb-2">
+            أدخل أبعاد المقطع أو الممر بالملليمتر
+          </h3>
+
+          {shape === 'rect' && (
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="الطول / العرض B (مم)" value={rectLen} onChange={setRectLen} />
+              <Field label="العرض / السمك H (مم)" value={rectWid} onChange={setRectWid} />
+              <Field
+                label="نصف قطر تقوس السوكة (اختياري مم)"
+                value={cornerR}
+                onChange={setCornerR}
+                step="0.5"
+                className="col-span-2"
+              />
+            </div>
+          )}
+
+          {shape === 'circle' && (
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="قطر الدائرة / الممر D (مم)" value={circleDia} onChange={setCircleDia} step="0.5" />
+              <Field label="خلوص الجاب بين الدرفيلين (مم)" value={roundGap} onChange={setRoundGap} step="0.5" />
+            </div>
+          )}
+
+          {shape === 'oval' && (
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="عرض الممر البيضاوي B (مم)" value={ovalWidth} onChange={setOvalWidth} step="0.5" />
+              <Field label="ارتفاع الممر الكلي شامل الجاب H (مم)" value={ovalHeight} onChange={setOvalHeight} step="0.5" />
+            </div>
+          )}
+
+          {shape === 'box' && (
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="عرض قاع الممر الصندوقي (مم)" value={boxBottomW} onChange={setBoxBottomW} />
+              <Field label="عرض فتحة الممر عند الجاب (مم)" value={boxTopW} onChange={setTopW} />
+              <Field label="الارتفاع الكلي للممر شامل الجاب (مم)" value={boxHeight} onChange={setBoxHeight} className="col-span-2" />
+            </div>
+          )}
+
+          {shape === 'diamond' && (
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="القطر الأفقي للمعين d1 (مم)" value={diaD1} onChange={setDiaD1} />
+              <Field label="القطر الرأسي للمعين d2 (مم)" value={diaD2} onChange={setDiaD2} />
+            </div>
+          )}
+
+          {/* فحص نسبة امتلاء الممر */}
+          <div className="pt-3 border-t border-slate-100 space-y-2">
+            <Field
+              label="اختبار امتلاء الممر: أدخل مساحة المعدن الفعلية (مم²)"
+              value={metalAreaInGroove}
+              onChange={setMetalAreaInGroove}
+            />
+            <div
+              className={`p-2.5 rounded-xl border text-xs font-bold ${
+                fillPct > 100
+                  ? 'bg-red-50 border-red-200 text-red-700'
+                  : fillPct < 80
+                  ? 'bg-amber-50 border-amber-200 text-amber-800'
+                  : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+              }`}
+            >
+              نسبة امتلاء الممر: <strong className="font-mono">{fmt(fillPct, 1)}%</strong> — {fillStatus}
+            </div>
+          </div>
+        </div>
+
+        {/* نتائج المساحة ووزن المتر الطولي */}
+        <div className="lg:col-span-7 bg-white p-4 sm:p-5 rounded-2xl border border-blue-200 shadow-sm space-y-4">
+          <h3 className="text-sm sm:text-base font-black text-blue-800 border-b border-slate-100 pb-2">
+            نتائج مساحة المقطع ووزن المتر الطولي
+          </h3>
+
+          <div className="bg-blue-50/70 border border-blue-200 rounded-2xl p-4 text-center">
+            <span className="text-xs font-bold text-blue-800 block mb-1">مساحة المقطع الهندسية (Area)</span>
+            <span className="text-3xl sm:text-4xl font-black font-mono text-blue-700">
+              {fmt(calcArea, 2)} <span className="text-sm">مم² (mm²)</span>
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+            <Stat label="وزن المتر الطولي للحديد" value={fmt(meterWeightKg, 3)} unit="كجم/متر" color="text-emerald-700" big />
+            <Stat label="محيط المقطع الخارجي" value={fmt(perimeter, 1)} unit="مم" />
+            <Stat label="القطر الدائري المكافئ" value={fmt(eqDia, 2)} unit="مم" />
+          </div>
+
+          <SolutionStepsBox formula={formulaStr} steps={stepsArr} />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ======================================================
+   4. حاسبة قطعيات المقص الطائر وأسياخ العميل معاً + وزن المتر اليدوي
    ====================================================== */
 const BarsAndProductivityModal = ({ onBack }) => {
   const [side, setSide] = useState(130);
   const [billetLen, setBilletLen] = useState(12);
   const [size, setSize] = useState('16');
-  // وزن المتر الطولي قابل للتعديل اليدوي أو يتحدث تلقائياً عند اختيار مقاس قياسي
   const [customMeterWeight, setCustomMeterWeight] = useState(1.580);
   const [yieldPct, setYieldPct] = useState(97.5);
   const [strands, setStrands] = useState('2');
-  const [cutLen, setCutLen] = useState(36); // طول قطعية المقص الطائر
-  const [commLen, setCommLen] = useState(12); // طول سيخ العميل
+  const [cutLen, setCutLen] = useState(36);
+  const [commLen, setCommLen] = useState(12);
   const [gapSec, setGapSec] = useState(4);
   const [lineSpeed, setLineSpeed] = useState(12);
   const [billetsShift, setBilletsShift] = useState(400);
@@ -268,21 +514,18 @@ const BarsAndProductivityModal = ({ onBack }) => {
   const totalLenAllStrands = prodKg / wMeter;
   const lenPerStrand = totalLenAllStrands / k;
 
-  // 1) نتائج المقص الطائر (Flying Shear) على سرير التبريد
   const fullFlyingCutsPerStrand = num(cutLen) > 0 ? Math.floor(lenPerStrand / num(cutLen)) : 0;
   const totalFullFlyingBarsPerBillet = fullFlyingCutsPerStrand * k;
   const lastBarLengthPerStrand = Math.max(0, lenPerStrand - fullFlyingCutsPerStrand * num(cutLen));
   const totalFlyingBarsWithLast =
     lastBarLengthPerStrand >= 6 ? totalFullFlyingBarsPerBillet + k : totalFullFlyingBarsPerBillet;
 
-  // 2) نتائج الأسياخ التجارية للعميل (Cold Shear)
   const commBarsPerFlyingCut = num(commLen) > 0 ? Math.floor(num(cutLen) / num(commLen)) : 0;
   const wastePerFlyingCut = Math.max(0, num(cutLen) - commBarsPerFlyingCut * num(commLen));
   const commBarsFromLastBar = num(commLen) > 0 ? Math.floor(lastBarLengthPerStrand / num(commLen)) : 0;
   const shortScrapFromLastBar = Math.max(0, lastBarLengthPerStrand - commBarsFromLastBar * num(commLen));
   const totalCustomerBarsPerBillet = k * (fullFlyingCutsPerStrand * commBarsPerFlyingCut + commBarsFromLastBar);
 
-  // 3) الطاقة الإنتاجية (طن/ساعة)
   const rollSec = num(lineSpeed) * wMeter * k > 0 ? billetKg / (num(lineSpeed) * wMeter * k) : 0;
   const cycleSec = rollSec + num(gapSec);
   const billetsPerHr = cycleSec > 0 ? 3600 / cycleSec : 0;
@@ -303,13 +546,11 @@ const BarsAndProductivityModal = ({ onBack }) => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        {/* قسم المدخلات الذكية */}
         <div className="lg:col-span-5 bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3.5 h-fit">
           <h3 className="text-sm sm:text-base font-black text-slate-900 border-b border-slate-100 pb-2">
             بيانات البيليت ووزن المتر والمقصات
           </h3>
 
-          {/* اختيار سريع لطول قطعية المقص الطائر + إدخال حر */}
           <div className="bg-amber-50/70 p-3 rounded-xl border border-amber-200 space-y-2">
             <div className="flex justify-between items-center">
               <label className="text-xs font-black text-amber-900">طول قطعية المقص الطائر (متر):</label>
@@ -355,7 +596,6 @@ const BarsAndProductivityModal = ({ onBack }) => {
               ]}
             />
 
-            {/* حقل كتابة وزن المتر الطولي يدوياً كما طلبت */}
             <div>
               <label className="text-[11px] sm:text-xs text-blue-700 block mb-1 font-black">
                 وزن المتر الطولي الفعلي (كجم/م):
@@ -388,9 +628,7 @@ const BarsAndProductivityModal = ({ onBack }) => {
           </div>
         </div>
 
-        {/* قسم النتائج المزدوج: يعرض المقص الطائر + أسياخ العميل معاً في وقت واحد */}
         <div className="lg:col-span-7 space-y-4">
-          {/* أولاً: نتيجة قطعيات المقص الطائر لسرير التبريد */}
           <div className="bg-white p-4 sm:p-5 rounded-2xl border-2 border-amber-300 shadow-sm space-y-3">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
               <h4 className="text-sm sm:text-base font-black text-amber-900 flex items-center gap-1.5">
@@ -430,7 +668,6 @@ const BarsAndProductivityModal = ({ onBack }) => {
             </p>
           </div>
 
-          {/* ثانياً: نتيجة الأسياخ النهائية للعميل بعد المقص البارد */}
           <div className="bg-white p-4 sm:p-5 rounded-2xl border-2 border-emerald-300 shadow-sm space-y-3">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
               <h4 className="text-sm sm:text-base font-black text-emerald-900 flex items-center gap-1.5">
@@ -461,7 +698,6 @@ const BarsAndProductivityModal = ({ onBack }) => {
             </p>
           </div>
 
-          {/* خطوات الحل بالعربي الواضح (مغلقة افتراضياً وتفتح عند الضغط) */}
           <SolutionStepsBox
             formula="الطول الكلي للحديد = الوزن الصافي للبيليت ÷ وزن المتر الطولي الفعلي  |  عدد القطعيات = الطول ÷ طول القطعية"
             steps={[
@@ -480,10 +716,10 @@ const BarsAndProductivityModal = ({ onBack }) => {
 };
 
 /* ======================================================
-   4. حاسبة الباس ديزاين الهندسية الحقيقية (Realistic Roll Pass Schedule)
+   5. حاسبة الباس ديزاين الهندسية الحقيقية (Realistic Roll Pass Schedule)
    ====================================================== */
 const RealisticPassDesignModal = ({ onBack }) => {
-  const [mode, setMode] = useState('rebar'); // 'rebar' | 'flat'
+  const [mode, setMode] = useState('rebar');
   const [billetSide, setBilletSide] = useState(130);
   const [rebarSize, setRebarSize] = useState('16');
   const [customFinalArea, setCustomFinalArea] = useState(201.0);
@@ -786,9 +1022,17 @@ const RealisticPassDesignModal = ({ onBack }) => {
 };
 
 /* ======================================================
-   5. موسوعة كل القوانين الموحدة (بشرح عربي واضح بدون رموز معقدة)
+   6. موسوعة كل القوانين الموحدة (شاملة مساحات الممرات وطول تلامس الدرفيل L)
    ====================================================== */
 const ALL_CALCULATORS = [
+  {
+    id: 'special_groove_areas',
+    title: 'حاسبة مساحات الممرات والقطاعات (الدائرة، المستطيل، البيضاوي، الصندوقي)',
+    desc: 'احسب مساحة المقطع من الطول والعرض أو قانون الدائرة والبيضاوي مع وزن المتر ونسبة امتلاء الممر.',
+    icon: Square,
+    group: 'باس ديزاين وإنتاجية',
+    isSpecial: true
+  },
   {
     id: 'special_bars_yield',
     title: 'حاسبة قطعيات المقص الطائر (36م/48م) وأسياخ العميل (12م)',
@@ -804,6 +1048,111 @@ const ALL_CALCULATORS = [
     icon: Layers,
     group: 'باس ديزاين وإنتاجية',
     isSpecial: true
+  },
+
+  // --- حاسبة الطول والعرض السريعة + حاسبة الـ L بتاع الدرفيل ---
+  {
+    id: 'c_rect_area',
+    title: 'حاسبة مساحة المقطع (طول × عرض) ووزن المتر',
+    desc: 'أدخل الطول (العرض) والسمك بالملليمتر لحساب المساحة بالمم² ووزن المتر فوراً.',
+    icon: Square,
+    group: 'درفلة وسرعات',
+    formula: 'مساحة المقطع (مم²) = الطول (العرض) × السمك (الارتفاع)  |  وزن المتر الطولي = المساحة × 0.00785',
+    inputs: [
+      { k: 'l', l: 'الطول / عرض القطاع أو البيليت (مم)', def: 50 },
+      { k: 'w', l: 'العرض / سمك القطاع أو البيليت (مم)', def: 10 }
+    ],
+    calc: (v) => {
+      const l = num(v.l);
+      const w = num(v.w);
+      const area = l * w;
+      const weight = area * 0.00785;
+      return {
+        results: {
+          'مساحة المقطع (Area)': `${fmt(area, 2)} مم²`,
+          'وزن المتر الطولي للحديد': `${fmt(weight, 3)} كجم/متر`,
+          'محيط المقطع': `${fmt(2 * (l + w), 1)} مم`
+        },
+        steps: [
+          `نضرب الطول في العرض = ${l} مم × ${w} مم = ${fmt(area, 2)} مم²`,
+          `لحساب وزن المتر الطولي نضرب المساحة في كثافة الحديد (0.00785) = ${fmt(area, 2)} × 0.00785 = ${fmt(weight, 3)} كجم/متر`
+        ]
+      };
+    }
+  },
+  {
+    id: 'c_circle_area',
+    title: 'قانون الدائرة وحساب مساحة الممر الدائري',
+    desc: 'أدخل قطر الدائرة أو السيخ بالمم لحساب مساحة المقطع والمحيط ووزن المتر.',
+    icon: Circle,
+    group: 'درفلة وسرعات',
+    formula: 'مساحة الدائرة (مم²) = (3.1416 × القطر × القطر) ÷ 4  (أو 0.7854 × مربع القطر)',
+    inputs: [
+      { k: 'd', l: 'قطر الدائرة أو الممر الدائري (مم)', def: 16 },
+      { k: 'gap', l: 'خلوص الجاب بين الدرفيلين (اختياري مم)', def: 2 }
+    ],
+    calc: (v) => {
+      const d = num(v.d);
+      const gap = Math.max(0, num(v.gap));
+      const area = (Math.PI * d * d) / 4;
+      const grooveNet = Math.max(0, area - gap * 0.15 * d);
+      const weight = area * 0.00785;
+      return {
+        results: {
+          'مساحة الدائرة الكاملة': `${fmt(area, 2)} مم²`,
+          'مساحة ممر الدرفيل الصافية': `${fmt(grooveNet, 2)} مم²`,
+          'وزن المتر الطولي للبار الدائري': `${fmt(weight, 3)} كجم/متر`
+        },
+        steps: [
+          `نربع القطر = ${d} × ${d} = ${fmt(d * d, 2)}`,
+          `نضرب في 3.1416 ونقسم على 4 = ${fmt(area, 2)} مم²`,
+          `وزن المتر الطولي = ${fmt(area, 2)} × 0.00785 = ${fmt(weight, 3)} كجم/متر`
+        ]
+      };
+    }
+  },
+  {
+    id: 'c_roll_L',
+    title: 'حساب الـ L بتاع الدرفيل (طول قوس التلامس Lp / Ld)',
+    desc: 'حساب طول قوس التلامس بين الدرفيل والمعدن ومساحة التلامس وذراع العزم.',
+    icon: Maximize2,
+    group: 'باس ديزاين وإنتاجية',
+    formula: 'طول قوس التلامس (L) = الجذر التربيعي لـ (نصف قطر الدرفيل R × مقدار الضغطة Δh)',
+    inputs: [
+      { k: 'd', l: 'قطر الدرفيل الشغال D (مم)', def: 420 },
+      { k: 'h1', l: 'ارتفاع المعدن قبل الدرفيل H1 (مم)', def: 24 },
+      { k: 'h2', l: 'ارتفاع المعدن بعد الدرفيل H2 (مم)', def: 16 },
+      { k: 'w', l: 'متوسط عرض المعدن الملامس للدرفيل W (مم)', def: 45 }
+    ],
+    calc: (v) => {
+      const d = Math.max(1, num(v.d));
+      const r = d / 2;
+      const h1 = num(v.h1);
+      const h2 = num(v.h2);
+      const w = num(v.w);
+      const dh = Math.max(0, h1 - h2);
+      const L = Math.sqrt(r * dh);
+      const contactArea = w * L;
+      const leverArmX = 0.5 * L;
+      const biteRad = Math.acos(Math.max(-1, Math.min(1, 1 - dh / d)));
+      const biteDeg = (biteRad * 180) / Math.PI;
+
+      return {
+        results: {
+          'طول قوس تلامس الدرفيل (L)': `${fmt(L, 2)} مم`,
+          'قيمة الضغطة (Δh = H1 - H2)': `${fmt(dh, 2)} مم`,
+          'مساحة التلامس الكلية (A = W × L)': `${fmt(contactArea, 1)} مم²`,
+          'ذراع العزم الفعال (0.5 × L)': `${fmt(leverArmX, 2)} مم (${fmt(biteDeg, 1)}°)`
+        },
+        steps: [
+          `نحسب نصف قطر الدرفيل (R) = القطر ${d} ÷ 2 = ${fmt(r, 1)} مم`,
+          `نحسب قيمة الضغطة (النقص في الارتفاع) = ${h1} - ${h2} = ${fmt(dh, 2)} مم`,
+          `نضرب نصف القطر في الضغطة = ${fmt(r, 1)} × ${fmt(dh, 2)} = ${fmt(r * dh, 1)}`,
+          `نأخذ الجذر التربيعي للناتج لنحصل على طول قوس التلامس (L) = جذر(${fmt(r * dh, 1)}) = ${fmt(L, 2)} مم`,
+          `مساحة منطقة التشكيل والتلامس تحت الدرفيل = العرض ${w} × الطول ${fmt(L, 2)} = ${fmt(contactArea, 1)} مم²`
+        ]
+      };
+    }
   },
 
   // --- أ. حاسبات الدرفلة والسرعات ---
@@ -1369,7 +1718,7 @@ const ALL_CALCULATORS = [
       const powerKw = (torqueKnm * 2 * Math.PI * rpm) / 60;
       return {
         results: {
-          'طول قوس التلامس (Lp)': `${fmt(lp, 2)} مم`,
+          'طول قوس التلامس (L)': `${fmt(lp, 2)} مم`,
           'قوة وحمل الدرفلة': `${fmt(loadKn, 1)} كيلو نيوتن`,
           'عزم الدرفلة المطلوب': `${fmt(torqueKnm, 2)} kN.m`,
           'القدرة المطلوبة للدرفلة': `${fmt(powerKw, 1)} كيلووات`
@@ -1389,7 +1738,7 @@ const UnifiedCalculatorsView = () => {
   const [activeCalcId, setActiveCalcId] = useState(null);
   const [vals, setVals] = useState({});
 
-  const groups = ['الكل', 'باس ديزاين وإنتاجية', 'قوى وكهرباء', 'درفلة وسرعات', 'أتمتة وفنش'];
+  const groups = ['الكل', 'باس ديزاين وإنتاجية', 'درفلة وسرعات', 'قوى وكهرباء', 'أتمتة وفنش'];
 
   const openCalculator = (c) => {
     if (c.isSpecial) {
@@ -1404,6 +1753,9 @@ const UnifiedCalculatorsView = () => {
     setActiveCalcId(c.id);
   };
 
+  if (activeCalcId === 'special_groove_areas') {
+    return <GrooveAndCrossSectionModal onBack={() => setActiveCalcId(null)} />;
+  }
   if (activeCalcId === 'special_pass_design') {
     return <RealisticPassDesignModal onBack={() => setActiveCalcId(null)} />;
   }
@@ -1472,7 +1824,6 @@ const UnifiedCalculatorsView = () => {
 
   return (
     <div className="space-y-4">
-      {/* شريط الفلاتر باللون الأبيض النظيف */}
       <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
         {groups.map((grp) => (
           <button
@@ -1489,7 +1840,6 @@ const UnifiedCalculatorsView = () => {
         ))}
       </div>
 
-      {/* شبكة البطاقات البيضاء المريحة للعين على الموبايل */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {visibleCalcs.map((c) => (
           <button
@@ -1503,9 +1853,7 @@ const UnifiedCalculatorsView = () => {
           >
             <div
               className={`w-10 h-10 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-105 ${
-                c.isSpecial
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'bg-blue-50 border border-blue-100 text-blue-600'
+                c.isSpecial ? 'bg-blue-600 text-white shadow-sm' : 'bg-blue-50 border border-blue-100 text-blue-600'
               }`}
             >
               <c.icon className="w-5 h-5" />
@@ -1530,7 +1878,7 @@ const UnifiedCalculatorsView = () => {
 };
 
 /* ======================================================
-   6. الجداول ومحول الوحدات الهندسي (Tables & Converter)
+   7. الجداول ومحول الوحدات الهندسي (Tables & Converter)
    ====================================================== */
 const TablesAndConverterView = () => {
   const [cat, setCat] = useState('speed');
@@ -1617,7 +1965,7 @@ const TablesAndConverterView = () => {
 };
 
 /* ======================================================
-   7. مجتمع المهندسين وموسوعة الأعطال (Clean Light Community)
+   8. مجتمع المهندسين وموسوعة الأعطال (Clean Light Community)
    ====================================================== */
 const CommunityProView = () => {
   const [subMode, setSubMode] = useState('feed');
@@ -2006,7 +2354,7 @@ const CommunityProView = () => {
 };
 
 /* ======================================================
-   8. المكون الرئيسي لبوابة المهندسين (PublicPortal - Light Mode)
+   9. المكون الرئيسي لبوابة المهندسين (PublicPortal - Light Mode)
    ====================================================== */
 export default function PublicPortal({ onBack }) {
   const [activeTab, setActiveTab] = useState('calculators');
@@ -2030,7 +2378,7 @@ export default function PublicPortal({ onBack }) {
                   بوابة المهندسين والحسابات
                 </h1>
                 <p className="text-[10px] text-slate-500 font-bold hidden sm:block">
-                  قوانين الدرفلة، المقصات، الكهرباء، والمجتمع الفني
+                  قوانين الدرفلة، الممرات، المقصات، الكهرباء، والمجتمع الفني
                 </p>
               </div>
             </div>
