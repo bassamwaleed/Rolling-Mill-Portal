@@ -470,19 +470,18 @@ const applyPassChange = (list, req, billetWeight, approver, archiveList = []) =>
 };
 
 const Overlay = ({ z = 50, children }) => (
-  <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-3 backdrop-blur-sm" style={{ zIndex: z }}>
+  <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-2.5 sm:p-4 backdrop-blur-sm" style={{ zIndex: z }}>
     {children}
   </div>
 );
 
 /* ======================================================
-   4. المكون الرئيسي لبوابة المصانع (FactoryPortal - مع دعم الروابط وزر الرجوع في الموبايل)
+   4. المكون الرئيسي لبوابة المصانع (FactoryPortal - مضبوط 100% للموبايل واللابتوب)
    ====================================================== */
 export default function FactoryPortal({ onBack, factoryConfig }) {
   const appId = factoryConfig?.id || 'al-gioshy-steel-rolls';
   const factoryName = factoryConfig?.name || 'شركة الجيوشي للصلب';
 
-  // قراءة التبويب الحالي من الرابط (URL) عند الفتح
   const getInitialTabFromUrl = () => {
     const params = new URLSearchParams(window.location.search);
     return params.get('tab') || 'dashboard';
@@ -504,7 +503,7 @@ export default function FactoryPortal({ onBack, factoryConfig }) {
   const [passChanges, setPassChanges] = useState([]);
   const [pendingList, setPendingList] = useState([]);
   const [downtimesList, setDowntimesList] = useState([]);
-  const [handoverNotesList, setHandoverNotesList] = useState([]); // تم إصلاح الخطأ المطبعي هنا
+  const [handoverNotesList, setHandoverNotesList] = useState([]);
   const [motorsList, setMotorsList] = useState(DEFAULT_MOTORS);
   const [tempShiftLogs, setTempShiftLogs] = useState([]);
   const [staffList, setStaffList] = useState(DEFAULT_STAFF);
@@ -516,8 +515,6 @@ export default function FactoryPortal({ onBack, factoryConfig }) {
   const [billetWeight, setBilletWeight] = useState(0.75);
   const [selectedProductSize, setSelectedProductSize] = useState('16');
   const [customLogo, setCustomLogo] = useState('');
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [tempLogoUrl, setTempLogoUrl] = useState('');
 
   const [addStandOpen, setAddStandOpen] = useState(false);
   const [newStandForm, setNewStandForm] = useState({
@@ -541,7 +538,6 @@ export default function FactoryPortal({ onBack, factoryConfig }) {
     actionTaken: '',
     techName: ''
   });
-  const [handoverText, setHandoverText] = useState('');
 
   const [motorSubView, setMotorSubView] = useState('cards');
   const [motorCategoryFilter, setMotorCategoryFilter] = useState('all');
@@ -652,7 +648,7 @@ export default function FactoryPortal({ onBack, factoryConfig }) {
   const showConfirm = (title, message, onConfirm) =>
     setModal({ isOpen: true, type: 'confirm', title, message, onConfirm });
 
-  /* ---------- نظام الروابط والتنقل بزر الرجوع في الموبايل (Browser History & Back Button) ---------- */
+  /* ---------- نظام الروابط والتنقل بزر الرجوع في الموبايل ---------- */
   const setActiveTab = (newTab) => {
     setActiveTabState(newTab);
     const params = new URLSearchParams(window.location.search);
@@ -664,7 +660,6 @@ export default function FactoryPortal({ onBack, factoryConfig }) {
 
   useEffect(() => {
     const handlePopState = () => {
-      // إذا كان هناك نافذة فرعية مفتوحة، يغلقها زر الرجوع أولاً بدلاً من الخروج من الصفحة
       if (resetModal.isOpen) {
         setResetModal({ isOpen: false, standIndex: null });
         return;
@@ -861,11 +856,6 @@ export default function FactoryPortal({ onBack, factoryConfig }) {
     nd.setDate(nd.getDate() + dir);
     setCurrentProdDate(nd);
     setSelectedShift(shiftsFor(nd.getDay() === 5)[0]);
-  };
-  const handleGoToToday = () => {
-    const s = getInitialProductionState();
-    setCurrentProdDate(new Date(s.prodDate.getTime()));
-    setSelectedShift(s.initialShift);
   };
 
   /* ---------- الحفظ السحابي الموحد ---------- */
@@ -1078,7 +1068,7 @@ export default function FactoryPortal({ onBack, factoryConfig }) {
     save({ recipes: recipesList.filter((r) => r.id !== id) });
   };
 
-  /* ---------- وظائف رادار الدرافيل والمخرطة (إضافة + تعديل + حذف كامل) ---------- */
+  /* ---------- وظائف رادار الدرافيل والمخرطة ---------- */
   const handleSaveRollShopItem = (e) => {
     e.preventDefault();
     if (!newRollItem.code.trim()) return;
@@ -1306,9 +1296,9 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
 
   const getStandStatus = (tons, limit) => {
     const pct = Math.max(0, (tons / limit) * 100);
-    if (pct >= 100) return { color: 'danger', bg: 'bg-red-100', border: 'border-red-500', bar: 'bg-red-600', text: 'text-red-700', hex: '#dc2626' };
-    if (pct >= 80) return { color: 'warning', bg: 'bg-yellow-100', border: 'border-yellow-400', bar: 'bg-yellow-500', text: 'text-yellow-700', hex: '#eab308' };
-    return { color: 'good', bg: 'bg-white', border: 'border-slate-300', bar: 'bg-emerald-500', text: 'text-slate-800', hex: '#10b981' };
+    if (pct >= 100) return { color: 'danger', bg: 'bg-red-50', border: 'border-red-500', bar: 'bg-red-600', text: 'text-red-700', hex: '#dc2626' };
+    if (pct >= 80) return { color: 'warning', bg: 'bg-amber-50', border: 'border-amber-400', bar: 'bg-amber-500', text: 'text-amber-700', hex: '#eab308' };
+    return { color: 'good', bg: 'bg-white', border: 'border-slate-200', bar: 'bg-emerald-500', text: 'text-slate-900', hex: '#10b981' };
   };
 
   const handleToggleActive = (index, e) => {
@@ -1317,7 +1307,7 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
     save({ stands: ns });
   };
 
-  /* ---------- صفحة الدرفيل (مع دفع حالة للتاريخ لدعم زر الرجوع) ---------- */
+  /* ---------- صفحة الدرفيل ---------- */
   const openStandRollPage = (index) => {
     const st = stands[index];
     setRollEditForm({
@@ -1809,21 +1799,21 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
   };
 
   const exportButtons = (
-    <div className="flex flex-wrap gap-1.5">
+    <div className="flex flex-wrap gap-1">
       <button
         onClick={() => {
           window.history.pushState({ modal: 'whatsapp' }, '');
           setWhatsappModalOpen(true);
         }}
-        className="bg-green-600 hover:bg-green-700 text-white font-bold py-1.5 px-2.5 rounded-lg text-[10px] flex items-center gap-1 shadow active:scale-95"
+        className="bg-green-600 hover:bg-green-700 text-white font-bold py-1.5 px-2.5 rounded-lg text-[10px] flex items-center gap-1 shadow-sm"
       >
-        <Share2 className="w-3.5 h-3.5" /> واتساب
+        <Share2 className="w-3 h-3" /> واتساب
       </button>
       <button
         onClick={() => downloadExcel(reportData)}
-        className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1.5 px-2.5 rounded-lg text-[10px] flex items-center gap-1 shadow active:scale-95"
+        className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1.5 px-2.5 rounded-lg text-[10px] flex items-center gap-1 shadow-sm"
       >
-        <FileSpreadsheet className="w-3.5 h-3.5" /> Excel
+        <FileSpreadsheet className="w-3 h-3" /> Excel
       </button>
       <button
         onClick={() =>
@@ -1831,9 +1821,9 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
             showAlert('تعذر الفتح', 'المتصفح منع النافذة. اسمح بالنوافذ المنبثقة لهذا الموقع وجرّب تاني.')
           )
         }
-        className="bg-rose-600 hover:bg-rose-700 text-white font-bold py-1.5 px-2.5 rounded-lg text-[10px] flex items-center gap-1 shadow active:scale-95"
+        className="bg-rose-600 hover:bg-rose-700 text-white font-bold py-1.5 px-2.5 rounded-lg text-[10px] flex items-center gap-1 shadow-sm"
       >
-        <FileText className="w-3.5 h-3.5" /> PDF
+        <FileText className="w-3 h-3" /> PDF
       </button>
     </div>
   );
@@ -1871,35 +1861,36 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
     </Overlay>
   );
 
+  /* ---------- شاشة إدخال الكود الشخصي للموظف/المدير (مدمجة للموبايل) ---------- */
   if (currentUser === 'none') {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 text-slate-900 p-4 select-none font-sans" dir="rtl">
+      <div className="flex flex-col items-center justify-center min-h-dvh bg-slate-50 text-slate-900 p-3.5 sm:p-6 select-none font-sans" dir="rtl">
         {loginModalJSX}
-        <div className="bg-white p-6 sm:p-8 rounded-3xl max-w-sm w-full text-center border border-slate-200 shadow-xl relative space-y-4">
+        <div className="bg-white p-5 sm:p-8 rounded-2xl sm:rounded-3xl max-w-sm w-full text-center border border-slate-200 shadow-lg relative space-y-4">
           <div onClick={handleSecretAdminTrigger} className="cursor-pointer inline-block w-full">
             {customLogo ? (
-              <div className="w-full flex justify-center mb-3 bg-slate-50 p-2 rounded-xl border border-slate-200">
-                <img src={customLogo} alt="Factory Logo" className="h-16 object-contain" />
+              <div className="w-full flex justify-center mb-2 bg-slate-50 p-2 rounded-xl border border-slate-200">
+                <img src={customLogo} alt="Factory Logo" className="h-14 sm:h-16 object-contain" />
               </div>
             ) : (
-              <div className="w-16 h-16 mx-auto bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center justify-center mb-2">
-                <Building2 className="w-9 h-9 text-emerald-600" />
+              <div className="w-12 h-12 sm:w-16 sm:h-16 mx-auto bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center justify-center mb-1">
+                <Building2 className="w-6 h-6 sm:w-9 sm:h-9 text-emerald-600" />
               </div>
             )}
           </div>
           <div>
-            <h1 onClick={handleSecretAdminTrigger} className="text-xl sm:text-2xl font-black text-slate-900 cursor-pointer">
+            <h1 onClick={handleSecretAdminTrigger} className="text-lg sm:text-2xl font-black text-slate-900 cursor-pointer">
               {factoryName}
             </h1>
-            <p className="text-xs text-slate-500 font-bold mt-1">
+            <p className="text-[11px] sm:text-xs text-slate-500 font-bold mt-1">
               منظومة تتبع الدرافيل والممرات وحرارة المواتير ({stands.length} ستاند)
             </p>
           </div>
 
           {!isDataLoaded ? (
-            <div className="text-slate-400 animate-pulse text-sm font-bold py-4">جاري الاتصال بقاعدة البيانات...</div>
+            <div className="text-slate-400 animate-pulse text-xs sm:text-sm font-bold py-4">جاري الاتصال بقاعدة البيانات...</div>
           ) : (
-            <form onSubmit={handleQuickPinLogin} className="space-y-3 pt-2">
+            <form onSubmit={handleQuickPinLogin} className="space-y-3 pt-1">
               <div className="text-right">
                 <label className="text-xs font-black text-slate-700 block mb-1.5">
                   أدخل الكود الشخصي للموظف أو المدير:
@@ -1913,7 +1904,7 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                     setQuickPinError('');
                   }}
                   placeholder="أدخل الكود السري هنا..."
-                  className="w-full bg-slate-50 border-2 border-slate-300 focus:border-blue-600 focus:bg-white rounded-xl p-3 text-center font-mono text-xl tracking-widest text-slate-900 outline-none transition-all"
+                  className="w-full bg-slate-50 border-2 border-slate-300 focus:border-blue-600 focus:bg-white rounded-xl p-2.5 sm:p-3 text-center font-mono text-lg sm:text-xl tracking-widest text-slate-900 outline-none transition-all"
                 />
               </div>
               {quickPinError && (
@@ -1923,7 +1914,7 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
               )}
               <button
                 type="submit"
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-3.5 rounded-xl shadow-md transition-colors text-sm"
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-3 sm:py-3.5 rounded-xl shadow-md transition-colors text-xs sm:text-sm"
               >
                 تسجيل الدخول للنظام
               </button>
@@ -1933,7 +1924,7 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
           {onBack && (
             <button
               onClick={onBack}
-              className="w-full pt-2 text-slate-400 hover:text-slate-700 text-xs font-bold flex items-center justify-center gap-1"
+              className="w-full pt-1 text-slate-400 hover:text-slate-700 text-xs font-bold flex items-center justify-center gap-1"
             >
               <RotateCcw className="w-3.5 h-3.5" /> العودة للبوابة الرئيسية
             </button>
@@ -1976,16 +1967,16 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
   });
 
   return (
-    <div className="min-h-dvh bg-slate-100 text-slate-900 font-sans flex flex-col p-1.5 sm:p-2 gap-2" dir="rtl">
+    <div className="min-h-dvh bg-slate-100 text-slate-900 font-sans flex flex-col p-1.5 sm:p-2.5 gap-2" dir="rtl">
       {modal.isOpen && (
         <Overlay z={100}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden border border-slate-200">
-            <div className="p-5">
-              <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
+            <div className="p-4 sm:p-5">
+              <h3 className="font-bold text-base sm:text-lg text-slate-800 flex items-center gap-2">
                 {modal.type === 'alert' ? <CheckCircle className="text-green-500 w-5 h-5" /> : <AlertTriangle className="text-orange-500 w-5 h-5" />}
                 {modal.title}
               </h3>
-              <p className="text-sm text-slate-600 mt-2 leading-relaxed whitespace-pre-line">{modal.message}</p>
+              <p className="text-xs sm:text-sm text-slate-600 mt-2 leading-relaxed whitespace-pre-line">{modal.message}</p>
             </div>
             <div className="bg-slate-50 p-3 flex justify-end gap-2 border-t border-slate-100">
               {modal.type === 'confirm' && (
@@ -2013,30 +2004,30 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
       {whatsappModalOpen && (
         <Overlay z={95}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-300 flex flex-col max-h-[90vh]">
-            <div className="bg-green-700 text-white p-3.5 flex justify-between items-center">
-              <h3 className="font-black text-sm flex items-center gap-2">
+            <div className="bg-green-700 text-white p-3 flex justify-between items-center">
+              <h3 className="font-black text-xs sm:text-sm flex items-center gap-2">
                 <Share2 className="w-4 h-4" /> ملخص تقرير الوردية السريع للواتساب
               </h3>
               <button onClick={() => setWhatsappModalOpen(false)} className="text-white/80 hover:text-white">
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="p-4 space-y-3 overflow-y-auto">
-              <pre className="bg-slate-900 text-emerald-300 p-3.5 rounded-xl text-xs font-sans whitespace-pre-wrap leading-relaxed border border-slate-700">
+            <div className="p-3.5 space-y-3 overflow-y-auto">
+              <pre className="bg-slate-900 text-emerald-300 p-3 rounded-xl text-[11px] sm:text-xs font-sans whitespace-pre-wrap leading-relaxed border border-slate-700">
                 {buildWhatsAppSummaryText()}
               </pre>
-              <div className="grid grid-cols-2 gap-2 pt-2">
+              <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={handleCopyWhatsApp}
                   className="bg-slate-800 hover:bg-slate-900 text-white font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow"
                 >
-                  <Copy className="w-4 h-4" /> نسخ النص للحافظة
+                  <Copy className="w-3.5 h-3.5" /> نسخ النص
                 </button>
                 <button
                   onClick={handleSendWhatsAppDirect}
                   className="bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow"
                 >
-                  <Share2 className="w-4 h-4" /> إرسال مباشر لواتساب
+                  <Share2 className="w-3.5 h-3.5" /> إرسال لواتساب
                 </button>
               </div>
             </div>
@@ -2047,15 +2038,15 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
       {addStandOpen && isManagerLike && (
         <Overlay z={85}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-300">
-            <div className="bg-slate-900 text-white p-3.5 flex justify-between items-center">
-              <h3 className="font-bold text-sm flex items-center gap-2">
+            <div className="bg-slate-900 text-white p-3 flex justify-between items-center">
+              <h3 className="font-bold text-xs sm:text-sm flex items-center gap-2">
                 <PlusCircle className="w-4 h-4 text-emerald-400" /> إدارة عدد وإضافة قوائم الخط (Stands)
               </h3>
               <button onClick={() => setAddStandOpen(false)} className="text-slate-400 hover:text-white">
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="p-4 space-y-4 text-xs">
+            <div className="p-3.5 space-y-3.5 text-xs">
               <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 space-y-2">
                 <label className="font-black text-blue-900 block">
                   ضبط إجمالي عدد الستاندات بالمصنع (الحالي: {stands.length} ستاند):
@@ -2067,7 +2058,7 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                     max="30"
                     value={targetStandsCount}
                     onChange={(e) => setTargetStandsCount(e.target.value)}
-                    className="w-24 border border-blue-300 rounded-lg p-2 text-center font-mono font-bold bg-white"
+                    className="w-20 border border-blue-300 rounded-lg p-2 text-center font-mono font-bold bg-white"
                   />
                   <button
                     type="button"
@@ -2160,7 +2151,7 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
         </Overlay>
       )}
 
-      {/* ===== صفحة الدرفيل ===== */}
+      {/* ===== نافذة تفاصيل وممرات الستاند ===== */}
       {rollModal.isOpen && selectedRollStand && (() => {
         const st = selectedRollStand;
         const stat = getStandStatus(st.accumulatedTons, st.maxLimit);
@@ -2169,9 +2160,9 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
         const usedCount = st.passes.filter((p) => p.status === 'used' || p.status === 'active').length;
         const myPending = pendingList.filter((r) => String(r.standId) === String(st.id));
         const kpi = (label, value, unit, cls = 'text-slate-900') => (
-          <div className="bg-white rounded-xl border border-slate-200 p-3 flex flex-col gap-0.5">
+          <div className="bg-white rounded-xl border border-slate-200 p-2.5 flex flex-col gap-0.5">
             <span className="text-[10px] font-bold text-slate-500">{label}</span>
-            <span className={`font-mono font-black text-xl leading-tight ${cls}`}>
+            <span className={`font-mono font-black text-base sm:text-xl leading-tight ${cls}`}>
               {value}
               <span className="text-[10px] font-bold text-slate-400 mr-1">{unit}</span>
             </span>
@@ -2179,26 +2170,21 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
         );
         return (
           <Overlay z={50}>
-            <div className="bg-slate-100 rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden border border-slate-300 flex flex-col max-h-[94vh]">
-              <div className="bg-slate-900 text-white p-4 shrink-0">
-                <div className="flex justify-between items-start gap-3">
-                  <div className="flex items-center gap-3">
-                    <div className="bg-amber-400 text-slate-950 font-black rounded-xl w-12 h-12 sm:w-14 sm:h-14 flex flex-col items-center justify-center leading-none shadow">
-                      <span className="text-[9px] font-bold">ستاند</span>
-                      <span className="text-xl sm:text-2xl">{st.id}</span>
+            <div className="bg-slate-100 rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden border border-slate-300 flex flex-col max-h-[92vh]">
+              <div className="bg-slate-900 text-white p-3 sm:p-4 shrink-0">
+                <div className="flex justify-between items-start gap-2">
+                  <div className="flex items-center gap-2.5">
+                    <div className="bg-amber-400 text-slate-950 font-black rounded-xl w-11 h-11 sm:w-14 sm:h-14 flex flex-col items-center justify-center leading-none shadow shrink-0">
+                      <span className="text-[8px] sm:text-[9px] font-bold">ستاند</span>
+                      <span className="text-lg sm:text-2xl">{st.id}</span>
                     </div>
                     <div>
-                      <h3 className="font-black text-base sm:text-lg leading-tight">{st.name}</h3>
-                      <div className="flex flex-wrap gap-1.5 mt-1.5 text-[10px] font-bold">
+                      <h3 className="font-black text-sm sm:text-lg leading-tight">{st.name}</h3>
+                      <div className="flex flex-wrap gap-1 mt-1 text-[10px] font-bold">
                         {st.type && <span className="bg-slate-800 border border-slate-700 px-2 py-0.5 rounded">الممر: {st.type}</span>}
                         {st.diameter && (
                           <span className="bg-slate-800 border border-slate-700 px-2 py-0.5 rounded">
                             القطر: <span className="font-mono text-amber-300">{st.diameter}</span> مم
-                          </span>
-                        )}
-                        {st.rollCode && (
-                          <span className="bg-slate-800 border border-slate-700 px-2 py-0.5 rounded">
-                            كود: <span className="font-mono">{st.rollCode}</span>
                           </span>
                         )}
                       </div>
@@ -2212,7 +2198,7 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                   </button>
                 </div>
 
-                <div className="mt-3">
+                <div className="mt-2.5">
                   <div className="flex justify-between text-[10px] font-bold text-slate-300 mb-1">
                     <span>إنتاج الممر الحالي مقابل الحد الأقصى</span>
                     <span className="font-mono">{pct.toFixed(0)}%</span>
@@ -2223,11 +2209,11 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                 </div>
               </div>
 
-              <div className="p-3 sm:p-4 overflow-y-auto flex-1 flex flex-col gap-3">
+              <div className="p-2.5 sm:p-4 overflow-y-auto flex-1 flex flex-col gap-2.5">
                 {myPending.map((r) => (
                   <div
                     key={r.id}
-                    className={`rounded-xl border p-2.5 text-xs font-bold flex items-center justify-between gap-2 ${
+                    className={`rounded-xl border p-2 text-xs font-bold flex items-center justify-between gap-2 ${
                       r.status === 'pending' ? 'bg-amber-50 border-amber-300 text-amber-900' : 'bg-red-50 border-red-300 text-red-800'
                     }`}
                   >
@@ -2245,45 +2231,45 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                 ))}
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  {kpi('الممر الشغال حالياً', `${st.activePass} / ${st.totalPasses}`, 'ممر', 'text-blue-700')}
-                  {kpi('إنتاج الممر الحالي', st.accumulatedTons.toFixed(0), 'طن', stat.text)}
-                  {kpi('إجمالي إنتاج الدرفيل', rollTotal.toFixed(0), 'طن', 'text-emerald-700')}
+                  {kpi('الممر الشغال', `${st.activePass} / ${st.totalPasses}`, 'ممر', 'text-blue-700')}
+                  {kpi('إنتاج الممر', st.accumulatedTons.toFixed(0), 'طن', stat.text)}
+                  {kpi('إجمالي الدرفيل', rollTotal.toFixed(0), 'طن', 'text-emerald-700')}
                   {kpi('ممرات استُهلكت', usedCount, `من ${st.totalPasses}`, 'text-purple-700')}
                 </div>
 
-                <div className="flex flex-wrap items-center justify-between gap-2 bg-white p-2.5 rounded-xl border border-slate-200">
+                <div className="flex flex-wrap items-center justify-between gap-1.5 bg-white p-2 rounded-xl border border-slate-200">
                   <div className="flex flex-wrap items-center gap-1.5">
                     <button
                       onClick={() => initiateResetStand(rollModal.standIndex)}
-                      className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-3.5 py-2 rounded-lg text-xs flex items-center gap-1.5 shadow"
+                      className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-3 py-1.5 rounded-lg text-[11px] flex items-center gap-1 shadow"
                     >
                       <ArrowLeftRight className="w-3.5 h-3.5" /> {isManagerLike ? 'تغيير الممر' : 'طلب تغيير ممر'}
                     </button>
                     <button
                       onClick={handleInstallNewRoll}
-                      className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold px-3 py-2 rounded-lg text-xs flex items-center gap-1.5 border border-emerald-300"
+                      className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold px-2.5 py-1.5 rounded-lg text-[11px] flex items-center gap-1 border border-emerald-300"
                     >
-                      <RefreshCw className="w-3.5 h-3.5" /> {isManagerLike ? 'تركيب درفيل جديد' : 'طلب درفيل جديد'}
+                      <RefreshCw className="w-3.5 h-3.5" /> درفيل جديد
                     </button>
                     <button
                       onClick={() => setHistoryModal({ isOpen: true, standId: st.id })}
-                      className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold px-3 py-2 rounded-lg text-xs flex items-center gap-1.5 border border-slate-300"
+                      className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold px-2.5 py-1.5 rounded-lg text-[11px] flex items-center gap-1 border border-slate-300"
                     >
                       <History className="w-3.5 h-3.5" /> السجل
                     </button>
                   </div>
                   {isManagerLike && (
-                    <div className="flex gap-1.5">
+                    <div className="flex gap-1">
                       <button
                         onClick={() => setRollModal((prev) => ({ ...prev, isEditingInfo: !prev.isEditingInfo }))}
-                        className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold px-3 py-2 rounded-lg text-xs flex items-center gap-1.5 border border-slate-300"
+                        className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold px-2.5 py-1.5 rounded-lg text-[11px] flex items-center gap-1 border border-slate-300"
                       >
-                        <Edit3 className="w-3.5 h-3.5 text-blue-600" /> تعديل البيانات
+                        <Edit3 className="w-3.5 h-3.5 text-blue-600" /> تعديل
                       </button>
                       {stands.length > 1 && (
                         <button
                           onClick={() => handleDeleteStand(rollModal.standIndex)}
-                          className="bg-red-50 hover:bg-red-100 text-red-700 font-bold px-2.5 py-2 rounded-lg text-xs border border-red-200"
+                          className="bg-red-50 hover:bg-red-100 text-red-700 font-bold px-2 py-1.5 rounded-lg text-[11px] border border-red-200"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -2293,14 +2279,12 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                 </div>
 
                 {isManagerLike && rollModal.isEditingInfo && (
-                  <div className="bg-blue-50/70 border border-blue-200 rounded-xl p-3 grid grid-cols-2 sm:grid-cols-4 gap-2.5 items-end">
+                  <div className="bg-blue-50/70 border border-blue-200 rounded-xl p-2.5 grid grid-cols-2 sm:grid-cols-4 gap-2 items-end">
                     {[
                       ['اسم الستاند', 'name', 'text'],
                       ['كود الدرفيل', 'rollCode', 'text'],
                       ['القطر (مم)', 'diameter', 'text'],
-                      ['الصلابة', 'hardness', 'text'],
                       ['شكل الممر', 'type', 'text'],
-                      ['تاريخ الدخول', 'entryDate', 'date'],
                       ['عدد الممرات', 'totalPasses', 'number']
                     ].map(([label, key, type]) => (
                       <div key={key}>
@@ -2315,14 +2299,14 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                     ))}
                     <button
                       onClick={handleSaveRollMetadata}
-                      className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-lg text-xs flex items-center justify-center gap-1 shadow"
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-1.5 rounded-lg text-xs flex items-center justify-center gap-1 shadow"
                     >
                       <Save className="w-3.5 h-3.5" /> حفظ
                     </button>
                   </div>
                 )}
 
-                <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-6 gap-2">
+                <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-6 gap-1.5 sm:gap-2">
                   {st.passes.map((p) => {
                     const isCurrent = p.status === 'active' || p.passNumber === st.activePass;
                     const isUsed = !isCurrent && p.status === 'used';
@@ -2332,62 +2316,35 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                         onClick={() => {
                           if (!isCurrent) initiateResetStand(rollModal.standIndex, p.passNumber);
                         }}
-                        className={`rounded-xl border-2 p-2 flex flex-col gap-1.5 transition-all relative ${
+                        className={`rounded-xl border-2 p-2 flex flex-col gap-1 transition-all relative ${
                           isCurrent
-                            ? 'bg-slate-900 text-white border-amber-400 shadow-lg'
+                            ? 'bg-slate-900 text-white border-amber-400 shadow-md'
                             : isUsed
-                            ? 'bg-blue-50 text-blue-950 border-blue-300 hover:bg-blue-100 cursor-pointer'
-                            : 'bg-white text-slate-700 border-slate-200 hover:border-blue-400 cursor-pointer'
+                            ? 'bg-blue-50 text-blue-950 border-blue-300 cursor-pointer'
+                            : 'bg-white text-slate-700 border-slate-200 cursor-pointer'
                         }`}
                       >
                         <div className="flex justify-between items-center">
-                          <span className="font-black text-xs">ممر {p.passNumber}</span>
-                          {p.order && <span className="bg-amber-400 text-slate-950 font-black text-[9px] px-1.5 rounded">#{p.order}</span>}
+                          <span className="font-black text-[11px]">ممر {p.passNumber}</span>
+                          {p.order && <span className="bg-amber-400 text-slate-950 font-black text-[9px] px-1 rounded">#{p.order}</span>}
                         </div>
                         <div className="text-center">
                           <span
-                            className={`font-mono font-black text-xl leading-none ${
+                            className={`font-mono font-black text-lg leading-none ${
                               isCurrent ? 'text-amber-400' : isUsed ? 'text-blue-900' : 'text-slate-300'
                             }`}
                           >
                             {Number(p.tons || 0).toFixed(0)}
                           </span>
-                          <span className="text-[9px] font-bold opacity-70 mr-1">طن</span>
+                          <span className="text-[9px] font-bold opacity-70 mr-0.5">ط</span>
                         </div>
                         <span
                           className={`text-center text-[9px] font-bold py-0.5 rounded ${
                             isCurrent ? 'bg-amber-400 text-slate-950' : isUsed ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500'
                           }`}
                         >
-                          {isCurrent ? 'شغال حالياً' : isUsed ? 'منتهي' : 'جديد'}
+                          {isCurrent ? 'شغال' : isUsed ? 'منتهي' : 'جديد'}
                         </span>
-                        {isManagerLike && !isCurrent && (
-                          <div className="flex gap-1 pt-1 border-t border-slate-300/60" onClick={(e) => e.stopPropagation()}>
-                            <button
-                              onClick={() => {
-                                const v = prompt(`أدخل الإنتاج التراكمي للممر رقم ${p.passNumber} (بالطن):`, p.tons || 0);
-                                if (v !== null)
-                                  handleDirectPassStatusChange(
-                                    rollModal.standIndex,
-                                    p.passNumber,
-                                    Number(v) > 0 ? 'used' : 'unused',
-                                    Number(v)
-                                  );
-                              }}
-                              className="text-[9px] bg-slate-200 hover:bg-slate-300 text-slate-800 px-1.5 py-0.5 rounded font-bold flex-1"
-                            >
-                              تعديل
-                            </button>
-                            {isUsed && (
-                              <button
-                                onClick={() => handleDirectPassStatusChange(rollModal.standIndex, p.passNumber, 'unused', 0)}
-                                className="text-[9px] bg-red-100 hover:bg-red-200 text-red-700 px-1.5 py-0.5 rounded font-bold"
-                              >
-                                تصفير
-                              </button>
-                            )}
-                          </div>
-                        )}
                       </div>
                     );
                   })}
@@ -2405,28 +2362,28 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
         const previewOldFinalTons = resetStandObj.accumulatedTons + addedTonsToOld;
         return (
           <Overlay z={60}>
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-300 flex flex-col max-h-[90vh]">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-300 flex flex-col max-h-[90vh]">
               <div className="bg-slate-900 p-3 flex justify-between items-center text-white shrink-0">
-                <h3 className="font-bold text-sm flex items-center gap-2">
+                <h3 className="font-bold text-xs sm:text-sm flex items-center gap-2">
                   <RotateCcw className="w-4 h-4 text-amber-400" /> {isManagerLike ? 'تغيير ممر' : 'طلب تغيير ممر'} - {resetStandObj.name}
                 </h3>
                 <button onClick={() => setResetModal({ isOpen: false, standIndex: null })} className="text-slate-400 hover:text-white">
                   <X className="w-5 h-5" />
                 </button>
               </div>
-              <div className="p-4 flex flex-col gap-3 overflow-y-auto">
-                <div className="bg-blue-50 border border-blue-200 p-2.5 rounded-lg flex justify-between items-center text-xs font-bold text-blue-900">
+              <div className="p-3.5 flex flex-col gap-3 overflow-y-auto">
+                <div className="bg-blue-50 border border-blue-200 p-2 rounded-lg flex justify-between items-center text-xs font-bold text-blue-900">
                   <span>
-                    الممر الشغال: <strong className="bg-slate-900 text-amber-400 px-2 py-0.5 rounded font-mono">ممر {resetStandObj.activePass}</strong>
+                    الشغال: <strong className="bg-slate-900 text-amber-400 px-2 py-0.5 rounded font-mono">ممر {resetStandObj.activePass}</strong>
                   </span>
                   <span>
-                    الرصيد السابق: <strong className="font-mono text-blue-700">{resetStandObj.accumulatedTons.toFixed(0)} طن</strong>
+                    الرصيد: <strong className="font-mono text-blue-700">{resetStandObj.accumulatedTons.toFixed(0)} طن</strong>
                   </span>
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-black text-slate-800">1. اختر الممر الجديد المراد النقل إليه:</label>
-                  <div className="grid grid-cols-6 sm:grid-cols-8 gap-1.5 bg-slate-100 p-2 rounded-xl border border-slate-200 max-h-40 overflow-y-auto">
+                  <label className="text-xs font-black text-slate-800">1. اختر الممر الجديد:</label>
+                  <div className="grid grid-cols-6 sm:grid-cols-8 gap-1.5 bg-slate-100 p-2 rounded-xl border border-slate-200 max-h-36 overflow-y-auto">
                     {resetStandObj.passes.map((p) => {
                       const sel = Number(resetTargetPass) === p.passNumber;
                       const cur = p.passNumber === resetStandObj.activePass;
@@ -2438,12 +2395,12 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                           onClick={() => setResetTargetPass(p.passNumber)}
                           className={`p-1.5 rounded-lg font-mono text-xs font-black border-2 flex flex-col items-center transition-all ${
                             sel
-                              ? 'bg-emerald-600 text-white border-emerald-900 shadow-md scale-105'
+                              ? 'bg-emerald-600 text-white border-emerald-900 shadow-sm'
                               : cur
                               ? 'bg-slate-900 text-amber-400 border-amber-400'
                               : used
                               ? 'bg-blue-100 text-blue-900 border-blue-300 opacity-80'
-                              : 'bg-white text-slate-800 border-slate-300 hover:border-blue-500'
+                              : 'bg-white text-slate-800 border-slate-300'
                           }`}
                         >
                           <span>{p.passNumber}</span>
@@ -2456,72 +2413,35 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="flex flex-col gap-1">
-                    <label className="text-[10px] font-bold text-slate-700">تاريخ التغيير:</label>
-                    <input
-                      type="date"
-                      value={resetDateInput}
-                      onChange={handleResetDateChange}
-                      className="w-full border border-slate-300 rounded p-1.5 font-mono text-xs"
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <label className="text-[10px] font-bold text-slate-700">الوردية:</label>
-                    <select
-                      value={resetShiftInput}
-                      onChange={(e) => setResetShiftInput(e.target.value)}
-                      className="w-full bg-white border border-slate-300 text-[10px] font-bold p-1.5 rounded"
-                    >
-                      {resetModalShifts.map((s) => (
-                        <option key={s} value={s}>
-                          {s}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div className="flex flex-col gap-1 bg-amber-50/80 border border-amber-300 p-3 rounded-xl">
-                  <label className="text-xs font-black text-amber-950">
-                    كم كتلة (بليت) اشتغلها الممر القديم (ممر {resetStandObj.activePass}) في هذه الوردية قبل تغييره؟
+                <div className="flex flex-col gap-1 bg-amber-50/80 border border-amber-300 p-2.5 rounded-xl">
+                  <label className="text-[11px] font-black text-amber-950">
+                    كم كتلة (بليت) اشتغلها الممر القديم في هذه الوردية قبل تغييره؟
                   </label>
                   <input
                     type="number"
                     value={resetBillets}
                     onChange={(e) => setResetBillets(e.target.value)}
-                    className="w-full border-2 border-amber-400 rounded-lg p-2 font-mono text-sm font-black bg-white mt-1"
-                    placeholder="مثلاً: 12 كتلة (اتركه 0 لو التغيير تم أول الوردية)"
+                    className="w-full border border-amber-400 rounded-lg p-2 font-mono text-sm font-black bg-white mt-1"
+                    placeholder="مثلاً: 12 كتلة (اتركه 0 لو التغيير أول الوردية)"
                   />
-                  <div className="text-[11px] font-bold text-slate-700 mt-1.5 space-y-1">
-                    <p>
-                      • إجمالي إغلاق الممر القديم:{' '}
-                      <strong className="font-mono text-blue-700">
-                        {resetStandObj.accumulatedTons.toFixed(1)} + {addedTonsToOld.toFixed(1)} = {previewOldFinalTons.toFixed(1)} طن
-                      </strong>
-                    </p>
-                    <p>
-                      • الممر الجديد (ممر {resetTargetPass}) سيبدأ من: <strong className="font-mono text-emerald-700">0 طن</strong>
-                    </p>
-                  </div>
+                  <p className="text-[10px] font-bold text-slate-700 mt-1">
+                    إغلاق القديم على: <strong className="font-mono text-blue-700">{previewOldFinalTons.toFixed(1)} طن</strong> | الجديد يبدأ من: <strong className="font-mono text-emerald-700">0 طن</strong>
+                  </p>
                 </div>
 
-                <div className="flex flex-col gap-1">
-                  <label className="text-[10px] font-bold text-slate-700">ملاحظات أو سبب التغيير:</label>
-                  <textarea
-                    rows="2"
-                    value={resetNotes}
-                    onChange={(e) => setResetNotes(e.target.value)}
-                    className="w-full border border-slate-300 rounded p-2 text-xs resize-none"
-                    placeholder="تآكل ممر، خشونة، كسر، تغيير مقاس..."
-                  />
-                </div>
+                <input
+                  type="text"
+                  value={resetNotes}
+                  onChange={(e) => setResetNotes(e.target.value)}
+                  className="w-full border border-slate-300 rounded-lg p-2 text-xs"
+                  placeholder="ملاحظات أو سبب التغيير (تآكل، خشونة، مقاس...)"
+                />
                 <button
                   onClick={confirmResetStand}
-                  className="w-full bg-blue-600 text-white font-bold py-2.5 rounded-lg hover:bg-blue-700 shadow text-xs sm:text-sm"
+                  className="w-full bg-blue-600 text-white font-bold py-2.5 rounded-xl hover:bg-blue-700 shadow text-xs"
                 >
                   {isManagerLike
-                    ? `تأكيد إغلاق ممر ${resetStandObj.activePass} (${previewOldFinalTons.toFixed(0)} طن) وبدء ممر ${resetTargetPass}`
+                    ? `تأكيد إغلاق ممر ${resetStandObj.activePass} وبدء ممر ${resetTargetPass}`
                     : `إرسال الطلب للمدير (ممر ${resetStandObj.activePass} ← ممر ${resetTargetPass})`}
                 </button>
               </div>
@@ -2533,17 +2453,17 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
       {/* ===== نافذة موافقات المدير ===== */}
       {approvalsOpen && isManagerLike && (
         <Overlay z={70}>
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden border border-slate-300 flex flex-col max-h-[90vh]">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden border border-slate-300 flex flex-col max-h-[90vh]">
             <div className="bg-slate-900 p-3 flex justify-between items-center text-white shrink-0">
-              <h3 className="font-bold text-sm flex items-center gap-2">
+              <h3 className="font-bold text-xs sm:text-sm flex items-center gap-2">
                 <Inbox className="w-4 h-4 text-amber-400" /> طلبات بانتظار الموافقة ({pendingCount})
               </h3>
               <button onClick={() => setApprovalsOpen(false)} className="text-slate-400 hover:text-white">
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="p-3 overflow-y-auto flex flex-col gap-3 bg-slate-50">
-              {pendingCount === 0 && <div className="text-center py-10 text-slate-400 font-bold text-sm">مفيش طلبات معلّقة.</div>}
+            <div className="p-3 overflow-y-auto flex flex-col gap-2.5 bg-slate-50">
+              {pendingCount === 0 && <div className="text-center py-8 text-slate-400 font-bold text-xs">مفيش طلبات معلّقة.</div>}
               {pendingList
                 .filter((r) => r.status === 'pending')
                 .map((r) => {
@@ -2552,7 +2472,7 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                   return (
                     <div key={r.id} className="bg-white border border-slate-200 rounded-xl p-3 flex flex-col gap-2 shadow-sm">
                       <div className="flex justify-between items-center">
-                        <span className="font-black text-sm text-slate-900">{r.standName}</span>
+                        <span className="font-black text-xs sm:text-sm text-slate-900">{r.standName}</span>
                         <span
                           className={`text-[10px] font-black px-2 py-0.5 rounded ${
                             r.kind === 'newRoll' ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'
@@ -2561,17 +2481,14 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                           {r.kind === 'newRoll' ? 'تركيب درفيل جديد' : 'تغيير ممر'}
                         </span>
                       </div>
-                      <div className="text-[10px] text-slate-500 font-bold">
-                        من: {r.requestedBy} | {r.createdAt} | {r.date} - {r.shift}
-                      </div>
                       {r.kind === 'pass' && (
                         <div className="grid grid-cols-3 gap-2 text-[10px] font-bold">
                           <div>
-                            <label className="block text-slate-600 mb-0.5">من ممر {r.fromPass} إلى:</label>
+                            <label className="block text-slate-600 mb-0.5">إلى ممر:</label>
                             <select
                               value={ed.targetPass}
                               onChange={(e) => setEdit(r.id, { targetPass: Number(e.target.value) })}
-                              className="w-full border border-slate-300 rounded p-1.5 font-mono bg-white"
+                              className="w-full border border-slate-300 rounded p-1 font-mono bg-white"
                             >
                               {st &&
                                 st.passes.map((p) => (
@@ -2582,12 +2499,12 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                             </select>
                           </div>
                           <div>
-                            <label className="block text-slate-600 mb-0.5">كتل الممر القديم:</label>
+                            <label className="block text-slate-600 mb-0.5">كتل القديم:</label>
                             <input
                               type="number"
                               value={ed.billets}
                               onChange={(e) => setEdit(r.id, { billets: e.target.value })}
-                              className="w-full border border-slate-300 rounded p-1.5 font-mono"
+                              className="w-full border border-slate-300 rounded p-1 font-mono"
                             />
                           </div>
                           <div>
@@ -2596,7 +2513,7 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                               type="text"
                               value={ed.notes || ''}
                               onChange={(e) => setEdit(r.id, { notes: e.target.value })}
-                              className="w-full border border-slate-300 rounded p-1.5"
+                              className="w-full border border-slate-300 rounded p-1"
                             />
                           </div>
                         </div>
@@ -2604,15 +2521,15 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                       <div className="flex gap-2 justify-end">
                         <button
                           onClick={() => rejectRequest(r)}
-                          className="bg-red-50 hover:bg-red-100 text-red-700 border border-red-300 font-bold px-4 py-1.5 rounded-lg text-xs flex items-center gap-1"
+                          className="bg-red-50 text-red-700 border border-red-300 font-bold px-3 py-1 rounded-lg text-xs"
                         >
-                          <XCircle className="w-3.5 h-3.5" /> رفض
+                          رفض
                         </button>
                         <button
                           onClick={() => approveRequest(r)}
-                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-1.5 rounded-lg text-xs flex items-center gap-1 shadow"
+                          className="bg-emerald-600 text-white font-bold px-3 py-1 rounded-lg text-xs shadow"
                         >
-                          <Check className="w-3.5 h-3.5" /> اعتماد
+                          اعتماد
                         </button>
                       </div>
                     </div>
@@ -2626,9 +2543,9 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
       {/* ===== سجل الستاند ===== */}
       {historyModal.isOpen && (
         <Overlay z={80}>
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-300 flex flex-col max-h-[80vh]">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-300 flex flex-col max-h-[80vh]">
             <div className="bg-slate-800 p-3 flex justify-between items-center text-white shrink-0">
-              <h3 className="font-bold text-sm flex items-center gap-2">
+              <h3 className="font-bold text-xs sm:text-sm flex items-center gap-2">
                 <History className="w-4 h-4" /> سجل تغييرات ستاند {historyModal.standId}
               </h3>
               <button onClick={() => setHistoryModal({ isOpen: false, standId: null })} className="text-slate-400 hover:text-white">
@@ -2642,23 +2559,15 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                 passChanges
                   .filter((c) => String(c.standId) === String(historyModal.standId))
                   .map((c) => (
-                    <div key={c.id} className="bg-white p-2.5 rounded-lg border border-slate-200 shadow-sm flex flex-col gap-1.5">
+                    <div key={c.id} className="bg-white p-2.5 rounded-lg border border-slate-200 shadow-sm flex flex-col gap-1">
                       <div className="flex justify-between items-center border-b border-slate-100 pb-1">
-                        <span className="text-[10px] font-bold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
-                          {c.date} | <span className="text-blue-700">{c.shift}</span>
-                        </span>
-                        <span className="text-[11px] font-black text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
-                          أُغلق على: {Number(c.tons).toFixed(1)} طن
-                        </span>
+                        <span className="text-[10px] font-bold text-slate-600">{c.date} | {c.shift}</span>
+                        <span className="text-[11px] font-black text-blue-700">أُغلق على: {Number(c.tons).toFixed(1)} طن</span>
                       </div>
                       <div className="flex justify-between text-[10px] text-slate-600 font-bold">
-                        <span>مقاس: {c.productSize} مم</span>
-                        <span>{c.kind === 'newRoll' ? 'تركيب درفيل جديد' : `من ممر ${c.fromPass} ← ممر ${c.toPass}`}</span>
+                        <span>{c.kind === 'newRoll' ? 'درفيل جديد' : `ممر ${c.fromPass} ← ${c.toPass}`}</span>
                         <span>بواسطة: {c.requestedBy || '-'}</span>
                       </div>
-                      <p className="text-[10px] text-slate-700 bg-orange-50 p-1.5 rounded border border-orange-100">
-                        <span className="font-bold text-orange-700">ملاحظات:</span> {c.notes}
-                      </p>
                     </div>
                   ))
               )}
@@ -2670,13 +2579,13 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
       {/* ===== نافذة ملف وسجل صيانة الموتور ===== */}
       {selectedMotorForLog && (
         <Overlay z={85}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden border border-slate-300 flex flex-col max-h-[92vh]">
-            <div className="bg-slate-900 text-white p-4 flex justify-between items-center">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden border border-slate-300 flex flex-col max-h-[90vh]">
+            <div className="bg-slate-900 text-white p-3.5 flex justify-between items-center">
               <div>
                 <span className="text-[10px] bg-blue-600 px-2 py-0.5 rounded font-bold font-mono">
                   ID: {selectedMotorForLog.code}
                 </span>
-                <h3 className="font-black text-sm sm:text-base mt-1">
+                <h3 className="font-black text-xs sm:text-base mt-1">
                   سجل صيانة ومتابعة موتور: {selectedMotorForLog.locationName}
                 </h3>
               </div>
@@ -2685,29 +2594,8 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
               </button>
             </div>
 
-            <div className="p-3.5 sm:p-4 overflow-y-auto space-y-4 text-xs">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-slate-50 p-3 rounded-xl border border-slate-200 font-bold">
-                <div>
-                  <span className="text-slate-400 block text-[10px]">القدرة والسرعة:</span>
-                  <span className="font-mono text-slate-900">{selectedMotorForLog.kw} kW / {selectedMotorForLog.rpm} RPM</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block text-[10px]">حرارة الجسم / البلي:</span>
-                  <span className="font-mono text-amber-700">
-                    {selectedMotorForLog.bodyTemp || '50'}°C / {selectedMotorForLog.bearingTemp || '55'}°C
-                  </span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block text-[10px]">آخر قياس عزل Megger:</span>
-                  <span className="font-mono text-emerald-700">{selectedMotorForLog.megger || '550 MΩ'}</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block text-[10px]">آخر فني متابع:</span>
-                  <span className="text-blue-700">{selectedMotorForLog.lastTechName || '-'}</span>
-                </div>
-              </div>
-
-              <form onSubmit={handleAddMotorMaintenanceLog} className="bg-blue-50/60 border border-blue-200 rounded-xl p-3.5 space-y-2.5">
+            <div className="p-3 sm:p-4 overflow-y-auto space-y-3 text-xs">
+              <form onSubmit={handleAddMotorMaintenanceLog} className="bg-blue-50/60 border border-blue-200 rounded-xl p-3 space-y-2.5">
                 <h4 className="font-black text-blue-950">تسجيل صيانة أو إصلاح جديد للموتور:</h4>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <div>
@@ -2725,7 +2613,7 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                     </select>
                   </div>
                   <div>
-                    <label className="font-bold text-slate-700 block mb-1">اسم الفني المنفذ للصيانة:</label>
+                    <label className="font-bold text-slate-700 block mb-1">اسم الفني المنفذ:</label>
                     <input
                       type="text"
                       placeholder="مثلاً: فني / محمد صابر"
@@ -2735,7 +2623,7 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                     />
                   </div>
                   <div>
-                    <label className="font-bold text-slate-700 block mb-1">اسم الملاحظ / المهندس المشرف:</label>
+                    <label className="font-bold text-slate-700 block mb-1">اسم الملاحظ المشرف:</label>
                     <input
                       type="text"
                       placeholder="مثلاً: م. محمود داوود / ريس مرزوق"
@@ -2747,46 +2635,34 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  <div>
-                    <label className="font-bold text-slate-600 block mb-1">العزل Megger:</label>
-                    <input
-                      type="text"
-                      placeholder="550 MΩ"
-                      value={motorMaintForm.megger}
-                      onChange={(e) => setMotorMaintForm({ ...motorMaintForm, megger: e.target.value })}
-                      className="w-full border border-slate-300 rounded-lg p-1.5 bg-white font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="font-bold text-slate-600 block mb-1">حرارة الجسم (°C):</label>
-                    <input
-                      type="number"
-                      placeholder="50"
-                      value={motorMaintForm.bodyTemp}
-                      onChange={(e) => setMotorMaintForm({ ...motorMaintForm, bodyTemp: e.target.value })}
-                      className="w-full border border-slate-300 rounded-lg p-1.5 bg-white font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="font-bold text-slate-600 block mb-1">حرارة البلي (°C):</label>
-                    <input
-                      type="number"
-                      placeholder="58"
-                      value={motorMaintForm.bearingTemp}
-                      onChange={(e) => setMotorMaintForm({ ...motorMaintForm, bearingTemp: e.target.value })}
-                      className="w-full border border-slate-300 rounded-lg p-1.5 bg-white font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="font-bold text-slate-600 block mb-1">الأمبير (A):</label>
-                    <input
-                      type="text"
-                      placeholder="420"
-                      value={motorMaintForm.ampsRead}
-                      onChange={(e) => setMotorMaintForm({ ...motorMaintForm, ampsRead: e.target.value })}
-                      className="w-full border border-slate-300 rounded-lg p-1.5 bg-white font-mono"
-                    />
-                  </div>
+                  <input
+                    type="text"
+                    placeholder="العزل 550 MΩ"
+                    value={motorMaintForm.megger}
+                    onChange={(e) => setMotorMaintForm({ ...motorMaintForm, megger: e.target.value })}
+                    className="border border-slate-300 rounded-lg p-1.5 bg-white font-mono"
+                  />
+                  <input
+                    type="number"
+                    placeholder="حرارة الجسم °C"
+                    value={motorMaintForm.bodyTemp}
+                    onChange={(e) => setMotorMaintForm({ ...motorMaintForm, bodyTemp: e.target.value })}
+                    className="border border-slate-300 rounded-lg p-1.5 bg-white font-mono"
+                  />
+                  <input
+                    type="number"
+                    placeholder="حرارة البلي °C"
+                    value={motorMaintForm.bearingTemp}
+                    onChange={(e) => setMotorMaintForm({ ...motorMaintForm, bearingTemp: e.target.value })}
+                    className="border border-slate-300 rounded-lg p-1.5 bg-white font-mono"
+                  />
+                  <input
+                    type="text"
+                    placeholder="الأمبير A"
+                    value={motorMaintForm.ampsRead}
+                    onChange={(e) => setMotorMaintForm({ ...motorMaintForm, ampsRead: e.target.value })}
+                    className="border border-slate-300 rounded-lg p-1.5 bg-white font-mono"
+                  />
                 </div>
 
                 <input
@@ -2796,79 +2672,62 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                   onChange={(e) => setMotorMaintForm({ ...motorMaintForm, notes: e.target.value })}
                   className="w-full border border-slate-300 rounded-lg p-2 bg-white"
                 />
-                <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-xl shadow">
+                <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-xl shadow">
                   + حفظ في سجل الموتور
                 </button>
               </form>
 
               <div className="space-y-2">
-                <h4 className="font-black text-slate-800">أرشيف صيانات الموتور السابقة ({(selectedMotorForLog.logs || []).length}):</h4>
-                {(selectedMotorForLog.logs || []).length === 0 ? (
-                  <p className="text-center py-6 text-slate-400 font-bold">لا توجد سجلات صيانة سابقة لهذا الموتور.</p>
-                ) : (
-                  (selectedMotorForLog.logs || []).map((lg) => (
-                    <div key={lg.id} className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-1.5">
-                      <div className="flex flex-wrap justify-between items-center gap-1 font-bold text-[11px] border-b border-slate-200 pb-1">
-                        <span className="text-blue-700 font-black">{lg.type}</span>
-                        <span className="font-mono text-slate-500">
-                          {lg.date} — {lg.shift || ''} ({lg.time})
-                        </span>
-                      </div>
-                      <p className="text-slate-800 font-bold">{lg.notes}</p>
-                      <div className="flex flex-wrap gap-3 text-[10px] font-bold text-slate-600 bg-white p-2 rounded-lg border border-slate-200">
-                        <span className="text-emerald-700">🔧 الفني: {lg.techName || lg.by}</span>
-                        {lg.supervisorName && lg.supervisorName !== '-' && (
-                          <span className="text-purple-700">👷 الملاحظ: {lg.supervisorName}</span>
-                        )}
-                        {lg.megger && <span className="font-mono">العزل: {lg.megger}</span>}
-                        {lg.bearingTemp && <span className="font-mono">حرارة البلي: {lg.bearingTemp}°C</span>}
-                      </div>
+                <h4 className="font-black text-slate-800">أرشيف الصيانات السابقة ({(selectedMotorForLog.logs || []).length}):</h4>
+                {(selectedMotorForLog.logs || []).map((lg) => (
+                  <div key={lg.id} className="bg-slate-50 border border-slate-200 rounded-xl p-2.5 space-y-1">
+                    <div className="flex justify-between font-bold text-[11px]">
+                      <span className="text-blue-700 font-black">{lg.type}</span>
+                      <span className="font-mono text-slate-500">{lg.date}</span>
                     </div>
-                  ))
-                )}
+                    <p className="text-slate-800 font-bold">{lg.notes}</p>
+                    <p className="text-[10px] text-emerald-700 font-bold">
+                      🔧 الفني: {lg.techName || lg.by} | 👷 الملاحظ: {lg.supervisorName || '-'}
+                    </p>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
         </Overlay>
       )}
 
-      {/* ===== الهيدر العلوي المتجاوب للموبايل ===== */}
-      <nav className="bg-slate-900 text-white p-2.5 rounded-2xl flex flex-col gap-2.5 shadow-md select-none">
-        <div className="flex justify-between items-center gap-2">
+      {/* ===== الهيدر العلوي المدمج وشريط التبويبات الأفقي القابل للتمرير على الموبايل ===== */}
+      <nav className="bg-slate-900 text-white p-2 sm:p-2.5 rounded-2xl flex flex-col gap-2 shadow-md select-none">
+        <div className="flex justify-between items-center gap-1.5">
           <div onClick={handleSecretAdminTrigger} className="flex items-center gap-2 cursor-pointer min-w-0">
-            {customLogo ? (
-              <div className="bg-white p-1 rounded-lg shadow-sm flex shrink-0">
-                <img src={customLogo} alt="Logo" className="h-6 w-auto max-w-[80px] object-contain" />
-              </div>
-            ) : (
-              <div className="bg-emerald-600 p-1.5 rounded-xl shrink-0">
-                <Building2 className="w-4 h-4 text-white" />
-              </div>
-            )}
+            <div className="bg-emerald-600 p-1.5 rounded-xl shrink-0">
+              <Building2 className="w-4 h-4 text-white" />
+            </div>
             <div className="truncate">
               <span className="font-black text-xs sm:text-sm text-white block truncate">{factoryName}</span>
-              <span className="text-[10px] text-emerald-400 font-bold block">{roleLabel}</span>
+              <span className="text-[10px] text-emerald-400 font-bold block truncate">{roleLabel}</span>
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex items-center gap-1 shrink-0">
             <button
               onClick={() => {
                 window.history.pushState({ modal: 'whatsapp' }, '');
                 setWhatsappModalOpen(true);
               }}
-              className="bg-green-600 hover:bg-green-500 text-white px-2.5 py-1.5 rounded-xl text-[10px] font-bold flex items-center gap-1 shadow-sm"
+              className="bg-green-600 hover:bg-green-500 text-white px-2 py-1.5 rounded-xl text-[10px] font-bold flex items-center gap-1"
             >
-              <Share2 className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">ملخص واتساب</span>
+              <Share2 className="w-3 h-3" />
+              <span>واتساب</span>
             </button>
             {isManagerLike && (
               <button
                 onClick={handleCopyEmployeeDirectLink}
-                className="bg-blue-600 hover:bg-blue-500 text-white px-2.5 py-1.5 rounded-xl text-[10px] font-bold flex items-center gap-1 shadow-sm"
+                className="bg-blue-600 hover:bg-blue-500 text-white px-2 py-1.5 rounded-xl text-[10px] font-bold flex items-center gap-1"
                 title="نسخ رابط الموظفين"
               >
-                <Link2 className="w-3.5 h-3.5" />
+                <Link2 className="w-3 h-3" />
                 <span className="hidden sm:inline">رابط الموظفين</span>
               </button>
             )}
@@ -2878,11 +2737,11 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                   window.history.pushState({ modal: 'approvals' }, '');
                   setApprovalsOpen(true);
                 }}
-                className="relative bg-amber-500 hover:bg-amber-400 text-slate-950 p-1.5 rounded-xl shadow-sm"
+                className="relative bg-amber-500 text-slate-950 p-1.5 rounded-xl"
               >
-                <Inbox className="w-4 h-4" />
+                <Inbox className="w-3.5 h-3.5" />
                 {pendingCount > 0 && (
-                  <span className="absolute -top-1.5 -left-1.5 bg-red-600 text-white text-[9px] font-black rounded-full min-w-[16px] h-4 px-1 flex items-center justify-center">
+                  <span className="absolute -top-1 -left-1 bg-red-600 text-white text-[9px] font-black rounded-full min-w-[15px] h-3.5 px-1 flex items-center justify-center">
                     {pendingCount}
                   </span>
                 )}
@@ -2890,15 +2749,15 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
             )}
             <button
               onClick={handleLogout}
-              className="bg-red-500/20 text-red-300 border border-red-500/30 px-2.5 py-1.5 rounded-xl text-[10px] font-bold"
+              className="bg-red-500/20 text-red-300 border border-red-500/30 px-2 py-1.5 rounded-xl text-[10px] font-bold"
             >
               خروج
             </button>
           </div>
         </div>
 
-        {/* شريط التبويبات المنسق للموبايل */}
-        <div className="grid grid-cols-3 sm:flex items-center gap-1.5 bg-slate-950 p-1.5 rounded-xl border border-slate-800">
+        {/* شريط التبويبات الأفقي الناعم للموبايل (لا يأخذ مساحة رأسية أبداً) */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 no-scrollbar">
           {[
             ['dashboard', 'الممرات والتشغيل', TrendingUp],
             ['motors', 'حالة وحرارة المواتير', Cpu],
@@ -2911,48 +2770,48 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
             <button
               key={k}
               onClick={() => setActiveTab(k)}
-              className={`px-2 py-2 text-[11px] font-bold rounded-lg flex justify-center items-center gap-1 transition-all ${
+              className={`px-3 py-1.5 text-[11px] font-bold rounded-xl flex items-center gap-1.5 whitespace-nowrap shrink-0 transition-all ${
                 activeTab === k
-                  ? 'bg-blue-600 text-white shadow'
-                  : 'text-slate-300 hover:bg-slate-800'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'bg-slate-800/90 text-slate-300 hover:bg-slate-800'
               }`}
             >
               <Icon className="w-3.5 h-3.5 shrink-0" />
-              <span className="truncate">{label}</span>
+              <span>{label}</span>
             </button>
           ))}
         </div>
       </nav>
 
-      {/* ===== 1. لوحة التشغيل والممرات ===== */}
+      {/* ===== 1. لوحة التشغيل والممرات (مضبوطة للموبايل) ===== */}
       {activeTab === 'dashboard' && (
-        <div className="flex flex-col gap-2.5 flex-1">
+        <div className="flex flex-col gap-2 flex-1">
           {isManagerLike && (
-            <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm space-y-2.5">
-              <div className="grid grid-cols-3 gap-2 text-center">
-                <div className="bg-emerald-50 p-2 border border-emerald-200 rounded-xl">
-                  <p className="text-[10px] font-bold text-emerald-800">سليم (&lt;80%)</p>
-                  <p className="font-black text-lg text-emerald-700">{stands.filter((s) => s.accumulatedTons / s.maxLimit < 0.8).length}</p>
+            <div className="bg-white p-2.5 sm:p-3 rounded-2xl border border-slate-200 shadow-sm space-y-2">
+              <div className="grid grid-cols-3 gap-1.5 text-center">
+                <div className="bg-emerald-50 py-1.5 px-2 border border-emerald-200 rounded-xl">
+                  <span className="text-[9px] font-bold text-emerald-800 block">سليم (&lt;80%)</span>
+                  <span className="font-black text-base text-emerald-700">{stands.filter((s) => s.accumulatedTons / s.maxLimit < 0.8).length}</span>
                 </div>
-                <div className="bg-amber-50 p-2 border border-amber-300 rounded-xl">
-                  <p className="text-[10px] font-bold text-amber-800">إنذار (+80%)</p>
-                  <p className="font-black text-lg text-amber-700">
+                <div className="bg-amber-50 py-1.5 px-2 border border-amber-300 rounded-xl">
+                  <span className="text-[9px] font-bold text-amber-800 block">إنذار (+80%)</span>
+                  <span className="font-black text-base text-amber-700">
                     {stands.filter((s) => s.accumulatedTons / s.maxLimit >= 0.8 && s.accumulatedTons / s.maxLimit < 1).length}
-                  </p>
+                  </span>
                 </div>
-                <div className="bg-red-50 p-2 border border-red-300 rounded-xl">
-                  <p className="text-[10px] font-bold text-red-800">خطر (+100%)</p>
-                  <p className="font-black text-lg text-red-700">{stands.filter((s) => s.accumulatedTons / s.maxLimit >= 1).length}</p>
+                <div className="bg-red-50 py-1.5 px-2 border border-red-300 rounded-xl">
+                  <span className="text-[9px] font-bold text-red-800 block">خطر (+100%)</span>
+                  <span className="font-black text-base text-red-700">{stands.filter((s) => s.accumulatedTons / s.maxLimit >= 1).length}</span>
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-slate-700">المقاس:</span>
+              <div className="flex flex-wrap items-center justify-between gap-1.5 pt-1.5 border-t border-slate-100">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] font-bold text-slate-700">المقاس:</span>
                   <select
                     value={selectedProductSize}
                     onChange={(e) => handleProductSizeChange(e.target.value)}
-                    className="bg-slate-100 border border-slate-300 text-slate-900 text-xs font-black px-2.5 py-1 rounded-lg"
+                    className="bg-slate-100 border border-slate-300 text-slate-900 text-[11px] font-black px-2 py-1 rounded-lg"
                   >
                     {['10', '12', '14', '16', '18', '20', '22', '25', '32', 'خوصة 50×10', 'خوصة 40×10'].map((s) => (
                       <option key={s} value={s}>
@@ -2960,49 +2819,39 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                       </option>
                     ))}
                   </select>
-                  <span className="text-xs font-bold text-slate-700 mr-1">وزن البليت:</span>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={billetWeight}
-                    onChange={(e) => handleWeightChange(e.target.value)}
-                    className="w-16 p-1 border border-slate-300 rounded-lg text-center font-mono font-bold text-xs bg-slate-50"
-                  />
                 </div>
-                <div className="flex flex-wrap gap-1.5">
+                <div className="flex flex-wrap gap-1">
                   {exportButtons}
                   <button
                     onClick={() => setAddStandOpen(true)}
-                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-1.5 px-2.5 rounded-lg text-[10px] flex items-center gap-1 shadow"
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-1.5 px-2 rounded-lg text-[10px] flex items-center gap-1"
                   >
-                    <PlusCircle className="w-3.5 h-3.5" /> الستاندات ({stands.length})
+                    <PlusCircle className="w-3 h-3" /> الستاندات ({stands.length})
                   </button>
                 </div>
               </div>
             </div>
           )}
 
-          <div className="bg-white p-3 rounded-2xl shadow-sm border border-slate-200 space-y-2">
-            <div className="bg-blue-50 border border-blue-200 text-blue-900 text-xs font-bold p-2 rounded-xl flex justify-between items-center">
-              <button onClick={() => handleDateChange(-1)} className="px-2.5 py-1 bg-white border border-blue-200 rounded-lg text-[11px]">
+          {/* شريط تسجيل الوردية المدمج في سطرين صغيرين على الموبايل */}
+          <div className="bg-white p-2.5 rounded-2xl shadow-sm border border-slate-200 space-y-2">
+            <div className="bg-blue-50 border border-blue-200 text-blue-900 text-[11px] font-bold py-1.5 px-2.5 rounded-xl flex justify-between items-center">
+              <button onClick={() => handleDateChange(-1)} className="px-2 py-0.5 bg-white border border-blue-200 rounded-lg text-[10px]">
                 السابق
               </button>
-              <div className="text-center">
-                <span className="block font-black">
-                  {currentProdDate.toLocaleDateString('ar-EG', { weekday: 'long' })} ({currentDateStr})
-                </span>
-                <span className="text-[10px] text-blue-700">مقاس {selectedProductSize} مم | البليت {billetWeight} طن</span>
-              </div>
-              <button onClick={() => handleDateChange(1)} className="px-2.5 py-1 bg-white border border-blue-200 rounded-lg text-[11px]">
+              <span className="font-black truncate">
+                {currentProdDate.toLocaleDateString('ar-EG', { weekday: 'long' })} ({currentDateStr}) — مقاس {selectedProductSize}
+              </span>
+              <button onClick={() => handleDateChange(1)} className="px-2 py-0.5 bg-white border border-blue-200 rounded-lg text-[10px]">
                 التالي
               </button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <div className="flex items-stretch gap-1.5">
               <select
                 value={selectedShift}
                 onChange={(e) => setSelectedShift(e.target.value)}
-                className="bg-slate-50 border border-slate-300 text-xs font-black p-2.5 rounded-xl"
+                className="w-32 sm:w-44 bg-slate-50 border border-slate-300 text-[11px] font-black px-2 py-2 rounded-xl shrink-0"
               >
                 {availableShifts.map((s) => (
                   <option key={s} value={s}>
@@ -3014,27 +2863,26 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                 type="number"
                 value={shiftBillets}
                 onChange={(e) => setShiftBillets(e.target.value)}
-                className="p-2.5 border border-slate-300 rounded-xl text-center text-sm font-black bg-slate-50"
-                placeholder="أدخل إجمالي بليت الوردية..."
+                className="flex-1 min-w-0 p-2 border border-slate-300 rounded-xl text-center text-xs sm:text-sm font-black bg-slate-50"
+                placeholder="عدد البليت..."
               />
               <button
                 onClick={handleAddShiftProduction}
-                className="bg-blue-600 hover:bg-blue-700 text-white font-black py-2.5 px-4 rounded-xl flex justify-center items-center gap-1.5 shadow text-xs sm:text-sm"
+                className="bg-blue-600 hover:bg-blue-700 text-white font-black px-3 sm:px-5 py-2 rounded-xl flex items-center gap-1 shadow text-xs shrink-0"
               >
-                <Save className="w-4 h-4" /> حفظ وإغلاق الوردية
+                <Save className="w-3.5 h-3.5" /> حفظ
               </button>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5 pb-6">
+          {/* شبكة كروت الستاندات المضبوطة للموبايل */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 pb-6">
             {stands.map((stand, idx) => {
               const percentage = Math.max(0, Math.min((stand.accumulatedTons / stand.maxLimit) * 100, 100));
               const status = getStandStatus(stand.accumulatedTons, stand.maxLimit);
               const usedCount = stand.passes ? stand.passes.filter((p) => p.status === 'used' || p.status === 'active').length : 1;
               const sp = pendingList.filter((r) => String(r.standId) === String(stand.id));
               const hasPending = sp.some((r) => r.status === 'pending');
-              const shiftKey = `${currentDateStr}__${selectedShift}`;
-              const hasCreditedInShift = stand.creditedShiftKey === shiftKey && stand.creditedShiftBillets > 0;
 
               return (
                 <div
@@ -3042,62 +2890,58 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                   onClick={() => openStandRollPage(idx)}
                   className={`rounded-2xl flex flex-col justify-between border-2 cursor-pointer ${
                     stand.isActive ? status.bg : 'bg-slate-200 opacity-60'
-                  } ${status.border} p-3 relative overflow-hidden shadow-sm hover:shadow-md transition-all`}
+                  } ${status.border} p-2.5 relative overflow-hidden shadow-sm transition-all`}
                 >
-                  <div className="absolute bottom-0 left-0 w-full h-1.5 bg-slate-200">
+                  <div className="absolute bottom-0 left-0 w-full h-1 bg-slate-200">
                     <div className={`h-full ${status.bar}`} style={{ width: `${percentage}%` }} />
                   </div>
 
                   <div className="flex justify-between items-start z-10">
-                    <div>
-                      <span className="font-black text-sm sm:text-base text-slate-900 block">{stand.name}</span>
-                      <span className="text-[10px] text-slate-500 font-bold">
+                    <div className="min-w-0">
+                      <span className="font-black text-xs sm:text-sm text-slate-900 block truncate">{stand.name}</span>
+                      <span className="text-[9px] text-slate-500 font-bold block truncate">
                         {[stand.type, stand.diameter && `Ø${stand.diameter}`].filter(Boolean).join(' • ')}
                       </span>
                     </div>
                     <button
                       onClick={(e) => handleToggleActive(idx, e)}
-                      className={`p-1.5 rounded-lg ${stand.isActive ? 'text-emerald-600 bg-emerald-50' : 'text-slate-400 bg-slate-200'}`}
+                      className={`p-1 rounded-lg shrink-0 ${stand.isActive ? 'text-emerald-600 bg-emerald-50' : 'text-slate-400 bg-slate-200'}`}
                     >
-                      <Power className="w-3.5 h-3.5" />
+                      <Power className="w-3 h-3" />
                     </button>
                   </div>
 
-                  {(hasPending || hasCreditedInShift) && (
-                    <span
-                      className={`my-1 self-start text-[9px] font-black px-2 py-0.5 rounded-full ${
-                        hasPending ? 'bg-amber-400 text-slate-950' : 'bg-emerald-600 text-white'
-                      }`}
-                    >
-                      {hasPending ? 'بانتظار المدير' : `خُصم ${stand.creditedShiftBillets}ب للسابق`}
+                  {hasPending && (
+                    <span className="my-0.5 self-start text-[8px] font-black px-1.5 py-0.5 rounded bg-amber-400 text-slate-950">
+                      بانتظار المدير
                     </span>
                   )}
 
-                  <div className="flex flex-col items-center justify-center py-3 z-10">
-                    <span className={`font-mono font-black text-3xl leading-none ${status.text}`}>
+                  <div className="flex flex-col items-center justify-center py-2 z-10">
+                    <span className={`font-mono font-black text-2xl sm:text-3xl leading-none ${status.text}`}>
                       {stand.accumulatedTons.toFixed(0)}
                     </span>
-                    <span className="text-[10px] text-slate-400 font-bold mt-0.5">من {stand.maxLimit} طن</span>
-                    <div className="flex items-center gap-1 mt-2">
-                      <span className="bg-slate-900 text-amber-400 text-[10px] font-black px-2 py-0.5 rounded-md">
+                    <span className="text-[9px] text-slate-400 font-bold mt-0.5">من {stand.maxLimit} طن</span>
+                    <div className="flex items-center gap-1 mt-1.5">
+                      <span className="bg-slate-900 text-amber-400 text-[9px] font-black px-1.5 py-0.5 rounded">
                         ممر {stand.activePass}/{stand.totalPasses}
                       </span>
-                      <span className="text-[10px] font-bold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded-md">
+                      <span className="text-[9px] font-bold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
                         استُهلك {usedCount}
                       </span>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-1.5 pt-2 border-t border-slate-200/80 z-10" onClick={(e) => e.stopPropagation()}>
+                  <div className="grid grid-cols-2 gap-1 pt-1.5 border-t border-slate-200/70 z-10" onClick={(e) => e.stopPropagation()}>
                     <button
                       onClick={() => openStandRollPage(idx)}
-                      className="py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold rounded-lg shadow-sm"
+                      className="py-1 bg-blue-600 text-white text-[10px] font-bold rounded-lg"
                     >
                       الممرات
                     </button>
                     <button
                       onClick={(e) => initiateResetStand(idx, null, e)}
-                      className="py-1.5 bg-slate-800 hover:bg-slate-900 text-white text-[10px] font-bold rounded-lg shadow-sm"
+                      className="py-1 bg-slate-800 text-white text-[10px] font-bold rounded-lg"
                     >
                       نقل ممر
                     </button>
@@ -3109,108 +2953,96 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
         </div>
       )}
 
-      {/* ===== 2. صفحة متابعة حالة وحرارة المواتير ===== */}
+      {/* ===== 2. صفحة متابعة حالة وحرارة المواتير (منسقة للموبايل) ===== */}
       {activeTab === 'motors' && (
-        <div className="flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 p-3 sm:p-4 space-y-4">
-          <div className="bg-slate-900 text-white p-3.5 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+        <div className="flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 p-2.5 sm:p-4 space-y-3">
+          <div className="bg-slate-900 text-white p-3 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2.5">
             <div>
-              <h2 className="font-black text-sm sm:text-base flex items-center gap-2">
-                <Cpu className="w-5 h-5 text-emerald-400" /> متابعة حالة وحرارة المواتير (الدرفلة & الكهرباء)
+              <h2 className="font-black text-xs sm:text-base flex items-center gap-1.5">
+                <Cpu className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400" /> متابعة حالة وحرارة المواتير
               </h2>
-              <p className="text-[11px] text-slate-300 font-bold mt-0.5">
-                ابحث بـ ID الموتور، سجل حرارة الوردية، أو افتح سجل الصيانة باسم الفني والملاحظ
-              </p>
             </div>
-            <div className="flex flex-wrap gap-1.5 w-full sm:w-auto">
+            <div className="grid grid-cols-3 sm:flex gap-1.5 w-full sm:w-auto">
               <button
                 onClick={() => setMotorSubView('cards')}
-                className={`flex-1 sm:flex-initial px-3 py-2 rounded-xl text-xs font-black flex items-center justify-center gap-1 ${
+                className={`px-2.5 py-1.5 rounded-xl text-[11px] font-black flex items-center justify-center gap-1 ${
                   motorSubView === 'cards' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-300'
                 }`}
               >
-                <Cpu size={14} /> كروت المواتير ({motorsList.length})
+                <Cpu size={13} /> المواتير ({motorsList.length})
               </button>
               <button
                 onClick={() => setMotorSubView('shift_temp')}
-                className={`flex-1 sm:flex-initial px-3 py-2 rounded-xl text-xs font-black flex items-center justify-center gap-1 ${
+                className={`px-2.5 py-1.5 rounded-xl text-[11px] font-black flex items-center justify-center gap-1 ${
                   motorSubView === 'shift_temp' ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-amber-400'
                 }`}
               >
-                <Thermometer size={14} /> تسجيل حرارة الوردية
+                <Thermometer size={13} /> حرارة الوردية
               </button>
               <button
                 onClick={() => setMotorSubView('add_new')}
-                className={`px-3 py-2 rounded-xl text-xs font-black flex items-center justify-center gap-1 ${
+                className={`px-2.5 py-1.5 rounded-xl text-[11px] font-black flex items-center justify-center gap-1 ${
                   motorSubView === 'add_new' ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-emerald-400'
                 }`}
               >
-                <PlusCircle size={14} /> + موتور
+                <PlusCircle size={13} /> + موتور
               </button>
             </div>
           </div>
 
           {motorSubView === 'shift_temp' && (
-            <form onSubmit={handleSaveShiftTemperatures} className="space-y-4">
-              <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-3.5 space-y-3">
+            <form onSubmit={handleSaveShiftTemperatures} className="space-y-3">
+              <div className="bg-amber-50 border border-amber-300 rounded-2xl p-3 space-y-2.5">
                 <div className="flex flex-wrap justify-between items-center gap-2 border-b border-amber-200 pb-2">
-                  <h3 className="font-black text-sm text-amber-950 flex items-center gap-1.5">
-                    <Thermometer className="w-5 h-5 text-amber-600" /> تسجيل تقرير حرارة المواتير والأمبير — {selectedShift} ({currentDateStr})
+                  <h3 className="font-black text-xs sm:text-sm text-amber-950">
+                    تسجيل حرارة المواتير — {selectedShift} ({currentDateStr})
                   </h3>
                   {exportButtons}
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
-                  <div>
-                    <label className="font-bold text-slate-700 block mb-1">الوردية:</label>
-                    <select
-                      value={selectedShift}
-                      onChange={(e) => setSelectedShift(e.target.value)}
-                      className="w-full border border-amber-300 rounded-xl p-2 bg-white font-black"
-                    >
-                      {availableShifts.map((s) => (
-                        <option key={s} value={s}>
-                          {s}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="font-bold text-slate-700 block mb-1">اسم فني الكهرباء القائم بالقياس:</label>
-                    <input
-                      type="text"
-                      placeholder="مثلاً: فني / بسام وليد"
-                      value={shiftTempTech}
-                      onChange={(e) => setShiftTempTech(e.target.value)}
-                      className="w-full border border-amber-300 rounded-xl p-2 bg-white font-bold"
-                    />
-                  </div>
-                  <div>
-                    <label className="font-bold text-slate-700 block mb-1">اسم الملاحظ / مهندس الوردية:</label>
-                    <input
-                      type="text"
-                      placeholder="مثلاً: م. أحمد الشيخ / ريس مرزوق"
-                      value={shiftTempSupervisor}
-                      onChange={(e) => setShiftTempSupervisor(e.target.value)}
-                      className="w-full border border-amber-300 rounded-xl p-2 bg-white font-bold"
-                    />
-                  </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                  <select
+                    value={selectedShift}
+                    onChange={(e) => setSelectedShift(e.target.value)}
+                    className="border border-amber-300 rounded-xl p-2 bg-white font-black"
+                  >
+                    {availableShifts.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="text"
+                    placeholder="اسم فني الكهرباء القائم بالقياس..."
+                    value={shiftTempTech}
+                    onChange={(e) => setShiftTempTech(e.target.value)}
+                    className="border border-amber-300 rounded-xl p-2 bg-white font-bold"
+                  />
+                  <input
+                    type="text"
+                    placeholder="اسم الملاحظ / مهندس الوردية..."
+                    value={shiftTempSupervisor}
+                    onChange={(e) => setShiftTempSupervisor(e.target.value)}
+                    className="border border-amber-300 rounded-xl p-2 bg-white font-bold"
+                  />
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                 {motorsList.map((m) => {
                   const inp = shiftTempInputs[m.id] || {};
                   return (
-                    <div key={m.id} className="bg-slate-50 border border-slate-200 rounded-2xl p-3 space-y-2">
+                    <div key={m.id} className="bg-slate-50 border border-slate-200 rounded-xl p-2.5 space-y-2">
                       <div className="flex justify-between items-center">
                         <span className="font-black text-xs text-slate-900">{m.locationName || `ستاند ${m.stand}`}</span>
-                        <span className="font-mono text-[11px] font-black bg-blue-100 text-blue-800 px-2 py-0.5 rounded">
+                        <span className="font-mono text-[10px] font-black bg-blue-100 text-blue-800 px-2 py-0.5 rounded">
                           ID: {m.code}
                         </span>
                       </div>
-                      <div className="grid grid-cols-3 gap-2 text-[11px]">
+                      <div className="grid grid-cols-3 gap-1.5 text-[10px]">
                         <div>
-                          <label className="text-slate-500 font-bold block mb-0.5">حرارة الجسم °C</label>
+                          <label className="text-slate-500 font-bold block mb-0.5">الجسم °C</label>
                           <input
                             type="number"
                             placeholder={m.bodyTemp || '50'}
@@ -3225,7 +3057,7 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                           />
                         </div>
                         <div>
-                          <label className="text-slate-500 font-bold block mb-0.5">حرارة البلي °C</label>
+                          <label className="text-slate-500 font-bold block mb-0.5">البلي °C</label>
                           <input
                             type="number"
                             placeholder={m.bearingTemp || '55'}
@@ -3240,7 +3072,7 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                           />
                         </div>
                         <div>
-                          <label className="text-slate-500 font-bold block mb-0.5">الأمبير (A)</label>
+                          <label className="text-slate-500 font-bold block mb-0.5">الأمبير A</label>
                           <input
                             type="number"
                             placeholder={m.amps || '400'}
@@ -3262,56 +3094,28 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
 
               <button
                 type="submit"
-                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-3 rounded-2xl shadow-md text-sm flex items-center justify-center gap-2"
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-2.5 rounded-xl shadow text-xs flex items-center justify-center gap-1.5"
               >
                 <Save className="w-4 h-4" /> حفظ تقرير حرارة المواتير للوردية ({selectedShift})
               </button>
-
-              {tempShiftLogs.length > 0 && (
-                <div className="pt-4 border-t border-slate-200 space-y-2.5">
-                  <h4 className="font-black text-xs text-slate-800">سجل تقارير حرارة المواتير للورديات السابقة ({tempShiftLogs.length}):</h4>
-                  <div className="space-y-2 max-h-72 overflow-y-auto">
-                    {tempShiftLogs.map((batch) => (
-                      <div key={batch.id} className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs space-y-2">
-                        <div className="flex flex-wrap justify-between items-center font-bold border-b border-slate-200 pb-1.5">
-                          <span className="text-blue-800 font-black">
-                            {batch.date} — {batch.shift} ({batch.time})
-                          </span>
-                          <span className="text-slate-600">
-                            🔧 الفني: {batch.recordedBy} | 👷 الملاحظ: {batch.supervisor}
-                          </span>
-                        </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-                          {(batch.readings || []).map((r, i) => (
-                            <div key={i} className="bg-white p-2 rounded-lg border border-slate-200 font-mono text-[10px]">
-                              <span className="font-sans font-black text-slate-900 block">{r.locationName} ({r.motorCode})</span>
-                              <span className="text-amber-700 font-bold">جسم: {r.bodyTemp}°C | بلي: {r.bearingTemp}°C</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </form>
           )}
 
           {motorSubView === 'add_new' && (
-            <form onSubmit={handleAddMotor} className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 text-xs">
-              <h3 className="font-black text-sm text-slate-900 border-b border-slate-200 pb-2">
+            <form onSubmit={handleAddMotor} className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-3 text-xs">
+              <h3 className="font-black text-xs sm:text-sm text-slate-900 border-b border-slate-200 pb-2">
                 إضافة موتور جديد لقاعدة بيانات المصنع
               </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
                 <div>
                   <label className="font-bold text-slate-700 block mb-1">القسم:</label>
                   <select
                     value={newMotor.category}
                     onChange={(e) => setNewMotor({ ...newMotor, category: e.target.value })}
-                    className="w-full border border-slate-300 rounded-xl p-2.5 bg-white font-bold"
+                    className="w-full border border-slate-300 rounded-xl p-2 bg-white font-bold"
                   >
-                    <option value="rolling">موتور درفلة رئيسي</option>
-                    <option value="aux">موتور كهرباء ومعدات مساعدة</option>
+                    <option value="rolling">درفلة رئيسي</option>
+                    <option value="aux">كهرباء مساعدة</option>
                   </select>
                 </div>
 
@@ -3321,7 +3125,7 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                     <select
                       value={newMotor.stand}
                       onChange={(e) => setNewMotor({ ...newMotor, stand: e.target.value, locationName: `ستاند ${e.target.value}` })}
-                      className="w-full border border-slate-300 rounded-xl p-2.5 bg-white font-bold"
+                      className="w-full border border-slate-300 rounded-xl p-2 bg-white font-bold"
                     >
                       {stands.map((s) => (
                         <option key={s.id} value={s.id}>
@@ -3332,35 +3136,35 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                   </div>
                 ) : (
                   <div>
-                    <label className="font-bold text-slate-700 block mb-1">اسم المعدة المساعدة:</label>
+                    <label className="font-bold text-slate-700 block mb-1">اسم المعدة:</label>
                     <input
                       type="text"
-                      placeholder="مقص طائر / طلمبة مياه / بنش رول"
+                      placeholder="مقص طائر / طلمبة"
                       value={newMotor.locationName}
                       onChange={(e) => setNewMotor({ ...newMotor, locationName: e.target.value })}
-                      className="w-full border border-slate-300 rounded-xl p-2.5 bg-white font-bold"
+                      className="w-full border border-slate-300 rounded-xl p-2 bg-white font-bold"
                     />
                   </div>
                 )}
 
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">كود / ID الموتور (للبحث السريع):</label>
+                  <label className="font-bold text-slate-700 block mb-1">كود / ID الموتور:</label>
                   <input
                     type="text"
-                    placeholder="مثال: MTR-ST1 أو M-105"
+                    placeholder="MTR-ST1"
                     value={newMotor.code}
                     onChange={(e) => setNewMotor({ ...newMotor, code: e.target.value })}
-                    className="w-full border border-slate-300 rounded-xl p-2.5 bg-white font-mono font-bold uppercase"
+                    className="w-full border border-slate-300 rounded-xl p-2 bg-white font-mono font-bold uppercase"
                   />
                 </div>
                 <div>
                   <label className="font-bold text-slate-700 block mb-1">الماركة / الدرايف:</label>
                   <input
                     type="text"
-                    placeholder="Siemens / ABB / Parker"
+                    placeholder="Siemens / ABB"
                     value={newMotor.brand}
                     onChange={(e) => setNewMotor({ ...newMotor, brand: e.target.value })}
-                    className="w-full border border-slate-300 rounded-xl p-2.5 bg-white"
+                    className="w-full border border-slate-300 rounded-xl p-2 bg-white"
                   />
                 </div>
                 <div>
@@ -3370,7 +3174,7 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                     placeholder="400"
                     value={newMotor.kw}
                     onChange={(e) => setNewMotor({ ...newMotor, kw: e.target.value })}
-                    className="w-full border border-slate-300 rounded-xl p-2.5 bg-white font-mono"
+                    className="w-full border border-slate-300 rounded-xl p-2 bg-white font-mono"
                   />
                 </div>
                 <div>
@@ -3380,39 +3184,39 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                     placeholder="1500"
                     value={newMotor.rpm}
                     onChange={(e) => setNewMotor({ ...newMotor, rpm: e.target.value })}
-                    className="w-full border border-slate-300 rounded-xl p-2.5 bg-white font-mono"
+                    className="w-full border border-slate-300 rounded-xl p-2 bg-white font-mono"
                   />
                 </div>
               </div>
-              <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-3 rounded-xl shadow">
+              <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-2.5 rounded-xl shadow">
                 حفظ الموتور الجديد
               </button>
             </form>
           )}
 
           {motorSubView === 'cards' && (
-            <div className="space-y-3">
+            <div className="space-y-2.5">
               <div className="flex flex-col sm:flex-row gap-2 justify-between">
                 <div className="relative flex-1">
-                  <Search className="w-4 h-4 text-slate-400 absolute right-3 top-3" />
+                  <Search className="w-4 h-4 text-slate-400 absolute right-3 top-2.5" />
                   <input
                     type="text"
                     value={motorSearchId}
                     onChange={(e) => setMotorSearchId(e.target.value)}
-                    placeholder="ابحث بـ ID الموتور (مثلاً MTR-ST1) أو رقم الستاند..."
-                    className="w-full bg-slate-50 border-2 border-slate-200 focus:border-blue-600 focus:bg-white rounded-xl pr-9 pl-3 py-2 text-xs font-bold outline-none"
+                    placeholder="ابحث بـ ID الموتور (مثلاً MTR-ST1) أو الستاند..."
+                    className="w-full bg-slate-50 border border-slate-300 focus:border-blue-600 focus:bg-white rounded-xl pr-9 pl-3 py-2 text-xs font-bold outline-none"
                   />
                 </div>
-                <div className="flex gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 text-[11px] font-bold">
+                <div className="grid grid-cols-3 sm:flex gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 text-[11px] font-bold">
                   {[
                     ['all', 'الكل'],
-                    ['rolling', 'مواتير الدرفلة'],
-                    ['aux', 'كهرباء مساعدة']
+                    ['rolling', 'الدرفلة'],
+                    ['aux', 'المساعدة']
                   ].map(([id, label]) => (
                     <button
                       key={id}
                       onClick={() => setMotorCategoryFilter(id)}
-                      className={`px-3 py-1.5 rounded-lg transition-all ${
+                      className={`px-2.5 py-1 rounded-lg transition-all ${
                         motorCategoryFilter === id ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600'
                       }`}
                     >
@@ -3422,79 +3226,68 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
                 {filteredMotors.map((m) => {
                   const bearingHot = Number(m.bearingTemp) >= 75;
                   return (
                     <div
                       key={m.id}
-                      className={`rounded-2xl border-2 p-4 flex flex-col justify-between gap-3 shadow-sm transition-all ${
-                        bearingHot ? 'bg-red-50/60 border-red-400' : 'bg-slate-50/70 border-slate-200 hover:border-blue-400'
+                      className={`rounded-2xl border p-3 flex flex-col justify-between gap-2.5 shadow-sm ${
+                        bearingHot ? 'bg-red-50/60 border-red-400' : 'bg-slate-50/70 border-slate-200'
                       }`}
                     >
                       <div>
-                        <div className="flex justify-between items-start gap-2">
-                          <div>
-                            <span
-                              className={`text-[10px] font-bold px-2 py-0.5 rounded-full inline-block mb-1 ${
-                                m.category === 'aux' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'
-                              }`}
-                            >
-                              {m.category === 'aux' ? 'كهرباء مساعدة' : 'درفلة رئيسي'}
-                            </span>
-                            <h3 className="font-black text-base text-slate-900">
-                              {m.locationName || `ستاند ${m.stand}`}
-                            </h3>
-                          </div>
-                          <span className="font-mono font-black text-xs bg-slate-900 text-amber-400 px-2.5 py-1 rounded-lg">
+                        <div className="flex justify-between items-center gap-2">
+                          <h3 className="font-black text-sm text-slate-900">
+                            {m.locationName || `ستاند ${m.stand}`}
+                          </h3>
+                          <span className="font-mono font-black text-[11px] bg-slate-900 text-amber-400 px-2 py-0.5 rounded-lg">
                             ID: {m.code}
                           </span>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-2 bg-white p-3 rounded-xl border border-slate-200 mt-2.5 text-xs font-bold">
+                        <div className="grid grid-cols-2 gap-1.5 bg-white p-2.5 rounded-xl border border-slate-200 mt-2 text-[11px] font-bold">
                           <div>
-                            <span className="text-slate-400 text-[10px] block">القدرة / السرعة:</span>
-                            <span className="font-mono text-slate-900">
-                              {m.kw} kW • {m.rpm} RPM
-                            </span>
+                            <span className="text-slate-400 text-[9px] block">القدرة / السرعة:</span>
+                            <span className="font-mono text-slate-900">{m.kw}kW • {m.rpm}RPM</span>
                           </div>
                           <div>
-                            <span className="text-slate-400 text-[10px] block">الأمبير المسحوب:</span>
+                            <span className="text-slate-400 text-[9px] block">الأمبير:</span>
                             <span className="font-mono text-blue-700">{m.amps || '-'} A</span>
                           </div>
                           <div>
-                            <span className="text-slate-400 text-[10px] block">حرارة الجسم / البلي:</span>
+                            <span className="text-slate-400 text-[9px] block">حرارة الجسم/البلي:</span>
                             <span className={`font-mono font-black ${bearingHot ? 'text-red-600' : 'text-amber-700'}`}>
-                              {m.bodyTemp || '50'}°C / {m.bearingTemp || '55'}°C
+                              {m.bodyTemp || '50'}° / {m.bearingTemp || '55'}°C
                             </span>
                           </div>
                           <div>
-                            <span className="text-slate-400 text-[10px] block">العزل (Megger):</span>
+                            <span className="text-slate-400 text-[9px] block">العزل (Megger):</span>
                             <span className="font-mono text-emerald-700">{m.megger || '550 MΩ'}</span>
                           </div>
                         </div>
 
                         {m.lastTechName && (
-                          <p className="text-[11px] font-bold text-slate-500 mt-2">
-                            👷 آخر متابعة/صيانة بواسطة: <strong className="text-slate-800">{m.lastTechName}</strong>
+                          <p className="text-[10px] font-bold text-slate-500 mt-1.5">
+                            👷 آخر فني متابع: <strong className="text-slate-800">{m.lastTechName}</strong>
                           </p>
                         )}
                       </div>
 
-                      <div className="flex items-center gap-2 pt-2 border-t border-slate-200">
+                      <div className="flex items-center gap-1.5 pt-2 border-t border-slate-200">
                         <button
                           onClick={() => {
                             window.history.pushState({ modal: 'motor' }, '');
                             setSelectedMotorForLog(m);
                           }}
-                          className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-sm"
+                          className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-1.5 rounded-xl text-xs flex items-center justify-center gap-1"
                         >
                           <Wrench className="w-3.5 h-3.5" /> سجل الصيانة ({(m.logs || []).length})
                         </button>
                         {isManagerLike && (
                           <button
                             onClick={() => handleDeleteMotor(m.id)}
-                            className="bg-red-50 hover:bg-red-100 text-red-600 p-2 rounded-xl border border-red-200"
+                            className="bg-red-50 text-red-600 p-1.5 rounded-xl border border-red-200"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -3509,186 +3302,122 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
         </div>
       )}
 
-      {/* ===== 3. صفحة أعطال وتوقفات الوردية المطورة ===== */}
+      {/* ===== 3. صفحة أعطال وتوقفات الوردية ===== */}
       {activeTab === 'downtime' && (
-        <div className="flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 p-3 sm:p-4 space-y-4">
-          <div className="bg-slate-900 text-white p-3.5 rounded-2xl flex flex-wrap justify-between items-center gap-3">
-            <div>
-              <h2 className="font-black text-sm sm:text-base flex items-center gap-2">
-                <Wrench className="w-5 h-5 text-amber-400" /> سجل أعطال وتوقفات الورديات المطور
-              </h2>
-              <p className="text-[11px] text-slate-300 font-bold mt-0.5">
-                {currentProdDate.toLocaleDateString('ar-EG', { weekday: 'long' })} ({currentDateStr}) — {selectedShift}
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {exportButtons}
-            </div>
+        <div className="flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 p-2.5 sm:p-4 space-y-3">
+          <div className="bg-slate-900 text-white p-3 rounded-2xl flex flex-wrap justify-between items-center gap-2">
+            <h2 className="font-black text-xs sm:text-base flex items-center gap-1.5">
+              <Wrench className="w-4 h-4 text-amber-400" /> أعطال وتوقفات الوردية ({currentShiftDownMins} ق)
+            </h2>
+            {exportButtons}
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
-            <div className="bg-red-50 border border-red-200 p-2.5 rounded-xl">
-              <span className="text-[10px] font-bold text-red-700 block">توقفات الوردية الحالية</span>
-              <span className="font-mono font-black text-xl text-red-800">{currentShiftDownMins} دقيقة</span>
-            </div>
-            <div className="bg-amber-50 border border-amber-200 p-2.5 rounded-xl">
-              <span className="text-[10px] font-bold text-amber-800 block">أعطال الوردية الحالية</span>
-              <span className="font-mono font-black text-xl text-amber-900">{currentShiftDowntimes.length} عطل</span>
-            </div>
-            <div className="bg-blue-50 border border-blue-200 p-2.5 rounded-xl">
-              <span className="text-[10px] font-bold text-blue-800 block">إجمالي التوقفات الكلي</span>
-              <span className="font-mono font-black text-xl text-blue-900">
-                {downtimesList.reduce((a, d) => a + (Number(d.durationMins) || 0), 0)} دقيقة
-              </span>
-            </div>
-            <div className="bg-emerald-50 border border-emerald-200 p-2.5 rounded-xl">
-              <span className="text-[10px] font-bold text-emerald-800 block">كفاءة تشغيل الوردية</span>
-              <span className="font-mono font-black text-xl text-emerald-900">
-                {Math.max(0, Math.round(((480 - currentShiftDownMins) / 480) * 100))}%
-              </span>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-            <form onSubmit={handleAddDowntime} className="lg:col-span-5 bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 h-fit">
-              <h3 className="font-black text-sm text-slate-900 border-b border-slate-200 pb-2">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
+            <form onSubmit={handleAddDowntime} className="lg:col-span-5 bg-slate-50 border border-slate-200 rounded-2xl p-3 space-y-2.5 h-fit">
+              <h3 className="font-black text-xs sm:text-sm text-slate-900">
                 + تسجيل عطل أو توقف في ({selectedShift})
               </h3>
-              <div className="grid grid-cols-2 gap-2.5 text-xs">
-                <div>
-                  <label className="font-bold text-slate-600 block mb-1">تصنيف التوقف:</label>
-                  <select
-                    value={downForm.category}
-                    onChange={(e) => setDownForm({ ...downForm, category: e.target.value })}
-                    className="w-full border border-slate-300 rounded-xl p-2 bg-white font-bold"
-                  >
-                    <option>كهرباء وكنترول</option>
-                    <option>ميكانيكا ودرافيل</option>
-                    <option>تشغيل وكعبلة (Cobble)</option>
-                    <option>تغيير ممر / ضبط خلوص</option>
-                    <option>هيدروليك ومياه تبريد</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="font-bold text-slate-600 block mb-1">الستاند / المعدة:</label>
-                  <select
-                    value={downForm.standName}
-                    onChange={(e) => setDownForm({ ...downForm, standName: e.target.value })}
-                    className="w-full border border-slate-300 rounded-xl p-2 bg-white font-bold"
-                  >
-                    <option value="عام / الخط بالكامل">عام / الخط بالكامل</option>
-                    {stands.map((s) => (
-                      <option key={s.id} value={s.name}>
-                        {s.name}
-                      </option>
-                    ))}
-                    <option value="المقص الطائر / اللوابر">المقص الطائر / اللوابر</option>
-                    <option value="الأبرون وسرير التبريد">الأبرون وسرير التبريد</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="font-bold text-slate-600 block mb-1">مدة التوقف (دقيقة):</label>
-                  <input
-                    type="number"
-                    placeholder="مثلاً: 15"
-                    value={downForm.durationMins}
-                    onChange={(e) => setDownForm({ ...downForm, durationMins: e.target.value })}
-                    className="w-full border border-slate-300 rounded-xl p-2 font-mono font-bold bg-white"
-                  />
-                </div>
-                <div>
-                  <label className="font-bold text-slate-600 block mb-1">اسم الفني / الملاحظ المعالج:</label>
-                  <input
-                    type="text"
-                    placeholder="مثلاً: م. بسام / ريس رضا"
-                    value={downForm.techName}
-                    onChange={(e) => setDownForm({ ...downForm, techName: e.target.value })}
-                    className="w-full border border-slate-300 rounded-xl p-2 bg-white font-bold"
-                  />
-                </div>
-                <div className="col-span-2">
-                  <label className="font-bold text-slate-600 block mb-1">سبب التوقف / وصف العطل:</label>
-                  <input
-                    type="text"
-                    placeholder="مثال: فصل درايف ستاند 4 Overcurrent أو كعبلة..."
-                    value={downForm.reason}
-                    onChange={(e) => setDownForm({ ...downForm, reason: e.target.value })}
-                    className="w-full border border-slate-300 rounded-xl p-2 bg-white"
-                  />
-                </div>
-                <div className="col-span-2">
-                  <label className="font-bold text-slate-600 block mb-1">الإجراء المتخذ والحل:</label>
-                  <input
-                    type="text"
-                    placeholder="مثال: تغيير دليل الدخول وضبط السرعة..."
-                    value={downForm.actionTaken}
-                    onChange={(e) => setDownForm({ ...downForm, actionTaken: e.target.value })}
-                    className="w-full border border-slate-300 rounded-xl p-2 bg-white"
-                  />
-                </div>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <select
+                  value={downForm.category}
+                  onChange={(e) => setDownForm({ ...downForm, category: e.target.value })}
+                  className="border border-slate-300 rounded-xl p-2 bg-white font-bold"
+                >
+                  <option>كهرباء وكنترول</option>
+                  <option>ميكانيكا ودرافيل</option>
+                  <option>تشغيل وكعبلة (Cobble)</option>
+                  <option>تغيير ممر / ضبط خلوص</option>
+                  <option>هيدروليك ومياه تبريد</option>
+                </select>
+                <select
+                  value={downForm.standName}
+                  onChange={(e) => setDownForm({ ...downForm, standName: e.target.value })}
+                  className="border border-slate-300 rounded-xl p-2 bg-white font-bold"
+                >
+                  <option value="عام / الخط بالكامل">عام / الخط بالكامل</option>
+                  {stands.map((s) => (
+                    <option key={s.id} value={s.name}>
+                      {s.name}
+                    </option>
+                  ))}
+                  <option value="المقص الطائر / اللوابر">المقص الطائر / اللوابر</option>
+                </select>
+                <input
+                  type="number"
+                  placeholder="مدة التوقف (دقيقة)"
+                  value={downForm.durationMins}
+                  onChange={(e) => setDownForm({ ...downForm, durationMins: e.target.value })}
+                  className="border border-slate-300 rounded-xl p-2 font-mono font-bold bg-white"
+                />
+                <input
+                  type="text"
+                  placeholder="اسم الفني / الملاحظ"
+                  value={downForm.techName}
+                  onChange={(e) => setDownForm({ ...downForm, techName: e.target.value })}
+                  className="border border-slate-300 rounded-xl p-2 bg-white font-bold"
+                />
+                <input
+                  type="text"
+                  placeholder="سبب التوقف / وصف العطل..."
+                  value={downForm.reason}
+                  onChange={(e) => setDownForm({ ...downForm, reason: e.target.value })}
+                  className="col-span-2 border border-slate-300 rounded-xl p-2 bg-white"
+                />
+                <input
+                  type="text"
+                  placeholder="الإجراء المتخذ والحل..."
+                  value={downForm.actionTaken}
+                  onChange={(e) => setDownForm({ ...downForm, actionTaken: e.target.value })}
+                  className="col-span-2 border border-slate-300 rounded-xl p-2 bg-white"
+                />
               </div>
               <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-2.5 rounded-xl text-xs shadow">
                 حفظ التوقف في سجل الوردية
               </button>
             </form>
 
-            <div className="lg:col-span-7 space-y-3">
-              <div className="flex flex-col sm:flex-row gap-2">
-                <div className="relative flex-1">
-                  <Search className="w-4 h-4 text-slate-400 absolute right-3 top-2.5" />
-                  <input
-                    type="text"
-                    value={downSearchQuery}
-                    onChange={(e) => setDownSearchQuery(e.target.value)}
-                    placeholder="ابحث في الأعطال بالسبب أو الستاند أو اسم الفني..."
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl pr-9 pl-3 py-2 text-xs font-bold outline-none"
-                  />
-                </div>
+            <div className="lg:col-span-7 space-y-2.5">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={downSearchQuery}
+                  onChange={(e) => setDownSearchQuery(e.target.value)}
+                  placeholder="ابحث في الأعطال..."
+                  className="flex-1 bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-bold outline-none"
+                />
                 <select
                   value={downFilterCat}
                   onChange={(e) => setDownFilterCat(e.target.value)}
-                  className="bg-slate-100 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold"
+                  className="bg-slate-100 border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs font-bold"
                 >
-                  <option value="الكل">كل التصنيفات</option>
-                  <option value="كهرباء وكنترول">كهرباء وكنترول</option>
-                  <option value="ميكانيكا ودرافيل">ميكانيكا ودرافيل</option>
-                  <option value="تشغيل وكعبلة (Cobble)">تشغيل وكعبلة</option>
-                  <option value="تغيير ممر / ضبط خلوص">تغيير ممر / خلوص</option>
-                  <option value="هيدروليك ومياه تبريد">هيدروليك وتبريد</option>
+                  <option value="الكل">الكل</option>
+                  <option value="كهرباء وكنترول">كهرباء</option>
+                  <option value="ميكانيكا ودرافيل">ميكانيكا</option>
+                  <option value="تشغيل وكعبلة (Cobble)">كعبلة</option>
                 </select>
               </div>
 
-              <div className="space-y-2.5 max-h-[420px] overflow-y-auto pr-1">
-                {filteredDowntimes.length === 0 ? (
-                  <p className="text-center py-8 text-xs text-slate-400 font-bold">لا توجد أعطال مسجلة تطابق البحث.</p>
-                ) : (
-                  filteredDowntimes.map((d) => (
-                    <div key={d.id} className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-1.5 text-xs shadow-sm">
-                      <div className="flex flex-wrap justify-between items-center gap-1 border-b border-slate-200 pb-1.5">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="bg-red-100 text-red-800 font-black px-2 py-0.5 rounded-lg">{d.durationMins} دقيقة</span>
-                          <span className="bg-blue-100 text-blue-800 font-bold px-2 py-0.5 rounded-lg">{d.category}</span>
-                          <span className="font-black text-slate-900">{d.standName}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] font-mono text-slate-500">
-                            {d.date} | {d.shift}
-                          </span>
-                          {isManagerLike && (
-                            <button onClick={() => handleDeleteDowntime(d.id)} className="text-red-500 hover:text-red-700">
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
+              <div className="space-y-2 max-h-96 overflow-y-auto">
+                {filteredDowntimes.map((d) => (
+                  <div key={d.id} className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-1 text-xs">
+                    <div className="flex justify-between items-center">
+                      <span className="font-black text-red-700">
+                        {d.durationMins} ق — {d.standName} ({d.category})
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-mono text-slate-500">{d.date}</span>
+                        {isManagerLike && (
+                          <button onClick={() => handleDeleteDowntime(d.id)} className="text-red-500">
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
-                      <p className="font-black text-slate-900">السبب: {d.reason}</p>
-                      {d.actionTaken && <p className="text-emerald-700 font-bold">✅ الحل والإجراء: {d.actionTaken}</p>}
-                      <p className="text-[11px] text-slate-500 font-bold">
-                        👷 الفني / الملاحظ: <strong className="text-slate-800">{d.techName || d.by}</strong>
-                      </p>
                     </div>
-                  ))
-                )}
+                    <p className="font-bold text-slate-900">{d.reason}</p>
+                    {d.actionTaken && <p className="text-emerald-700 font-bold text-[11px]">✅ الحل: {d.actionTaken}</p>}
+                    <p className="text-[10px] text-slate-500 font-bold">👷 الفني/الملاحظ: {d.techName || d.by}</p>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
@@ -3697,46 +3426,29 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
 
       {/* ===== 4. رادار طواقم الدرافيل وورشة الخراطة ===== */}
       {activeTab === 'rollshop' && (
-        <div className="flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 p-3 sm:p-4 space-y-4">
-          <div className="bg-slate-900 text-white p-3.5 rounded-2xl flex flex-wrap justify-between items-center gap-3">
-            <div>
-              <h2 className="font-black text-sm sm:text-base flex items-center gap-2">
-                <Disc className="w-5 h-5 text-emerald-400" /> رادار طواقم الدرافيل وورشة الخراطة (Roll Shop)
-              </h2>
-              <p className="text-[11px] text-slate-300 font-bold mt-0.5">
-                إضافة وتعديل وحذف الدرافيل، ومتابعة الرصيد المتبقي من القطر قبل التكهين
-              </p>
-            </div>
+        <div className="flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 p-2.5 sm:p-4 space-y-3">
+          <div className="bg-slate-900 text-white p-3 rounded-2xl flex justify-between items-center gap-2">
+            <h2 className="font-black text-xs sm:text-base flex items-center gap-1.5">
+              <Disc className="w-4 h-4 text-emerald-400" /> ورشة الدرافيل والخراطة (Roll Shop)
+            </h2>
             <button
               onClick={() => {
                 setEditingRollId(null);
-                setNewRollItem({
-                  code: '',
-                  standName: 'ستاند 1',
-                  material: 'SG Iron / HSS',
-                  maxDia: 400,
-                  currentDia: 390,
-                  minScrapDia: 340,
-                  status: 'جاهز بالورشة (جديد)'
-                });
                 setRollFormOpen(!rollFormOpen);
               }}
-              className="bg-emerald-600 hover:bg-emerald-500 text-white font-black px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow"
+              className="bg-emerald-600 text-white font-black px-3 py-1.5 rounded-xl text-xs flex items-center gap-1"
             >
-              <PlusCircle size={15} /> {rollFormOpen ? 'إغلاق النموذج' : '+ إضافة درفيل جديد'}
+              <PlusCircle size={14} /> {rollFormOpen ? 'إغلاق' : '+ إضافة درفيل'}
             </button>
           </div>
 
           {rollFormOpen && (
             <form
               onSubmit={handleSaveRollShopItem}
-              className="bg-blue-50/60 border-2 border-blue-300 rounded-2xl p-4 grid grid-cols-2 sm:grid-cols-4 gap-3 items-end text-xs"
+              className="bg-blue-50/60 border border-blue-300 rounded-2xl p-3 grid grid-cols-2 sm:grid-cols-4 gap-2.5 items-end text-xs"
             >
-              <div className="col-span-2 sm:col-span-4 font-black text-sm text-blue-950 border-b border-blue-200 pb-1.5">
-                {editingRollId ? '✏️ تعديل بيانات الدرفيل' : '➕ إضافة درفيل جديد للورشة'}
-              </div>
               <div>
-                <label className="font-bold text-slate-700 block mb-1">كود / سيريال الطقم:</label>
+                <label className="font-bold text-slate-700 block mb-1">كود الطقم:</label>
                 <input
                   type="text"
                   placeholder="RL-205-A"
@@ -3746,7 +3458,7 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                 />
               </div>
               <div>
-                <label className="font-bold text-slate-700 block mb-1">مخصص لـ:</label>
+                <label className="font-bold text-slate-700 block mb-1">الستاند:</label>
                 <select
                   value={newRollItem.standName}
                   onChange={(e) => setNewRollItem({ ...newRollItem, standName: e.target.value })}
@@ -3760,37 +3472,6 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                 </select>
               </div>
               <div>
-                <label className="font-bold text-slate-700 block mb-1">خامة الدرفيل:</label>
-                <input
-                  type="text"
-                  value={newRollItem.material}
-                  onChange={(e) => setNewRollItem({ ...newRollItem, material: e.target.value })}
-                  className="w-full border border-slate-300 rounded-xl p-2 bg-white"
-                />
-              </div>
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">الحالة:</label>
-                <select
-                  value={newRollItem.status}
-                  onChange={(e) => setNewRollItem({ ...newRollItem, status: e.target.value })}
-                  className="w-full border border-slate-300 rounded-xl p-2 bg-white font-bold"
-                >
-                  <option>بالخدمة على الخط</option>
-                  <option>جاهز بالورشة (احتياطي)</option>
-                  <option>في المخرطة حالياً</option>
-                  <option>تكهين (خردة)</option>
-                </select>
-              </div>
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">القطر الأصلي (مم):</label>
-                <input
-                  type="number"
-                  value={newRollItem.maxDia}
-                  onChange={(e) => setNewRollItem({ ...newRollItem, maxDia: e.target.value })}
-                  className="w-full border border-slate-300 rounded-xl p-2 bg-white font-mono"
-                />
-              </div>
-              <div>
                 <label className="font-bold text-slate-700 block mb-1">القطر الحالي (مم):</label>
                 <input
                   type="number"
@@ -3800,7 +3481,7 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                 />
               </div>
               <div>
-                <label className="font-bold text-slate-700 block mb-1">حد التكهين Scrap (مم):</label>
+                <label className="font-bold text-slate-700 block mb-1">حد التكهين (مم):</label>
                 <input
                   type="number"
                   value={newRollItem.minScrapDia}
@@ -3808,84 +3489,60 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                   className="w-full border border-slate-300 rounded-xl p-2 bg-white font-mono"
                 />
               </div>
-              <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-black py-2.5 px-3 rounded-xl shadow">
+              <button type="submit" className="col-span-2 sm:col-span-4 bg-blue-600 text-white font-black py-2 rounded-xl shadow">
                 {editingRollId ? 'حفظ التعديلات' : '+ حفظ الدرفيل'}
               </button>
             </form>
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
             {rollShopList.map((roll) => {
-              const totalUsableMm = Math.max(1, roll.maxDia - roll.minScrapDia);
               const remainingMm = Math.max(0, roll.currentDia - roll.minScrapDia);
-              const lifePct = Math.min(100, Math.round((remainingMm / totalUsableMm) * 100));
               const isScrap = remainingMm <= 0;
-
               return (
                 <div
                   key={roll.id}
-                  className={`rounded-2xl border-2 p-4 flex flex-col justify-between gap-3 shadow-sm ${
+                  className={`rounded-2xl border p-3 flex flex-col justify-between gap-2.5 shadow-sm ${
                     isScrap ? 'bg-red-50 border-red-400' : 'bg-slate-50 border-slate-200'
                   }`}
                 >
-                  <div>
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <span className="font-mono font-black text-base text-blue-900 block">{roll.code}</span>
-                        <span className="text-xs font-bold text-slate-600">
-                          {roll.standName} • {roll.material}
-                        </span>
-                      </div>
-                      <span
-                        className={`text-[10px] font-black px-2.5 py-1 rounded-full ${
-                          isScrap ? 'bg-red-600 text-white' : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                        }`}
-                      >
-                        {roll.status}
-                      </span>
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <span className="font-mono font-black text-sm text-blue-900 block">{roll.code}</span>
+                      <span className="text-[11px] font-bold text-slate-600">{roll.standName}</span>
                     </div>
+                    <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                      {roll.status}
+                    </span>
+                  </div>
 
-                    <div className="bg-white rounded-xl border border-slate-200 p-3 mt-3 space-y-1.5 text-xs font-bold">
-                      <div className="flex justify-between">
-                        <span className="text-slate-500">القطر الحالي / التكهين:</span>
-                        <span className="font-mono font-black text-slate-900">
-                          {roll.currentDia} مم / {roll.minScrapDia} مم
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-500">المتبقي للخراطة:</span>
-                        <span className={`font-mono font-black ${remainingMm <= 6 ? 'text-red-600' : 'text-emerald-700'}`}>
-                          {remainingMm} مم متاح ({lifePct}%)
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-500">مرات الخراطة:</span>
-                        <span className="font-mono text-blue-700">{roll.redressCount} مرات (آخرها: {roll.lastRedressDate})</span>
-                      </div>
+                  <div className="bg-white rounded-xl border border-slate-200 p-2.5 text-xs font-bold space-y-1">
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">القطر الحالي / التكهين:</span>
+                      <span className="font-mono font-black">{roll.currentDia} / {roll.minScrapDia} مم</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">المتبقي للخراطة:</span>
+                      <span className="font-mono font-black text-emerald-700">{remainingMm} مم</span>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1.5 pt-2 border-t border-slate-200">
+                  <div className="flex items-center gap-1.5">
                     <button
                       onClick={() => handleRecordRedressing(roll)}
-                      disabled={isScrap}
-                      className={`flex-1 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1 shadow ${
-                        isScrap ? 'bg-slate-300 text-slate-500' : 'bg-slate-900 hover:bg-slate-800 text-amber-400'
-                      }`}
+                      className="flex-1 py-1.5 rounded-xl text-xs font-bold bg-slate-900 text-amber-400"
                     >
-                      <Wrench className="w-3.5 h-3.5" /> تسجيل خراطة
+                      تسجيل خراطة
                     </button>
                     <button
                       onClick={() => handleStartEditRollItem(roll)}
-                      className="bg-blue-50 hover:bg-blue-100 text-blue-700 p-2 rounded-xl border border-blue-200"
-                      title="تعديل الدرفيل"
+                      className="bg-blue-50 text-blue-700 p-1.5 rounded-xl border border-blue-200"
                     >
                       <Edit3 className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => handleDeleteRollShopItem(roll.id)}
-                      className="bg-red-50 hover:bg-red-100 text-red-600 p-2 rounded-xl border border-red-200"
-                      title="حذف الدرفيل"
+                      className="bg-red-50 text-red-600 p-1.5 rounded-xl border border-red-200"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -3899,189 +3556,118 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
 
       {/* ===== 5. كتالوج وصفات الإنتاج الجاهزة ===== */}
       {activeTab === 'recipes' && (
-        <div className="flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 p-3 sm:p-4 space-y-4">
-          <div className="bg-slate-900 text-white p-3.5 rounded-2xl flex flex-wrap justify-between items-center gap-3">
-            <h2 className="font-black text-sm sm:text-base flex items-center gap-2">
-              <BookMarked className="w-5 h-5 text-blue-400" /> كتالوج وصفات المقاسات الجاهزة (Product Recipes)
+        <div className="flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 p-2.5 sm:p-4 space-y-3">
+          <div className="bg-slate-900 text-white p-3 rounded-2xl flex justify-between items-center">
+            <h2 className="font-black text-xs sm:text-base flex items-center gap-1.5">
+              <BookMarked className="w-4 h-4 text-blue-400" /> وصفات المقاسات الجاهزة
             </h2>
-            <span className="bg-blue-600 text-white px-3 py-1 rounded-lg text-xs font-black">
-              المقاس الشغال: {selectedProductSize}
+            <span className="bg-blue-600 text-white px-2.5 py-0.5 rounded-lg text-[11px] font-black">
+              الحالي: {selectedProductSize}
             </span>
           </div>
 
-          {isManagerLike && (
-            <form
-              onSubmit={handleAddRecipe}
-              className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 grid grid-cols-2 sm:grid-cols-5 gap-2.5 items-end text-xs"
-            >
-              <div className="col-span-2">
-                <label className="font-bold text-slate-700 block mb-1">اسم الوصفة:</label>
-                <input
-                  type="text"
-                  placeholder="مثلاً: تسليح 18 مم سرعة عالية"
-                  value={newRecipe.name}
-                  onChange={(e) => setNewRecipe({ ...newRecipe, name: e.target.value })}
-                  className="w-full border border-slate-300 rounded-xl p-2 bg-white font-bold"
-                />
-              </div>
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">المقاس:</label>
-                <input
-                  type="text"
-                  value={newRecipe.productSize}
-                  onChange={(e) => setNewRecipe({ ...newRecipe, productSize: e.target.value })}
-                  className="w-full border border-slate-300 rounded-xl p-2 bg-white font-mono"
-                />
-              </div>
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">سرعة الفنش (m/s):</label>
-                <input
-                  type="text"
-                  value={newRecipe.finishSpeed}
-                  onChange={(e) => setNewRecipe({ ...newRecipe, finishSpeed: e.target.value })}
-                  className="w-full border border-slate-300 rounded-xl p-2 bg-white font-mono"
-                />
-              </div>
-              <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-3 rounded-xl shadow">
-                + حفظ الوصفة
-              </button>
-            </form>
-          )}
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
             {recipesList.map((rec) => (
-              <div key={rec.id} className="bg-slate-50 border-2 border-slate-200 hover:border-blue-400 rounded-2xl p-4 flex flex-col justify-between gap-3 shadow-sm">
-                <div>
-                  <div className="flex justify-between items-start gap-2 mb-2">
-                    <h3 className="font-black text-base text-slate-900">{rec.name}</h3>
-                    <span className="bg-blue-600 text-white text-xs font-black px-2.5 py-0.5 rounded-lg shrink-0">
-                      مقاس {rec.productSize}
-                    </span>
+              <div key={rec.id} className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 flex flex-col justify-between gap-2.5">
+                <div className="flex justify-between items-center">
+                  <h3 className="font-black text-sm text-slate-900">{rec.name}</h3>
+                  <span className="bg-blue-600 text-white text-[10px] font-black px-2 py-0.5 rounded-lg">
+                    {rec.productSize}
+                  </span>
+                </div>
+                <div className="grid grid-cols-3 gap-1.5 text-[11px] bg-white p-2.5 rounded-xl border border-slate-200 font-bold">
+                  <div>
+                    <span className="text-slate-400 block text-[9px]">السرعة:</span>
+                    <span className="font-mono text-blue-700">{rec.finishSpeed}</span>
                   </div>
-                  <div className="grid grid-cols-3 gap-2 text-xs bg-white p-3 rounded-xl border border-slate-200 font-bold">
-                    <div>
-                      <span className="text-slate-400 block text-[10px]">سرعة الفنش:</span>
-                      <span className="font-mono text-blue-700">{rec.finishSpeed}</span>
-                    </div>
-                    <div>
-                      <span className="text-slate-400 block text-[10px]">ضغط QTB:</span>
-                      <span className="font-mono text-emerald-700">{rec.qtbPressure}</span>
-                    </div>
-                    <div>
-                      <span className="text-slate-400 block text-[10px]">حرارة الفرن:</span>
-                      <span className="font-mono text-amber-700">{rec.furnaceTemp}</span>
-                    </div>
+                  <div>
+                    <span className="text-slate-400 block text-[9px]">ضغط QTB:</span>
+                    <span className="font-mono text-emerald-700">{rec.qtbPressure}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[9px]">الفرن:</span>
+                    <span className="font-mono text-amber-700">{rec.furnaceTemp}</span>
                   </div>
                 </div>
-                <div className="flex justify-between items-center gap-2 pt-2 border-t border-slate-200">
-                  <button
-                    onClick={() => handleApplyRecipe(rec)}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-xl text-xs shadow flex items-center justify-center gap-1.5"
-                  >
-                    <CheckCircle className="w-4 h-4" /> تفعيل الوصفة على الخط
-                  </button>
-                  {isManagerLike && (
-                    <button
-                      onClick={() => handleDeleteRecipe(rec.id)}
-                      className="bg-red-50 hover:bg-red-100 text-red-600 p-2 rounded-xl border border-red-200"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
+                <button
+                  onClick={() => handleApplyRecipe(rec)}
+                  className="w-full bg-blue-600 text-white font-bold py-2 rounded-xl text-xs"
+                >
+                  تفعيل الوصفة على الخط
+                </button>
               </div>
             ))}
           </div>
         </div>
       )}
 
-      {/* ===== 6. إدارة الموظفين والأكواد (للمدير) ===== */}
+      {/* ===== 6. إدارة الموظفين والأكواد ===== */}
       {activeTab === 'staff' && isManagerLike && (
-        <div className="flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 p-4 space-y-4">
-          <div className="bg-slate-900 text-white p-4 rounded-2xl flex flex-wrap justify-between items-center gap-3">
-            <div>
-              <h2 className="font-black text-base flex items-center gap-2">
-                <Users className="w-5 h-5 text-amber-400" /> إدارة الموظفين، الأكواد، ورابط الدخول المباشر
-              </h2>
-            </div>
+        <div className="flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 p-3 sm:p-4 space-y-3">
+          <div className="bg-slate-900 text-white p-3 rounded-2xl flex flex-wrap justify-between items-center gap-2">
+            <h2 className="font-black text-xs sm:text-base flex items-center gap-1.5">
+              <Users className="w-4 h-4 text-amber-400" /> إدارة الموظفين والأكواد
+            </h2>
             <button
               onClick={handleCopyEmployeeDirectLink}
-              className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow"
+              className="bg-amber-500 text-slate-950 font-black px-3 py-1.5 rounded-xl text-xs flex items-center gap-1"
             >
-              <Link2 className="w-4 h-4" /> نسخ رابط دخول الموظفين المباشر
+              <Link2 className="w-3.5 h-3.5" /> نسخ رابط الموظفين
             </button>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-            <form onSubmit={handleAddStaffMember} className="lg:col-span-5 bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 h-fit text-xs">
-              <h3 className="font-black text-sm text-slate-800 border-b border-slate-200 pb-2">
-                + إضافة موظف / فني جديد بكود خاص
-              </h3>
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">اسم الموظف / المهندس:</label>
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
+            <form onSubmit={handleAddStaffMember} className="lg:col-span-5 bg-slate-50 border border-slate-200 rounded-2xl p-3 space-y-2.5 text-xs">
+              <h3 className="font-black text-slate-800">+ إضافة موظف جديد بكود خاص</h3>
+              <input
+                type="text"
+                placeholder="اسم الموظف / المهندس"
+                value={newStaffForm.name}
+                onChange={(e) => setNewStaffForm({ ...newStaffForm, name: e.target.value })}
+                className="w-full border border-slate-300 rounded-xl p-2 bg-white font-bold"
+              />
+              <div className="grid grid-cols-2 gap-2">
                 <input
                   type="text"
-                  placeholder="مثلاً: م. أحمد طارق"
-                  value={newStaffForm.name}
-                  onChange={(e) => setNewStaffForm({ ...newStaffForm, name: e.target.value })}
-                  className="w-full border border-slate-300 rounded-xl p-2 bg-white font-bold"
+                  placeholder="الكود (مثلاً 5544)"
+                  value={newStaffForm.pin}
+                  onChange={(e) => setNewStaffForm({ ...newStaffForm, pin: e.target.value })}
+                  className="border border-slate-300 rounded-xl p-2 bg-white font-mono font-bold text-center"
                 />
+                <select
+                  value={newStaffForm.role}
+                  onChange={(e) => setNewStaffForm({ ...newStaffForm, role: e.target.value })}
+                  className="border border-slate-300 rounded-xl p-2 bg-white font-bold"
+                >
+                  <option value="tech">فني / مهندس</option>
+                  <option value="manager">مدير</option>
+                </select>
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">كود الدخول الشخصي (PIN):</label>
-                  <input
-                    type="text"
-                    placeholder="5544"
-                    value={newStaffForm.pin}
-                    onChange={(e) => setNewStaffForm({ ...newStaffForm, pin: e.target.value })}
-                    className="w-full border border-slate-300 rounded-xl p-2 bg-white font-mono font-bold text-center"
-                  />
-                </div>
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">الصلاحية:</label>
-                  <select
-                    value={newStaffForm.role}
-                    onChange={(e) => setNewStaffForm({ ...newStaffForm, role: e.target.value })}
-                    className="w-full border border-slate-300 rounded-xl p-2 bg-white font-bold"
-                  >
-                    <option value="tech">فني / مهندس وردية</option>
-                    <option value="manager">مدير / مشرف عام</option>
-                  </select>
-                </div>
-              </div>
-              <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-2.5 rounded-xl shadow">
-                حفظ وتفعيل كود الموظف
+              <button type="submit" className="w-full bg-blue-600 text-white font-black py-2 rounded-xl">
+                حفظ كود الموظف
               </button>
             </form>
 
-            <div className="lg:col-span-7 space-y-2.5">
+            <div className="lg:col-span-7 space-y-2">
               {staffList.map((emp) => (
                 <div
                   key={emp.id}
-                  className={`p-3.5 rounded-2xl border flex flex-wrap justify-between items-center gap-2 text-xs ${
-                    emp.active ? 'bg-white border-slate-200' : 'bg-red-50/60 border-red-200 opacity-75'
-                  }`}
+                  className="p-3 rounded-xl border bg-white border-slate-200 flex justify-between items-center text-xs"
                 >
                   <div>
-                    <span className="font-black text-sm text-slate-900">{emp.name}</span>
-                    <p className="text-slate-500 font-bold mt-1">
-                      كود الدخول: <strong className="font-mono text-blue-700 text-sm">{emp.pin}</strong>
+                    <span className="font-black text-slate-900">{emp.name}</span>
+                    <p className="text-slate-500 font-bold">
+                      الكود: <strong className="font-mono text-blue-700">{emp.pin}</strong>
                     </p>
                   </div>
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex gap-1.5">
                     <button
                       onClick={() => handleToggleStaffActive(emp.id)}
-                      className={`px-3 py-1.5 rounded-xl font-bold ${
-                        emp.active ? 'bg-amber-100 text-amber-900' : 'bg-emerald-600 text-white'
-                      }`}
+                      className="px-2.5 py-1 rounded-lg font-bold bg-amber-100 text-amber-900"
                     >
                       {emp.active ? 'إيقاف' : 'تفعيل'}
                     </button>
-                    <button
-                      onClick={() => handleDeleteStaff(emp.id)}
-                      className="bg-red-50 text-red-600 p-1.5 rounded-xl border border-red-200"
-                    >
+                    <button onClick={() => handleDeleteStaff(emp.id)} className="text-red-600 p-1">
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
@@ -4094,24 +3680,24 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
 
       {/* ===== 7. الأرشيف والتقارير ===== */}
       {activeTab === 'archive' && (
-        <div className="flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 p-3 sm:p-4 space-y-4">
-          <div className="flex flex-wrap justify-between items-center gap-2 border-b border-slate-100 pb-3">
-            <h2 className="font-black text-sm sm:text-base text-slate-900">أرشيف الورديات والتقارير الشاملة</h2>
+        <div className="flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 p-2.5 sm:p-4 space-y-3">
+          <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
+            <h2 className="font-black text-xs sm:text-base text-slate-900">أرشيف الورديات والتقارير</h2>
             {exportButtons}
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
             {sortedDates.map((date) => {
               const day = groupedArchive[date];
               return (
-                <div key={date} className="bg-slate-50 border border-slate-200 rounded-2xl overflow-hidden">
-                  <div className="bg-slate-900 text-white p-2.5 flex justify-between items-center text-xs font-bold">
+                <div key={date} className="bg-slate-50 border border-slate-200 rounded-xl overflow-hidden">
+                  <div className="bg-slate-900 text-white p-2 flex justify-between items-center text-xs font-bold">
                     <span>يوم {day.dayName}</span>
                     <span className="font-mono text-[10px] text-amber-400">{date}</span>
                   </div>
-                  <div className="p-2.5 space-y-1.5 text-xs">
+                  <div className="p-2 space-y-1 text-xs">
                     {day.shiftsList.map((log, i) => (
-                      <div key={i} className="flex justify-between items-center p-2 bg-white rounded-xl border border-slate-200 font-bold">
-                        <span>{log.shift} ({log.by || 'فني'})</span>
+                      <div key={i} className="flex justify-between items-center p-1.5 bg-white rounded-lg border border-slate-200 font-bold">
+                        <span>{log.shift}</span>
                         <span className="font-mono text-emerald-700">{log.billets} ب | {log.tons.toFixed(1)} ط</span>
                       </div>
                     ))}

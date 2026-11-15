@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Calculator, Building2, Zap, Key, X, PlusCircle,
-  Lock, ArrowLeft, ShieldCheck, CheckCircle2, Sparkles, Layers
+  Lock, ArrowLeft, Sparkles
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
@@ -54,7 +54,6 @@ const DEFAULT_FACTORIES = [
    2. البوابة الرئيسية والموزع الذكي بالروابط (App Router)
    ====================================================== */
 export default function App() {
-  // قراءة الوضع المبدئي من الرابط لدعم تحديث الصفحة وزر الرجوع
   const getInitialRoute = () => {
     const params = new URLSearchParams(window.location.search);
     const modeParam = params.get('mode');
@@ -65,7 +64,7 @@ export default function App() {
     return 'select';
   };
 
-  const [appMode, setAppModeState] = useState(getInitialRoute); // 'select' | 'public' | 'factory_gate' | 'factory_inside'
+  const [appMode, setAppModeState] = useState(getInitialRoute);
   const [userAuth, setUserAuth] = useState(null);
 
   const [factoriesList, setFactoriesList] = useState(DEFAULT_FACTORIES);
@@ -81,7 +80,7 @@ export default function App() {
   const [factoryCodeInput, setFactoryCodeInput] = useState('');
   const [gateError, setGateError] = useState('');
 
-  // لوحة تحكم المصمم السرية (تفتح عند الضغط 5 مرات على اللوجو)
+  // لوحة تحكم المصمم السرية (5 ضغطات على اللوجو)
   const [logoClicks, setLogoClicks] = useState(0);
   const [showCreatorModal, setShowCreatorModal] = useState(false);
   const [creatorPin, setCreatorPin] = useState('');
@@ -93,7 +92,6 @@ export default function App() {
     managerCode: '2222'
   });
 
-  // دالة التنقل الذكية التي تحدث الرابط في المتصفح وتدعم زر الرجوع في الموبايل
   const navigateToMode = (nextMode, factoryObj = null) => {
     setAppModeState(nextMode);
     if (factoryObj) {
@@ -120,7 +118,6 @@ export default function App() {
     window.history.pushState({ mode: nextMode, factoryId: factoryObj?.id || null }, '', newUrl);
   };
 
-  // الاستماع لزر الرجوع في المتصفح أو الموبايل (popstate)
   useEffect(() => {
     const handlePopState = () => {
       const params = new URLSearchParams(window.location.search);
@@ -151,7 +148,6 @@ export default function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, [factoriesList]);
 
-  // الاتصال بـ Firebase وجلب قائمة المصانع المسجلة سحابياً
   useEffect(() => {
     if (!auth) return;
     signInAnonymously(auth).catch((e) => console.error(e));
@@ -172,7 +168,6 @@ export default function App() {
     return () => unsub();
   }, [userAuth]);
 
-  // التحقق من الرابط المباشر للموظفين (?f=...) فور تحميل قائمة المصانع من السحابة
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const directFactoryId = params.get('f');
@@ -254,12 +249,10 @@ export default function App() {
     navigateToMode('factory_inside', found);
   };
 
-  /* ---------- 1. بوابة المهندسين والحسابات العامة ---------- */
   if (appMode === 'public') {
     return <PublicPortal onBack={() => navigateToMode('select')} />;
   }
 
-  /* ---------- 2. داخل نظام المصنع المعزول سحابياً ---------- */
   if (appMode === 'factory_inside' && activeFactory) {
     return (
       <FactoryPortal
@@ -270,22 +263,22 @@ export default function App() {
     );
   }
 
-  /* ---------- 3. شاشة إدخال كود تفعيل المصنع ---------- */
+  /* ---------- شاشة إدخال كود تفعيل المصنع (مضبوطة للموبايل واللابتوب) ---------- */
   if (appMode === 'factory_gate') {
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4 font-sans text-slate-900" dir="rtl">
-        <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 max-w-md w-full text-center shadow-xl space-y-5">
-          <div className="w-16 h-16 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl flex items-center justify-center mx-auto shadow-md shadow-emerald-500/20">
-            <Lock className="w-8 h-8 text-white" />
+      <div className="min-h-dvh bg-slate-50 flex flex-col items-center justify-center p-3.5 sm:p-6 font-sans text-slate-900" dir="rtl">
+        <div className="bg-white border border-slate-200 rounded-2xl sm:rounded-3xl p-5 sm:p-8 max-w-sm sm:max-w-md w-full text-center shadow-lg space-y-4 sm:space-y-5">
+          <div className="w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl flex items-center justify-center mx-auto shadow-md shadow-emerald-500/20">
+            <Lock className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
           </div>
           <div>
-            <h2 className="text-xl sm:text-2xl font-black text-slate-900">بوابة دخول المصانع</h2>
-            <p className="text-xs text-slate-500 font-bold mt-1 leading-relaxed">
+            <h2 className="text-lg sm:text-2xl font-black text-slate-900">بوابة دخول المصانع</h2>
+            <p className="text-[11px] sm:text-xs text-slate-500 font-bold mt-1 leading-relaxed">
               أدخل كود المصنع الخاص بكم لفتح قاعدة البيانات السحابية المستقلة
             </p>
           </div>
 
-          <form onSubmit={handleVerifyFactoryCode} className="space-y-3.5">
+          <form onSubmit={handleVerifyFactoryCode} className="space-y-3">
             <input
               type="text"
               autoFocus
@@ -295,16 +288,16 @@ export default function App() {
                 setGateError('');
               }}
               placeholder="مثال: GIOSHY-2026"
-              className="w-full bg-slate-50 border-2 border-slate-300 focus:border-emerald-600 focus:bg-white rounded-2xl p-3.5 text-center font-mono text-base sm:text-lg font-black text-slate-900 uppercase tracking-wider outline-none transition-all"
+              className="w-full bg-slate-50 border-2 border-slate-300 focus:border-emerald-600 focus:bg-white rounded-xl sm:rounded-2xl p-3 sm:p-3.5 text-center font-mono text-sm sm:text-lg font-black text-slate-900 uppercase tracking-wider outline-none transition-all"
             />
             {gateError && (
-              <p className="text-xs font-bold text-red-600 bg-red-50 border border-red-200 p-2.5 rounded-xl">
+              <p className="text-[11px] sm:text-xs font-bold text-red-600 bg-red-50 border border-red-200 p-2 rounded-xl">
                 {gateError}
               </p>
             )}
             <button
               type="submit"
-              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-3.5 rounded-2xl shadow-md transition-all text-sm"
+              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-3 sm:py-3.5 rounded-xl sm:rounded-2xl shadow-md transition-all text-xs sm:text-sm"
             >
               فتح نظام المصنع
             </button>
@@ -325,72 +318,83 @@ export default function App() {
     );
   }
 
-  /* ---------- 4. الشاشة الرئيسية الاحترافية (Clean Professional Light UI) ---------- */
+  /* ---------- الشاشة الرئيسية (مضبوطة للموبايل لتظهر بالكامل بدون زحام، وبحجم كامل على اللابتوب) ---------- */
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col justify-between p-4 sm:p-6 font-sans" dir="rtl">
-      {/* الهيدر العلوي */}
-      <header className="max-w-4xl w-full mx-auto pt-2 sm:pt-4 flex items-center justify-between">
+    <div className="min-h-dvh bg-slate-50 text-slate-900 flex flex-col justify-between px-3.5 py-3 sm:p-6 font-sans" dir="rtl">
+      {/* الهيدر العلوي المدمج للموبايل */}
+      <header className="max-w-4xl w-full mx-auto pt-1 sm:pt-4 flex items-center justify-between">
         <div
           onClick={handleTitleClick}
           title="اضغط 5 مرات لفتح لوحة المصمم"
-          className="flex items-center gap-2.5 cursor-pointer select-none group"
+          className="flex items-center gap-2 sm:gap-2.5 cursor-pointer select-none group"
         >
-          <div className="bg-gradient-to-br from-blue-600 to-indigo-600 p-2.5 rounded-2xl shadow-md shadow-blue-600/25 group-active:scale-95 transition-transform">
-            <Zap className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+          <div className="bg-gradient-to-br from-blue-600 to-indigo-600 p-2 sm:p-2.5 rounded-xl sm:rounded-2xl shadow-md shadow-blue-600/25 group-active:scale-95 transition-transform">
+            <Zap className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
           </div>
           <div>
-            <h1 className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight leading-none">
+            <h1 className="text-base sm:text-2xl font-black text-slate-900 tracking-tight leading-none">
               Steel<span className="text-blue-600">Portal</span>
             </h1>
-            <span className="text-[10px] sm:text-xs font-bold text-slate-500">
-              المنصة الرقمية لهندسة الدرفلة وإدارة المصانع
+            <span className="text-[9px] sm:text-xs font-bold text-slate-500 block mt-0.5">
+              منصة هندسة الدرفلة وإدارة المصانع
             </span>
           </div>
         </div>
 
-        <span className="bg-white text-blue-700 border border-blue-200 shadow-sm text-[11px] font-black px-3 py-1.5 rounded-full flex items-center gap-1.5">
-          <Sparkles className="w-3.5 h-3.5 text-amber-500" /> إصدار 2026
+        <span className="bg-white text-blue-700 border border-blue-200 shadow-sm text-[10px] sm:text-[11px] font-black px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full flex items-center gap-1">
+          <Sparkles className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-500" /> إصدار 2026
         </span>
       </header>
 
-      {/* منطقة المنتصف: بطاقات البوابات الاحترافية */}
-      <main className="max-w-4xl w-full mx-auto my-auto py-6 space-y-6">
-        <div className="text-center space-y-1.5 px-2">
-          <h2 className="text-2xl sm:text-4xl font-black text-slate-900 tracking-tight">
+      {/* منطقة المنتصف */}
+      <main className="max-w-4xl w-full mx-auto my-auto py-3 sm:py-6 space-y-3.5 sm:space-y-6">
+        <div className="text-center space-y-1 px-1">
+          <h2 className="text-lg sm:text-4xl font-black text-slate-900 tracking-tight">
             بوابة صناعة الحديد والدرفلة الذكية
           </h2>
-          <p className="text-xs sm:text-sm text-slate-500 font-bold max-w-xl mx-auto">
-            أدوات هندسية وحاسبات باس ديزاين ومعمل جودة مجانية للمهندسين، أو نظام سحابي متكامل لإدارة تشغيل المصانع
+          <p className="text-[11px] sm:text-sm text-slate-500 font-bold max-w-xl mx-auto leading-relaxed">
+            أدوات هندسية وحاسبات باس ديزاين ومعمل جودة مجانية، أو نظام سحابي لإدارة تشغيل المصانع
           </p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-6">
           {/* البطاقة الأولى: بوابة المهندسين والفنيين */}
           <div
             onClick={() => navigateToMode('public')}
-            className="group bg-white border-2 border-slate-200/90 hover:border-blue-600 rounded-3xl p-5 sm:p-7 cursor-pointer transition-all shadow-sm hover:shadow-xl hover:-translate-y-1 flex flex-col justify-between gap-5"
+            className="group bg-white border-2 border-slate-200/90 hover:border-blue-600 rounded-2xl sm:rounded-3xl p-4 sm:p-7 cursor-pointer transition-all shadow-sm hover:shadow-xl sm:hover:-translate-y-1 flex flex-col justify-between gap-3.5 sm:gap-5"
           >
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="w-14 h-14 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-blue-600/25 group-hover:scale-105 transition-transform">
-                  <Calculator className="w-7 h-7" strokeWidth={2.2} />
+            <div className="space-y-2.5 sm:space-y-4">
+              {/* على الموبايل الأيقونة والعنوان والشارة في صف متناسق مدمج، وعلى اللابتوب بالحجم الكبير */}
+              <div className="flex items-center sm:items-start justify-between gap-3">
+                <div className="flex items-center gap-3 sm:block">
+                  <div className="w-11 h-11 sm:w-14 sm:h-14 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl sm:rounded-2xl flex items-center justify-center text-white shadow-md shadow-blue-600/20 shrink-0 group-hover:scale-105 transition-transform">
+                    <Calculator className="w-5 h-5 sm:w-7 sm:h-7" strokeWidth={2.2} />
+                  </div>
+                  <div className="sm:hidden">
+                    <span className="text-[9px] font-black bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full inline-block mb-0.5">
+                      مفتوح مجاناً للجميع
+                    </span>
+                    <h3 className="text-base font-black text-slate-900 leading-snug">
+                      بوابة المهندسين والحسابات
+                    </h3>
+                  </div>
                 </div>
-                <span className="text-[11px] font-black bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1 rounded-full">
+                <span className="hidden sm:inline-block text-[11px] font-black bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1 rounded-full">
                   مفتوح مجاناً للجميع
                 </span>
               </div>
 
-              <div className="space-y-1.5">
-                <h3 className="text-lg sm:text-2xl font-black text-slate-900">
+              <div className="space-y-1">
+                <h3 className="hidden sm:block text-2xl font-black text-slate-900">
                   بوابة المهندسين والحسابات
                 </h3>
-                <p className="text-xs sm:text-sm text-slate-600 leading-relaxed font-bold">
+                <p className="text-[11px] sm:text-sm text-slate-600 leading-relaxed font-bold">
                   تصميم الممرات (بيضاوي ← مبروم)، حاسبة المقص الطائر وأسياخ العميل، معمل الجودة والشد، حسابات الكابلات والكهرباء، والشات الفني السحابي.
                 </p>
               </div>
             </div>
 
-            <div className="w-full bg-blue-600 group-hover:bg-blue-700 text-white font-black py-3.5 px-4 rounded-2xl text-xs sm:text-sm flex items-center justify-between shadow-md shadow-blue-600/15 transition-colors">
+            <div className="w-full bg-blue-600 group-hover:bg-blue-700 text-white font-black py-2.5 sm:py-3.5 px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm flex items-center justify-between shadow-sm transition-colors">
               <span>فتح الحاسبات والمجتمع الفني</span>
               <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
             </div>
@@ -399,29 +403,39 @@ export default function App() {
           {/* البطاقة الثانية: نظام إدارة المصانع SaaS */}
           <div
             onClick={() => navigateToMode('factory_gate')}
-            className="group bg-white border-2 border-slate-200/90 hover:border-emerald-600 rounded-3xl p-5 sm:p-7 cursor-pointer transition-all shadow-sm hover:shadow-xl hover:-translate-y-1 flex flex-col justify-between gap-5"
+            className="group bg-white border-2 border-slate-200/90 hover:border-emerald-600 rounded-2xl sm:rounded-3xl p-4 sm:p-7 cursor-pointer transition-all shadow-sm hover:shadow-xl sm:hover:-translate-y-1 flex flex-col justify-between gap-3.5 sm:gap-5"
           >
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="w-14 h-14 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-emerald-600/25 group-hover:scale-105 transition-transform">
-                  <Building2 className="w-7 h-7" strokeWidth={2.2} />
+            <div className="space-y-2.5 sm:space-y-4">
+              <div className="flex items-center sm:items-start justify-between gap-3">
+                <div className="flex items-center gap-3 sm:block">
+                  <div className="w-11 h-11 sm:w-14 sm:h-14 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl sm:rounded-2xl flex items-center justify-center text-white shadow-md shadow-emerald-600/20 shrink-0 group-hover:scale-105 transition-transform">
+                    <Building2 className="w-5 h-5 sm:w-7 sm:h-7" strokeWidth={2.2} />
+                  </div>
+                  <div className="sm:hidden">
+                    <span className="text-[9px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full inline-block mb-0.5">
+                      نظام المصانع (SaaS)
+                    </span>
+                    <h3 className="text-base font-black text-slate-900 leading-snug">
+                      منظومة تشغيل وإدارة المصانع
+                    </h3>
+                  </div>
                 </div>
-                <span className="text-[11px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-1 rounded-full">
+                <span className="hidden sm:inline-block text-[11px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-1 rounded-full">
                   نظام المصانع (SaaS)
                 </span>
               </div>
 
-              <div className="space-y-1.5">
-                <h3 className="text-lg sm:text-2xl font-black text-slate-900">
+              <div className="space-y-1">
+                <h3 className="hidden sm:block text-2xl font-black text-slate-900">
                   منظومة تشغيل وإدارة المصانع
                 </h3>
-                <p className="text-xs sm:text-sm text-slate-600 leading-relaxed font-bold">
+                <p className="text-[11px] sm:text-sm text-slate-600 leading-relaxed font-bold">
                   قاعدة بيانات سحابية معزولة لكل مصنع لمتابعة أعمار الممرات والدرافيل، حرارة وصيانة المواتير، أعطال الورديات، واستخراج تقارير Excel و PDF.
                 </p>
               </div>
             </div>
 
-            <div className="w-full bg-slate-900 group-hover:bg-emerald-600 text-white font-black py-3.5 px-4 rounded-2xl text-xs sm:text-sm flex items-center justify-between shadow-md transition-colors">
+            <div className="w-full bg-slate-900 group-hover:bg-emerald-600 text-white font-black py-2.5 sm:py-3.5 px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm flex items-center justify-between shadow-sm transition-colors">
               <span>الدخول بكود المصنع</span>
               <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
             </div>
@@ -430,16 +444,16 @@ export default function App() {
       </main>
 
       {/* الفوتر */}
-      <footer className="max-w-4xl w-full mx-auto text-center py-3 border-t border-slate-200/80 text-[11px] text-slate-500 font-bold">
+      <footer className="max-w-4xl w-full mx-auto text-center py-2 sm:py-3 border-t border-slate-200/80 text-[10px] sm:text-[11px] text-slate-500 font-bold">
         تصميم وتطوير <span className="text-blue-600 font-black">م. بسام وليد (Controlexa)</span> © 2026
       </footer>
 
       {/* نافذة المصمم السرية لإدارة المصانع */}
       {showCreatorModal && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white border border-slate-200 rounded-3xl max-w-xl w-full p-5 sm:p-6 space-y-4 text-slate-900 shadow-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center border-b border-slate-200 pb-3">
-              <h3 className="font-black text-base text-slate-900 flex items-center gap-2">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white border border-slate-200 rounded-2xl sm:rounded-3xl max-w-xl w-full p-4 sm:p-6 space-y-4 text-slate-900 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center border-b border-slate-200 pb-2.5">
+              <h3 className="font-black text-sm sm:text-base text-slate-900 flex items-center gap-2">
                 <Key size={18} className="text-amber-500" /> لوحة م. بسام السرية - إدارة المصانع
               </h3>
               <button onClick={() => setShowCreatorModal(false)} className="text-slate-400 hover:text-slate-700">
@@ -455,54 +469,54 @@ export default function App() {
                   value={creatorPin}
                   onChange={(e) => setCreatorPin(e.target.value)}
                   placeholder="Master PIN"
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-center font-mono text-lg outline-none focus:border-blue-600"
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-center font-mono text-base outline-none focus:border-blue-600"
                 />
                 <button
                   onClick={() =>
                     creatorPin === '2026' || creatorPin === 'beso' ? setCreatorUnlocked(true) : alert('كود غير صحيح')
                   }
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-3 rounded-xl text-sm"
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-2.5 rounded-xl text-xs sm:text-sm"
                 >
                   فتح لوحة التحكم
                 </button>
               </div>
             ) : (
               <div className="space-y-4">
-                <form onSubmit={handleAddFactory} className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
+                <form onSubmit={handleAddFactory} className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-2.5">
                   <h4 className="text-xs font-black text-slate-800 flex items-center gap-1.5">
                     <PlusCircle size={15} className="text-blue-600" /> إنشاء مصنع جديد بقاعدة بيانات منفصلة
                   </h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <input
                       type="text"
                       placeholder="اسم المصنع (مثلاً: حديد العبور)"
                       value={newFactory.name}
                       onChange={(e) => setNewFactory({ ...newFactory, name: e.target.value })}
-                      className="bg-white border border-slate-300 rounded-xl p-2.5 text-xs text-slate-900 font-bold"
+                      className="bg-white border border-slate-300 rounded-xl p-2 text-xs text-slate-900 font-bold"
                     />
                     <input
                       type="text"
                       placeholder="كود دخول المصنع (مثلاً: OBOUR-2026)"
                       value={newFactory.code}
                       onChange={(e) => setNewFactory({ ...newFactory, code: e.target.value })}
-                      className="bg-white border border-slate-300 rounded-xl p-2.5 text-xs text-slate-900 font-mono font-bold uppercase"
+                      className="bg-white border border-slate-300 rounded-xl p-2 text-xs text-slate-900 font-mono font-bold uppercase"
                     />
                     <input
                       type="text"
                       placeholder="كود فني الإنتاج (1111)"
                       value={newFactory.techCode}
                       onChange={(e) => setNewFactory({ ...newFactory, techCode: e.target.value })}
-                      className="bg-white border border-slate-300 rounded-xl p-2.5 text-xs text-slate-900 font-mono"
+                      className="bg-white border border-slate-300 rounded-xl p-2 text-xs text-slate-900 font-mono"
                     />
                     <input
                       type="text"
                       placeholder="كود مدير المصنع (2222)"
                       value={newFactory.managerCode}
                       onChange={(e) => setNewFactory({ ...newFactory, managerCode: e.target.value })}
-                      className="bg-white border border-slate-300 rounded-xl p-2.5 text-xs text-slate-900 font-mono"
+                      className="bg-white border border-slate-300 rounded-xl p-2 text-xs text-slate-900 font-mono"
                     />
                   </div>
-                  <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-xl text-xs">
+                  <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-xl text-xs">
                     + حفظ وتفعيل كود المصنع
                   </button>
                 </form>
@@ -511,11 +525,11 @@ export default function App() {
                   {factoriesList.map((f) => (
                     <div
                       key={f.code}
-                      className="bg-slate-50 p-3 rounded-xl border border-slate-200 flex flex-wrap justify-between items-center gap-2 text-xs"
+                      className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 flex flex-wrap justify-between items-center gap-2 text-xs"
                     >
                       <div>
                         <span className="font-black text-slate-900">{f.name}</span>
-                        <p className="text-blue-700 font-mono font-bold mt-0.5">
+                        <p className="text-blue-700 font-mono font-bold mt-0.5 text-[11px]">
                           الكود: {f.code} | فني: {f.techCode} | مدير: {f.managerCode}
                         </p>
                       </div>
@@ -525,13 +539,13 @@ export default function App() {
                             setShowCreatorModal(false);
                             navigateToMode('factory_inside', f);
                           }}
-                          className="bg-blue-600 text-white px-3 py-1.5 rounded-lg font-bold"
+                          className="bg-blue-600 text-white px-2.5 py-1 rounded-lg font-bold text-[11px]"
                         >
                           دخول مباشر
                         </button>
                         <button
                           onClick={() => toggleFactoryStatus(f.code)}
-                          className="bg-slate-200 hover:bg-slate-300 text-slate-800 px-3 py-1.5 rounded-lg font-bold"
+                          className="bg-slate-200 hover:bg-slate-300 text-slate-800 px-2.5 py-1 rounded-lg font-bold text-[11px]"
                         >
                           {f.status === 'active' ? 'إيقاف' : 'تفعيل'}
                         </button>
