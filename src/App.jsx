@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Calculator, Building2, Zap, Key, X, PlusCircle,
-  Lock, ArrowLeft, Sparkles
+  Lock, ArrowLeft, Sparkles, Trash2
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
@@ -54,6 +54,7 @@ const DEFAULT_FACTORIES = [
    2. البوابة الرئيسية والموزع الذكي بالروابط (App Router)
    ====================================================== */
 export default function App() {
+  // قراءة الوضع المبدئي من الرابط لدعم تحديث الصفحة وزر الرجوع في الموبايل
   const getInitialRoute = () => {
     const params = new URLSearchParams(window.location.search);
     const modeParam = params.get('mode');
@@ -64,7 +65,7 @@ export default function App() {
     return 'select';
   };
 
-  const [appMode, setAppModeState] = useState(getInitialRoute);
+  const [appMode, setAppModeState] = useState(getInitialRoute); // 'select' | 'public' | 'factory_gate' | 'factory_inside'
   const [userAuth, setUserAuth] = useState(null);
 
   const [factoriesList, setFactoriesList] = useState(DEFAULT_FACTORIES);
@@ -72,7 +73,7 @@ export default function App() {
     const params = new URLSearchParams(window.location.search);
     const fParam = params.get('f');
     if (fParam) {
-      return DEFAULT_FACTORIES.find((x) => x.id === fParam || x.code === fParam) || DEFAULT_FACTORIES[0];
+      return DEFAULT_FACTORIES.find((x) => x.id === fParam || x.code === fParam) || null;
     }
     return null;
   });
@@ -80,7 +81,7 @@ export default function App() {
   const [factoryCodeInput, setFactoryCodeInput] = useState('');
   const [gateError, setGateError] = useState('');
 
-  // لوحة تحكم المصمم السرية (5 ضغطات على اللوجو)
+  // لوحة تحكم المصمم السرية (تفتح عند الضغط 5 مرات على اللوجو)
   const [logoClicks, setLogoClicks] = useState(0);
   const [showCreatorModal, setShowCreatorModal] = useState(false);
   const [creatorPin, setCreatorPin] = useState('');
@@ -92,6 +93,7 @@ export default function App() {
     managerCode: '2222'
   });
 
+  // دالة التنقل الذكية التي تحدث الرابط في المتصفح وتدعم زر الرجوع في الموبايل
   const navigateToMode = (nextMode, factoryObj = null) => {
     setAppModeState(nextMode);
     if (factoryObj) {
@@ -118,6 +120,7 @@ export default function App() {
     window.history.pushState({ mode: nextMode, factoryId: factoryObj?.id || null }, '', newUrl);
   };
 
+  // الاستماع لزر الرجوع في المتصفح أو الموبايل (popstate)
   useEffect(() => {
     const handlePopState = () => {
       const params = new URLSearchParams(window.location.search);
@@ -133,10 +136,12 @@ export default function App() {
         }
       }
       if (modeParam === 'public') {
+        setActiveFactory(null);
         setAppModeState('public');
         return;
       }
       if (modeParam === 'factory_gate') {
+        setActiveFactory(null);
         setAppModeState('factory_gate');
         return;
       }
@@ -148,6 +153,7 @@ export default function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, [factoriesList]);
 
+  // الاتصال بـ Firebase وجلب قائمة المصانع المسجلة سحابياً
   useEffect(() => {
     if (!auth) return;
     signInAnonymously(auth).catch((e) => console.error(e));
@@ -168,6 +174,7 @@ export default function App() {
     return () => unsub();
   }, [userAuth]);
 
+  // التحقق من الرابط المباشر للموظفين (?f=...) فور تحميل قائمة المصانع من السحابة
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const directFactoryId = params.get('f');
@@ -201,6 +208,7 @@ export default function App() {
     }
   };
 
+  // إنشاء مصنع جديد بمسار قاعدة بيانات مستقل ونظيف 100%
   const handleAddFactory = async (e) => {
     e.preventDefault();
     if (!newFactory.name.trim() || !newFactory.code.trim()) return;
@@ -209,7 +217,7 @@ export default function App() {
       alert('هذا الكود مستخدم لمصنع آخر بالفعل!');
       return;
     }
-    const uniqueDbId = `tenant_${cleanCode.toLowerCase().replace(/[^a-z0-9]/g, '_')}_${Date.now().toString().slice(-4)}`;
+    const uniqueDbId = `tenant_${cleanCode.toLowerCase().replace(/[^a-z0-9]/g, '_')}_${Date.now().toString().slice(-5)}`;
     const item = {
       id: uniqueDbId,
       code: cleanCode,
@@ -232,6 +240,16 @@ export default function App() {
     await saveFactoriesToCloud(updated);
   };
 
+  const handleDeleteFactory = async (code) => {
+    if (code === 'GIOSHY-2026') {
+      alert('لا يمكن حذف المصنع الرئيسي الافتراضي.');
+      return;
+    }
+    if (!window.confirm('هل أنت متأكد من حذف هذا المصنع من قائمة المصانع المسجلة؟')) return;
+    const updated = factoriesList.filter((f) => f.code !== code);
+    await saveFactoriesToCloud(updated);
+  };
+
   const handleVerifyFactoryCode = (e) => {
     e.preventDefault();
     const entered = factoryCodeInput.trim().toUpperCase();
@@ -249,13 +267,16 @@ export default function App() {
     navigateToMode('factory_inside', found);
   };
 
+  /* ---------- 1. بوابة المهندسين والحسابات العامة ---------- */
   if (appMode === 'public') {
     return <PublicPortal onBack={() => navigateToMode('select')} />;
   }
 
+  /* ---------- 2. داخل نظام المصنع المعزول سحابياً (بمفتاح key مستقل لكل مصنع) ---------- */
   if (appMode === 'factory_inside' && activeFactory) {
     return (
       <FactoryPortal
+        key={activeFactory.id} // يفصل الذاكرة والبيانات تماماً بين كل مصنع وآخر
         onBack={() => navigateToMode('select')}
         factoryConfig={activeFactory}
         factoriesList={[]}
@@ -263,7 +284,7 @@ export default function App() {
     );
   }
 
-  /* ---------- شاشة إدخال كود تفعيل المصنع (مضبوطة للموبايل واللابتوب) ---------- */
+  /* ---------- 3. شاشة إدخال كود تفعيل المصنع (مضبوطة للموبايل واللابتوب) ---------- */
   if (appMode === 'factory_gate') {
     return (
       <div className="min-h-dvh bg-slate-50 flex flex-col items-center justify-center p-3.5 sm:p-6 font-sans text-slate-900" dir="rtl">
@@ -318,7 +339,7 @@ export default function App() {
     );
   }
 
-  /* ---------- الشاشة الرئيسية (مضبوطة للموبايل لتظهر بالكامل بدون زحام، وبحجم كامل على اللابتوب) ---------- */
+  /* ---------- 4. الشاشة الرئيسية (مضبوطة للموبايل واللابتوب) ---------- */
   return (
     <div className="min-h-dvh bg-slate-50 text-slate-900 flex flex-col justify-between px-3.5 py-3 sm:p-6 font-sans" dir="rtl">
       {/* الهيدر العلوي المدمج للموبايل */}
@@ -353,7 +374,7 @@ export default function App() {
             بوابة صناعة الحديد والدرفلة الذكية
           </h2>
           <p className="text-[11px] sm:text-sm text-slate-500 font-bold max-w-xl mx-auto leading-relaxed">
-            أدوات هندسية وحاسبات باس ديزاين ومعمل جودة مجانية، أو نظام سحابي لإدارة تشغيل المصانع
+            أدوات هندسية وحاسبات باس ديزاين ومعمل جودة مجانية، أو نظام سحابي مستقل لإدارة تشغيل المصانع
           </p>
         </div>
 
@@ -364,7 +385,6 @@ export default function App() {
             className="group bg-white border-2 border-slate-200/90 hover:border-blue-600 rounded-2xl sm:rounded-3xl p-4 sm:p-7 cursor-pointer transition-all shadow-sm hover:shadow-xl sm:hover:-translate-y-1 flex flex-col justify-between gap-3.5 sm:gap-5"
           >
             <div className="space-y-2.5 sm:space-y-4">
-              {/* على الموبايل الأيقونة والعنوان والشارة في صف متناسق مدمج، وعلى اللابتوب بالحجم الكبير */}
               <div className="flex items-center sm:items-start justify-between gap-3">
                 <div className="flex items-center gap-3 sm:block">
                   <div className="w-11 h-11 sm:w-14 sm:h-14 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl sm:rounded-2xl flex items-center justify-center text-white shadow-md shadow-blue-600/20 shrink-0 group-hover:scale-105 transition-transform">
@@ -454,7 +474,7 @@ export default function App() {
           <div className="bg-white border border-slate-200 rounded-2xl sm:rounded-3xl max-w-xl w-full p-4 sm:p-6 space-y-4 text-slate-900 shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center border-b border-slate-200 pb-2.5">
               <h3 className="font-black text-sm sm:text-base text-slate-900 flex items-center gap-2">
-                <Key size={18} className="text-amber-500" /> لوحة م. بسام السرية - إدارة المصانع
+                <Key size={18} className="text-amber-500" /> لوحة م. بسام السرية - إدارة قواعد بيانات المصانع
               </h3>
               <button onClick={() => setShowCreatorModal(false)} className="text-slate-400 hover:text-slate-700">
                 <X size={20} />
@@ -484,7 +504,7 @@ export default function App() {
               <div className="space-y-4">
                 <form onSubmit={handleAddFactory} className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-2.5">
                   <h4 className="text-xs font-black text-slate-800 flex items-center gap-1.5">
-                    <PlusCircle size={15} className="text-blue-600" /> إنشاء مصنع جديد بقاعدة بيانات منفصلة
+                    <PlusCircle size={15} className="text-blue-600" /> إنشاء مصنع جديد بقاعدة بيانات منفصلة تماماً
                   </h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <input
@@ -517,11 +537,11 @@ export default function App() {
                     />
                   </div>
                   <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-xl text-xs">
-                    + حفظ وتفعيل كود المصنع
+                    + إنشاء قاعدة بيانات مستقلة وتفعيل الكود
                   </button>
                 </form>
 
-                <div className="space-y-2 max-h-56 overflow-y-auto">
+                <div className="space-y-2 max-h-60 overflow-y-auto">
                   {factoriesList.map((f) => (
                     <div
                       key={f.code}
@@ -532,8 +552,9 @@ export default function App() {
                         <p className="text-blue-700 font-mono font-bold mt-0.5 text-[11px]">
                           الكود: {f.code} | فني: {f.techCode} | مدير: {f.managerCode}
                         </p>
+                        <p className="text-[9px] text-slate-400 font-mono">DB: factory/{f.id}</p>
                       </div>
-                      <div className="flex gap-1.5">
+                      <div className="flex items-center gap-1.5">
                         <button
                           onClick={() => {
                             setShowCreatorModal(false);
@@ -549,6 +570,15 @@ export default function App() {
                         >
                           {f.status === 'active' ? 'إيقاف' : 'تفعيل'}
                         </button>
+                        {f.code !== 'GIOSHY-2026' && (
+                          <button
+                            onClick={() => handleDeleteFactory(f.code)}
+                            className="bg-red-50 text-red-600 p-1 rounded-lg border border-red-200"
+                            title="حذف المصنع"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
                       </div>
                     </div>
                   ))}

@@ -6,16 +6,16 @@ import {
   ShieldAlert, Key, Eye, Layers, Wrench, ArrowLeftRight,
   FileSpreadsheet, FileText, Inbox, Check, XCircle, Hourglass,
   Cpu, PlusCircle, Building2, FileSignature, BookMarked, Disc,
-  Share2, Copy, Users, Link2, Search, Thermometer
+  Share2, Copy, Users, Link2, Search, Thermometer, Database
 } from 'lucide-react';
 import { signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { doc, setDoc, onSnapshot } from 'firebase/firestore';
 import { auth, db } from './App';
 
 /* ======================================================
-   1. الثوابت الإعدادية والبيانات الافتراضية
+   1. الثوابت الإعدادية وبناء القوالب المعزولة لكل مصنع
    ====================================================== */
-const DEFAULT_STANDS_CONFIG = [
+const ALGIOSHY_STANDS_CONFIG = [
   { type: 'بيضاوي', rollCode: '111', diameter: '380', hardness: '42 HRC', totalPasses: 6, maxLimit: 2500 },
   { type: 'مربع', rollCode: '207', diameter: '374', hardness: '45 HRC', totalPasses: 9, maxLimit: 2500 },
   { type: 'بيضاوي', rollCode: '307', diameter: '356', hardness: '46 HRC', totalPasses: 10, maxLimit: 2000 },
@@ -30,64 +30,17 @@ const DEFAULT_STANDS_CONFIG = [
   { type: '16 mm', rollCode: 'F16/17', diameter: '332', hardness: '51 HRC', totalPasses: 24, maxLimit: 1000 }
 ].map((c, i) => ({ ...c, id: String(i + 1), name: `ستاند ${i + 1}` }));
 
-const DEFAULT_STAFF = [
-  { id: 'emp-1', name: 'م. بسام وليد', pin: '1111', role: 'tech', jobTitle: 'مشغل أول غرفة تحكم رئيسية', active: true },
-  { id: 'emp-2', name: 'مهندس الوردية', pin: '1234', role: 'tech', jobTitle: 'مهندس إنتاج ودرفلة', active: true }
-];
-
-const DEFAULT_RECIPES = [
-  {
-    id: 'rec-16',
-    name: 'وصفة حديد تسليح 16 مم (Single Strand)',
-    productSize: '16',
-    billetSize: '130×130 مم',
-    furnaceTemp: '1150 °C',
-    finishSpeed: '11.5 m/s',
-    qtbPressure: '8.5 bar',
-    qtbFlow: '420 m³/h',
-    flyingShearLen: '48 متر',
-    activeStandsCount: 12,
-    notes: 'ضبط ارتفاع اللوبر على 180 مم ومراجعة خلوص ق11 وق12.'
-  },
-  {
-    id: 'rec-12',
-    name: 'وصفة حديد تسليح 12 مم (شق ثنائي Two-Slit)',
-    productSize: '12',
-    billetSize: '130×130 مم',
-    furnaceTemp: '1170 °C',
-    finishSpeed: '13.5 m/s',
-    qtbPressure: '7.2 bar',
-    qtbFlow: '360 m³/h',
-    flyingShearLen: '48 متر',
-    activeStandsCount: 12,
-    notes: 'مراجعة سنترية دليل الشق (Slitter Guide) ومتابعة أمبير ق12.'
-  },
-  {
-    id: 'rec-flat-50',
-    name: 'وصفة خوصة 50×10 مم (Flat Bar)',
-    productSize: 'خوصة 50×10',
-    billetSize: '130×130 مم (طول 2م)',
-    furnaceTemp: '1140 °C',
-    finishSpeed: '2.5 m/s',
-    qtbPressure: 'مفصول (تبريد هواء)',
-    qtbFlow: '0 m³/h',
-    flyingShearLen: '36 متر',
-    activeStandsCount: 10,
-    notes: 'تشغيل القوائم الرأسية (V1 عند 1300 RPM و V2 عند 1100 RPM) لضبط الحواف.'
-  }
-];
-
-const DEFAULT_ROLL_SHOP = [
-  { id: 'rs1', code: 'RL-111-A', standName: 'ستاند 1', material: 'Spheroidal Graphite (SG)', maxDia: 400, currentDia: 380, minScrapDia: 340, redressCount: 2, totalTonsRolled: 12400, status: 'بالخدمة على الخط', lastRedressDate: '01/11/2026' },
-  { id: 'rs2', code: 'RL-404-B', standName: 'ستاند 4', material: 'Alloy Indefinite Chill', maxDia: 410, currentDia: 395, minScrapDia: 350, redressCount: 1, totalTonsRolled: 8900, status: 'بالخدمة على الخط', lastRedressDate: '05/11/2026' },
-  { id: 'rs3', code: 'RL-804-C', standName: 'ستاند 8', material: 'High Speed Steel (HSS)', maxDia: 340, currentDia: 315, minScrapDia: 295, redressCount: 4, totalTonsRolled: 19200, status: 'جاهز بالورشة (احتياطي)', lastRedressDate: '10/11/2026' }
-];
-
-const DEFAULT_MOTORS = [
-  { id: 'm1', category: 'rolling', stand: '1', locationName: 'ستاند 1', code: 'MTR-ST1', brand: 'Siemens SINAMICS', kw: '400', rpm: '1500', amps: '720', megger: '550 MΩ', bodyTemp: '52', bearingTemp: '58', status: 'يعمل بحالة ممتازة', dateAdded: '10/11/2026', logs: [] },
-  { id: 'm2', category: 'rolling', stand: '2', locationName: 'ستاند 2', code: 'MTR-ST2', brand: 'Siemens SINAMICS', kw: '400', rpm: '1500', amps: '710', megger: '520 MΩ', bodyTemp: '54', bearingTemp: '60', status: 'يعمل بحالة ممتازة', dateAdded: '10/11/2026', logs: [] },
-  { id: 'm3', category: 'aux', stand: '0', locationName: 'المقص الطائر (Flying Shear)', code: 'MTR-SH1', brand: 'Parker / ABB', kw: '110', rpm: '1750', amps: '210', megger: '600 MΩ', bodyTemp: '48', bearingTemp: '53', status: 'يعمل بحالة ممتازة', dateAdded: '10/11/2026', logs: [] }
-];
+// قالب نظيف تماماً لأي مصنع جديد يتم إنشاؤه مستقبلاً حتى لا تتداخل بياناته مع الجيوشي
+const CLEAN_NEW_FACTORY_STANDS_CONFIG = Array.from({ length: 12 }, (_, i) => ({
+  id: String(i + 1),
+  name: `ستاند ${i + 1}`,
+  type: i % 2 === 0 ? 'بيضاوي' : 'دائري / مربع',
+  rollCode: `R-${i + 1}`,
+  diameter: i < 4 ? '400' : i < 8 ? '350' : '320',
+  hardness: '48 HRC',
+  totalPasses: i < 4 ? 8 : i < 8 ? 14 : 20,
+  maxLimit: i < 6 ? 2000 : 1200
+}));
 
 const SHIFTS_NORMAL = ['الوردية الأولى', 'الوردية الثانية', 'الوردية الثالثة'];
 const SHIFTS_FRIDAY = ['الوردية الأولى (12 ساعة)', 'الوردية الثانية (12 ساعة)'];
@@ -130,10 +83,17 @@ const buildStand = (cfg) => {
   };
 };
 
-const buildInitialStands = () => DEFAULT_STANDS_CONFIG.map(buildStand);
+// دالة تبني الستاندات الابتدائية حسب هوية المصنع (الجيوشي أو مصنع جديد مستقل)
+const buildInitialStandsForFactory = (factoryId) => {
+  const baseCfg =
+    factoryId === 'al-gioshy-steel-rolls' ? ALGIOSHY_STANDS_CONFIG : CLEAN_NEW_FACTORY_STANDS_CONFIG;
+  return baseCfg.map(buildStand);
+};
 
-const normalizeStand = (stand, fallbackIndex) => {
-  const cfg = DEFAULT_STANDS_CONFIG[fallbackIndex] || {
+const normalizeStand = (stand, fallbackIndex, factoryId) => {
+  const baseCfg =
+    factoryId === 'al-gioshy-steel-rolls' ? ALGIOSHY_STANDS_CONFIG : CLEAN_NEW_FACTORY_STANDS_CONFIG;
+  const cfg = baseCfg[fallbackIndex] || {
     id: String(fallbackIndex + 1),
     name: `ستاند ${fallbackIndex + 1}`,
     type: '',
@@ -176,9 +136,27 @@ const normalizeStand = (stand, fallbackIndex) => {
   };
 };
 
-const normalizeList = (raw) => {
-  if (!Array.isArray(raw) || raw.length === 0) return buildInitialStands();
-  return raw.map((st, idx) => normalizeStand(st, idx));
+const normalizeList = (raw, factoryId) => {
+  if (!Array.isArray(raw) || raw.length === 0) return buildInitialStandsForFactory(factoryId);
+  return raw.map((st, idx) => normalizeStand(st, idx, factoryId));
+};
+
+const LiveClock = () => {
+  const [time, setTime] = useState(new Date());
+  useEffect(() => {
+    const t = setInterval(() => setTime(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <div className="flex bg-slate-800 border border-slate-700 rounded-lg px-2 py-0.5 items-center gap-1.5 shadow-inner">
+      <Clock className="w-3 h-3 text-blue-400" />
+      <div className="flex flex-col items-center leading-none">
+        <span className="text-[10px] font-mono font-bold text-slate-100" dir="ltr">
+          {time.toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+        </span>
+      </div>
+    </div>
+  );
 };
 
 const formatDateToISO = (d) =>
@@ -196,7 +174,7 @@ const convertGBToISO = (gb) => {
 };
 
 /* ======================================================
-   2. التصدير الشامل (Excel / PDF) + تقرير حرارة المواتير للورديات
+   2. التصدير الشامل (Excel / PDF)
    ====================================================== */
 const esc = (s) => String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 
@@ -476,9 +454,10 @@ const Overlay = ({ z = 50, children }) => (
 );
 
 /* ======================================================
-   4. المكون الرئيسي لبوابة المصانع (FactoryPortal - مضبوط 100% للموبايل واللابتوب)
+   4. المكون الرئيسي لبوابة المصانع (عزل تام لكل مصنع + إرجاع زر الآن وكل الميزات)
    ====================================================== */
 export default function FactoryPortal({ onBack, factoryConfig }) {
+  // معرف قاعدة البيانات المستقل الخاص بهذا المصنع تحديداً
   const appId = factoryConfig?.id || 'al-gioshy-steel-rolls';
   const factoryName = factoryConfig?.name || 'شركة الجيوشي للصلب';
 
@@ -497,24 +476,26 @@ export default function FactoryPortal({ onBack, factoryConfig }) {
   const roleLabel =
     loggedEmployeeName || (currentUser === 'tech' ? 'فني تشغيل' : currentUser === 'manager' ? 'مدير المصنع' : 'أدمن');
 
-  const [stands, setStands] = useState(buildInitialStands);
+  const [stands, setStands] = useState(() => buildInitialStandsForFactory(appId));
   const [shiftBillets, setShiftBillets] = useState('');
   const [productionArchive, setProductionArchive] = useState([]);
   const [passChanges, setPassChanges] = useState([]);
   const [pendingList, setPendingList] = useState([]);
   const [downtimesList, setDowntimesList] = useState([]);
   const [handoverNotesList, setHandoverNotesList] = useState([]);
-  const [motorsList, setMotorsList] = useState(DEFAULT_MOTORS);
+  const [motorsList, setMotorsList] = useState([]);
   const [tempShiftLogs, setTempShiftLogs] = useState([]);
-  const [staffList, setStaffList] = useState(DEFAULT_STAFF);
-  const [recipesList, setRecipesList] = useState(DEFAULT_RECIPES);
-  const [rollShopList, setRollShopList] = useState(DEFAULT_ROLL_SHOP);
+  const [staffList, setStaffList] = useState([]);
+  const [recipesList, setRecipesList] = useState([]);
+  const [rollShopList, setRollShopList] = useState([]);
   const [whatsappModalOpen, setWhatsappModalOpen] = useState(false);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
 
   const [billetWeight, setBilletWeight] = useState(0.75);
   const [selectedProductSize, setSelectedProductSize] = useState('16');
   const [customLogo, setCustomLogo] = useState('');
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [tempLogoUrl, setTempLogoUrl] = useState('');
 
   const [addStandOpen, setAddStandOpen] = useState(false);
   const [newStandForm, setNewStandForm] = useState({
@@ -711,7 +692,7 @@ export default function FactoryPortal({ onBack, factoryConfig }) {
     }
   };
 
-  /* ---------- الاتصال وجلب بيانات المصنع من Firebase ---------- */
+  /* ---------- العزل الكامل لقاعدة البيانات لكل مصنع (Multi-Tenant Strict Isolation) ---------- */
   useEffect(() => {
     if (!auth) {
       setIsDataLoaded(true);
@@ -723,8 +704,27 @@ export default function FactoryPortal({ onBack, factoryConfig }) {
   }, []);
 
   useEffect(() => {
+    // تصفير جميع الحالات فور تغير معرف المصنع (appId) لمنع أي تداخل لحظي بين مصنعين
+    setIsDataLoaded(false);
+    setStands(buildInitialStandsForFactory(appId));
+    setProductionArchive([]);
+    setPassChanges([]);
+    setPendingList([]);
+    setDowntimesList([]);
+    setHandoverNotesList([]);
+    setMotorsList([]);
+    setTempShiftLogs([]);
+    setStaffList([]);
+    setRecipesList([]);
+    setRollShopList([]);
+    setCustomLogo('');
+    setBilletWeight(0.75);
+    setSelectedProductSize('16');
+
     if (!userAuth || !db) return;
-    const ref = (name) => doc(db, 'factory', appId, 'data', name);
+
+    // مسار معزول تماماً في Firestore خاص بـ appId فقط
+    const ref = (docName) => doc(db, 'factory', appId, 'data', docName);
     const standsRef = ref('standsState'),
       archiveRef = ref('archiveState'),
       passChangesRef = ref('passChangesState'),
@@ -738,38 +738,47 @@ export default function FactoryPortal({ onBack, factoryConfig }) {
       staffRef = ref('staffState');
 
     const u1 = onSnapshot(standsRef, (snap) => {
-      if (snap.exists() && snap.data().standsList) {
-        const list = normalizeList(snap.data().standsList);
+      if (snap.exists() && Array.isArray(snap.data().standsList)) {
+        const list = normalizeList(snap.data().standsList, appId);
         setStands(list);
         setTargetStandsCount(list.length);
       } else {
-        const init = buildInitialStands();
-        setDoc(standsRef, { standsList: init });
+        const init = buildInitialStandsForFactory(appId);
+        setDoc(standsRef, { factoryId: appId, factoryName, standsList: init });
         setStands(init);
         setTargetStandsCount(init.length);
       }
       setIsDataLoaded(true);
     });
+
     const u2 = onSnapshot(archiveRef, (snap) => {
       if (snap.exists()) setProductionArchive(snap.data().archiveList || []);
-      else setDoc(archiveRef, { archiveList: [] });
+      else setDoc(archiveRef, { factoryId: appId, archiveList: [] });
     });
+
     const u3 = onSnapshot(passChangesRef, (snap) => {
       if (snap.exists()) setPassChanges(snap.data().passChangesList || []);
-      else setDoc(passChangesRef, { passChangesList: [] });
+      else setDoc(passChangesRef, { factoryId: appId, passChangesList: [] });
     });
+
     const u4 = onSnapshot(settingsRef, (snap) => {
       if (snap.exists()) {
         const d = snap.data();
-        if (d.billetWeight) setBilletWeight(d.billetWeight);
-        if (d.logoUrl) setCustomLogo(d.logoUrl);
-        if (d.selectedProductSize) setSelectedProductSize(d.selectedProductSize);
-      } else setDoc(settingsRef, { billetWeight: 0.75, logoUrl: '', selectedProductSize: '16' }, { merge: true });
+        setBilletWeight(d.billetWeight || 0.75);
+        setCustomLogo(d.logoUrl || '');
+        setSelectedProductSize(d.selectedProductSize || '16');
+      } else {
+        setDoc(settingsRef, { factoryId: appId, billetWeight: 0.75, logoUrl: '', selectedProductSize: '16' });
+      }
     });
+
     const u5 = onSnapshot(adminRef, (snap) => {
-      if (snap.exists()) setAdminState((prev) => ({ ...prev, ...snap.data() }));
-      else {
+      if (snap.exists()) {
+        setAdminState((prev) => ({ ...prev, ...snap.data() }));
+      } else {
         const def = {
+          factoryId: appId,
+          factoryName,
           isMaintenance: false,
           maintenanceMessage: 'الموقع مغلق حالياً لإجراء تحديثات وصيانة للنظام.. يرجى المحاولة لاحقاً.',
           techCode: factoryConfig?.techCode || '1111',
@@ -782,39 +791,107 @@ export default function FactoryPortal({ onBack, factoryConfig }) {
         setAdminState(def);
       }
     });
+
     const u6 = onSnapshot(pendingRef, (snap) => {
       if (snap.exists()) setPendingList(snap.data().pendingList || []);
-      else setDoc(pendingRef, { pendingList: [] });
+      else setDoc(pendingRef, { factoryId: appId, pendingList: [] });
     });
+
     const u7 = onSnapshot(downtimesRef, (snap) => {
       if (snap.exists()) {
         setDowntimesList(snap.data().downtimes || []);
         setHandoverNotesList(snap.data().handovers || []);
-      } else setDoc(downtimesRef, { downtimes: [], handovers: [] });
+      } else {
+        setDoc(downtimesRef, { factoryId: appId, downtimes: [], handovers: [] });
+      }
     });
+
     const u8 = onSnapshot(motorsRef, (snap) => {
       if (snap.exists()) {
-        setMotorsList(snap.data().motors || DEFAULT_MOTORS);
+        setMotorsList(snap.data().motors || []);
         setTempShiftLogs(snap.data().tempShiftLogs || []);
-      } else setDoc(motorsRef, { motors: DEFAULT_MOTORS, tempShiftLogs: [] });
+      } else {
+        // كل مصنع جديد يبدأ بسجل مواتير فارغ أو مبدئي خاص به فقط
+        const initMotors = [
+          {
+            id: `m1_${appId}`,
+            category: 'rolling',
+            stand: '1',
+            locationName: 'ستاند 1',
+            code: 'MTR-ST1',
+            brand: 'Siemens / ABB',
+            kw: '400',
+            rpm: '1500',
+            amps: '700',
+            megger: '550 MΩ',
+            bodyTemp: '50',
+            bearingTemp: '55',
+            status: 'يعمل بحالة ممتازة',
+            dateAdded: new Date().toLocaleDateString('en-GB'),
+            logs: []
+          }
+        ];
+        setDoc(motorsRef, { factoryId: appId, motors: initMotors, tempShiftLogs: [] });
+        setMotorsList(initMotors);
+      }
     });
+
     const u9 = onSnapshot(recipesRef, (snap) => {
-      if (snap.exists() && Array.isArray(snap.data().recipes)) setRecipesList(snap.data().recipes);
-      else setDoc(recipesRef, { recipes: DEFAULT_RECIPES });
+      if (snap.exists() && Array.isArray(snap.data().recipes)) {
+        setRecipesList(snap.data().recipes);
+      } else {
+        const initRecipes = [
+          {
+            id: `rec16_${appId}`,
+            name: 'وصفة حديد تسليح 16 مم',
+            productSize: '16',
+            billetSize: '130×130 مم',
+            furnaceTemp: '1150 °C',
+            finishSpeed: '11.5 m/s',
+            qtbPressure: '8.5 bar',
+            qtbFlow: '420 m³/h',
+            flyingShearLen: '48 متر',
+            activeStandsCount: 12,
+            notes: 'ضبط اللوبر ومراجعة خلوص الفنش.'
+          }
+        ];
+        setDoc(recipesRef, { factoryId: appId, recipes: initRecipes });
+        setRecipesList(initRecipes);
+      }
     });
+
     const u10 = onSnapshot(rollShopRef, (snap) => {
-      if (snap.exists() && Array.isArray(snap.data().rolls)) setRollShopList(snap.data().rolls);
-      else setDoc(rollShopRef, { rolls: DEFAULT_ROLL_SHOP });
+      if (snap.exists() && Array.isArray(snap.data().rolls)) {
+        setRollShopList(snap.data().rolls);
+      } else {
+        setDoc(rollShopRef, { factoryId: appId, rolls: [] });
+        setRollShopList([]);
+      }
     });
+
     const u11 = onSnapshot(staffRef, (snap) => {
-      if (snap.exists() && Array.isArray(snap.data().staff)) setStaffList(snap.data().staff);
-      else setDoc(staffRef, { staff: DEFAULT_STAFF });
+      if (snap.exists() && Array.isArray(snap.data().staff)) {
+        setStaffList(snap.data().staff);
+      } else {
+        const initStaff = [
+          {
+            id: `emp1_${appId}`,
+            name: 'فني غرفة التحكم',
+            pin: factoryConfig?.techCode || '1111',
+            role: 'tech',
+            jobTitle: 'مشغل كنترول / فني إنتاج',
+            active: true
+          }
+        ];
+        setDoc(staffRef, { factoryId: appId, staff: initStaff });
+        setStaffList(initStaff);
+      }
     });
 
     return () => {
       u1(); u2(); u3(); u4(); u5(); u6(); u7(); u8(); u9(); u10(); u11();
     };
-  }, [userAuth, appId]);
+  }, [userAuth, appId, factoryName]);
 
   useEffect(() => {
     if (isDataLoaded && userAuth && db && !visitLogged) {
@@ -827,7 +904,7 @@ export default function FactoryPortal({ onBack, factoryConfig }) {
     }
   }, [isDataLoaded, userAuth, visitLogged, appId]);
 
-  /* ---------- اليوم الإنتاجي والورديات ---------- */
+  /* ---------- اليوم الإنتاجي والورديات + زر "الآن" ---------- */
   const getInitialProductionState = () => {
     const now = new Date();
     const hour = now.getHours();
@@ -858,7 +935,14 @@ export default function FactoryPortal({ onBack, factoryConfig }) {
     setSelectedShift(shiftsFor(nd.getDay() === 5)[0]);
   };
 
-  /* ---------- الحفظ السحابي الموحد ---------- */
+  // دالة زر "الآن" للرجوع الفوري للوردية الحالية واليوم الإنتاجي الحالي
+  const handleGoToToday = () => {
+    const s = getInitialProductionState();
+    setCurrentProdDate(new Date(s.prodDate.getTime()));
+    setSelectedShift(s.initialShift);
+  };
+
+  /* ---------- الحفظ السحابي الموحد في المسار الخاص بالمصنع فقط ---------- */
   const save = async ({
     stands: s,
     archive,
@@ -879,15 +963,16 @@ export default function FactoryPortal({ onBack, factoryConfig }) {
     if (userAuth && db) {
       try {
         const ref = (name) => doc(db, 'factory', appId, 'data', name);
-        if (s !== undefined) await setDoc(ref('standsState'), { standsList: s });
-        if (archive !== undefined) await setDoc(ref('archiveState'), { archiveList: archive });
-        if (changes !== undefined) await setDoc(ref('passChangesState'), { passChangesList: changes });
-        if (pending !== undefined) await setDoc(ref('pendingState'), { pendingList: pending });
-        if (admin !== undefined) await setDoc(ref('adminState'), admin, { merge: true });
+        if (s !== undefined) await setDoc(ref('standsState'), { factoryId: appId, standsList: s }, { merge: true });
+        if (archive !== undefined) await setDoc(ref('archiveState'), { factoryId: appId, archiveList: archive }, { merge: true });
+        if (changes !== undefined) await setDoc(ref('passChangesState'), { factoryId: appId, passChangesList: changes }, { merge: true });
+        if (pending !== undefined) await setDoc(ref('pendingState'), { factoryId: appId, pendingList: pending }, { merge: true });
+        if (admin !== undefined) await setDoc(ref('adminState'), { factoryId: appId, ...admin }, { merge: true });
         if (downtimes !== undefined || handovers !== undefined) {
           await setDoc(
             ref('downtimesState'),
             {
+              factoryId: appId,
               downtimes: downtimes !== undefined ? downtimes : downtimesList,
               handovers: handovers !== undefined ? handovers : handoverNotesList
             },
@@ -898,40 +983,71 @@ export default function FactoryPortal({ onBack, factoryConfig }) {
           await setDoc(
             ref('motorsState'),
             {
+              factoryId: appId,
               motors: motors !== undefined ? motors : motorsList,
               tempShiftLogs: tempLogs !== undefined ? tempLogs : tempShiftLogs
             },
             { merge: true }
           );
         }
-        if (recipes !== undefined) await setDoc(ref('recipesState'), { recipes });
-        if (rollShop !== undefined) await setDoc(ref('rollShopState'), { rolls: rollShop });
-        if (staff !== undefined) await setDoc(ref('staffState'), { staff });
-        const upd = {};
+        if (recipes !== undefined) await setDoc(ref('recipesState'), { factoryId: appId, recipes }, { merge: true });
+        if (rollShop !== undefined) await setDoc(ref('rollShopState'), { factoryId: appId, rolls: rollShop }, { merge: true });
+        if (staff !== undefined) await setDoc(ref('staffState'), { factoryId: appId, staff }, { merge: true });
+        const upd = { factoryId: appId };
         if (weight !== undefined) upd.billetWeight = weight;
         if (logo !== undefined) upd.logoUrl = logo;
         if (productSize !== undefined) upd.selectedProductSize = productSize;
-        if (Object.keys(upd).length) await setDoc(ref('settingsState'), upd, { merge: true });
+        if (Object.keys(upd).length > 1) await setDoc(ref('settingsState'), upd, { merge: true });
       } catch (e) {
         console.error('Save error:', e);
       }
-    } else {
-      if (s !== undefined) setStands(s);
-      if (archive !== undefined) setProductionArchive(archive);
-      if (weight !== undefined) setBilletWeight(weight);
-      if (logo !== undefined) setCustomLogo(logo);
-      if (changes !== undefined) setPassChanges(changes);
-      if (pending !== undefined) setPendingList(pending);
-      if (productSize !== undefined) setSelectedProductSize(productSize);
-      if (admin !== undefined) setAdminState((prev) => ({ ...prev, ...admin }));
-      if (downtimes !== undefined) setDowntimesList(downtimes);
-      if (handovers !== undefined) setHandoverNotesList(handovers);
-      if (motors !== undefined) setMotorsList(motors);
-      if (tempLogs !== undefined) setTempShiftLogs(tempLogs);
-      if (recipes !== undefined) setRecipesList(recipes);
-      if (rollShop !== undefined) setRollShopList(rollShop);
-      if (staff !== undefined) setStaffList(staff);
     }
+  };
+
+  /* ---------- إدارة شعار المصنع وتصفير الستاندات والأرشيف ---------- */
+  const openSettingsModal = () => {
+    setTempLogoUrl(customLogo);
+    setIsSettingsOpen(true);
+  };
+  const handleLogoUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 1024 * 1024) {
+      showAlert('خطأ', 'حجم الصورة كبير جداً. يرجى اختيار صورة أقل من 1 ميجابايت.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onloadend = () => setTempLogoUrl(reader.result);
+    reader.readAsDataURL(file);
+  };
+  const handleSaveSettings = () => {
+    if (tempLogoUrl && tempLogoUrl.trim() !== '') save({ logo: tempLogoUrl.trim() });
+    setIsSettingsOpen(false);
+  };
+
+  const handleResetAllStands = () => {
+    showConfirm('تحذير شديد', 'هل أنت متأكد من تصفير كافة الستاندات والممرات بالكامل والبدء من ممر 1؟', () => {
+      const today = new Date().toLocaleDateString('en-GB');
+      save({
+        stands: stands.map((s) => ({
+          ...s,
+          activePass: 1,
+          accumulatedTons: 0,
+          creditedShiftKey: '',
+          creditedShiftTons: 0,
+          creditedShiftBillets: 0,
+          lastResetDate: today,
+          passes: createPassesArray(s.totalPasses, 1, 0)
+        }))
+      });
+    });
+  };
+
+  const handleClearArchive = () => {
+    showConfirm('تحذير نهائي', 'هل أنت متأكد من مسح جميع بيانات الأرشيف القديمة وسجل الممرات بالكامل لهذا المصنع؟', () => {
+      save({ archive: [], changes: [] });
+      showAlert('تمت العملية', 'تم مسح الأرشيف وسجل الممرات بنجاح.');
+    });
   };
 
   /* ---------- إدارة الموظفين والرابط المباشر ---------- */
@@ -1258,7 +1374,7 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
         let updated = [...stands];
         if (count > stands.length) {
           for (let i = stands.length; i < count; i++) {
-            const cfg = DEFAULT_STANDS_CONFIG[i] || {
+            const cfg = {
               id: String(i + 1),
               name: `ستاند ${i + 1}`,
               type: 'دائري',
@@ -1861,7 +1977,7 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
     </Overlay>
   );
 
-  /* ---------- شاشة إدخال الكود الشخصي للموظف/المدير (مدمجة للموبايل) ---------- */
+  /* ---------- شاشة إدخال الكود الشخصي للموظف/المدير ---------- */
   if (currentUser === 'none') {
     return (
       <div className="flex flex-col items-center justify-center min-h-dvh bg-slate-50 text-slate-900 p-3.5 sm:p-6 select-none font-sans" dir="rtl">
@@ -1882,8 +1998,8 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
             <h1 onClick={handleSecretAdminTrigger} className="text-lg sm:text-2xl font-black text-slate-900 cursor-pointer">
               {factoryName}
             </h1>
-            <p className="text-[11px] sm:text-xs text-slate-500 font-bold mt-1">
-              منظومة تتبع الدرافيل والممرات وحرارة المواتير ({stands.length} ستاند)
+            <p className="text-[11px] sm:text-xs text-emerald-700 font-bold mt-1 flex items-center justify-center gap-1">
+              <Database className="w-3.5 h-3.5" /> قاعدة بيانات مستقلة ({stands.length} ستاند)
             </p>
           </div>
 
@@ -2000,6 +2116,48 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
       )}
 
       {loginModalJSX}
+
+      {/* نافذة رفع شعار المصنع */}
+      {isSettingsOpen && (
+        <Overlay z={95}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden border border-slate-300">
+            <div className="bg-slate-900 p-3 flex justify-between items-center text-white">
+              <h3 className="font-bold text-xs sm:text-sm flex items-center gap-2">
+                <Settings className="w-4 h-4" /> إعدادات شعار المصنع ({factoryName})
+              </h3>
+              <button onClick={() => setIsSettingsOpen(false)} className="text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-4 flex flex-col gap-4">
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-bold text-slate-700 flex items-center gap-1">
+                  <UploadCloud className="w-4 h-4 text-blue-600" /> رفع لوجو خاص بهذا المصنع:
+                </label>
+                <input
+                  type="file"
+                  accept="image/png, image/jpeg, image/webp"
+                  onChange={handleLogoUpload}
+                  className="w-full border border-slate-300 rounded-xl p-1.5 text-xs cursor-pointer"
+                />
+              </div>
+              {tempLogoUrl && (
+                <div className="bg-slate-100 p-3 rounded-xl border border-slate-200 flex flex-col items-center gap-2">
+                  <div className="bg-white p-2 rounded shadow-sm">
+                    <img src={tempLogoUrl} alt="Preview" className="h-16 object-contain" />
+                  </div>
+                </div>
+              )}
+              <button
+                onClick={handleSaveSettings}
+                className="w-full bg-blue-600 text-white font-bold py-2.5 rounded-xl hover:bg-blue-700 flex justify-center items-center gap-2 shadow-md text-xs"
+              >
+                <Save className="w-4 h-4" /> حفظ وتطبيق الشعار
+              </button>
+            </div>
+          </div>
+        </Overlay>
+      )}
 
       {whatsappModalOpen && (
         <Overlay z={95}>
@@ -2697,17 +2855,27 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
         </Overlay>
       )}
 
-      {/* ===== الهيدر العلوي المدمج وشريط التبويبات الأفقي القابل للتمرير على الموبايل ===== */}
+      {/* ===== الهيدر العلوي المدمج مع الساعة الحية وزر الشعار ===== */}
       <nav className="bg-slate-900 text-white p-2 sm:p-2.5 rounded-2xl flex flex-col gap-2 shadow-md select-none">
         <div className="flex justify-between items-center gap-1.5">
           <div onClick={handleSecretAdminTrigger} className="flex items-center gap-2 cursor-pointer min-w-0">
-            <div className="bg-emerald-600 p-1.5 rounded-xl shrink-0">
-              <Building2 className="w-4 h-4 text-white" />
-            </div>
+            {customLogo ? (
+              <div className="bg-white p-1 rounded-lg shadow-sm flex shrink-0">
+                <img src={customLogo} alt="Logo" className="h-5 sm:h-6 w-auto max-w-[70px] object-contain" />
+              </div>
+            ) : (
+              <div className="bg-emerald-600 p-1.5 rounded-xl shrink-0">
+                <Building2 className="w-4 h-4 text-white" />
+              </div>
+            )}
             <div className="truncate">
               <span className="font-black text-xs sm:text-sm text-white block truncate">{factoryName}</span>
               <span className="text-[10px] text-emerald-400 font-bold block truncate">{roleLabel}</span>
             </div>
+          </div>
+
+          <div className="hidden md:block">
+            <LiveClock />
           </div>
 
           <div className="flex items-center gap-1 shrink-0">
@@ -2747,6 +2915,15 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                 )}
               </button>
             )}
+            {(isManagerLike || isSuperAdmin) && (
+              <button
+                onClick={openSettingsModal}
+                className="bg-slate-800 hover:bg-slate-700 text-blue-300 p-1.5 rounded-xl"
+                title="رفع شعار المصنع"
+              >
+                <Settings className="w-3.5 h-3.5" />
+              </button>
+            )}
             <button
               onClick={handleLogout}
               className="bg-red-500/20 text-red-300 border border-red-500/30 px-2 py-1.5 rounded-xl text-[10px] font-bold"
@@ -2756,7 +2933,7 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
           </div>
         </div>
 
-        {/* شريط التبويبات الأفقي الناعم للموبايل (لا يأخذ مساحة رأسية أبداً) */}
+        {/* شريط التبويبات الأفقي الناعم للموبايل */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 no-scrollbar">
           {[
             ['dashboard', 'الممرات والتشغيل', TrendingUp],
@@ -2783,7 +2960,7 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
         </div>
       </nav>
 
-      {/* ===== 1. لوحة التشغيل والممرات (مضبوطة للموبايل) ===== */}
+      {/* ===== 1. لوحة التشغيل والممرات (مع إرجاع زر "الآن" وكل أزرار التحكم) ===== */}
       {activeTab === 'dashboard' && (
         <div className="flex flex-col gap-2 flex-1">
           {isManagerLike && (
@@ -2819,6 +2996,14 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                       </option>
                     ))}
                   </select>
+                  <span className="text-[11px] font-bold text-slate-700 mr-1">البليت:</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={billetWeight}
+                    onChange={(e) => handleWeightChange(e.target.value)}
+                    className="w-14 p-1 border border-slate-300 rounded-lg text-center font-mono font-bold text-[11px] bg-slate-50"
+                  />
                 </div>
                 <div className="flex flex-wrap gap-1">
                   {exportButtons}
@@ -2828,22 +3013,54 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                   >
                     <PlusCircle className="w-3 h-3" /> الستاندات ({stands.length})
                   </button>
+                  <button
+                    onClick={handleResetAllStands}
+                    className="bg-orange-500 hover:bg-orange-600 text-white font-bold py-1.5 px-2 rounded-lg text-[10px] flex items-center gap-1"
+                  >
+                    <RefreshCw className="w-3 h-3" /> تصفير الكل
+                  </button>
+                  <button
+                    onClick={handleClearArchive}
+                    className="bg-red-600 hover:bg-red-700 text-white font-bold py-1.5 px-2 rounded-lg text-[10px] flex items-center gap-1"
+                  >
+                    <Trash2 className="w-3 h-3" /> مسح الأرشيف
+                  </button>
                 </div>
               </div>
             </div>
           )}
 
-          {/* شريط تسجيل الوردية المدمج في سطرين صغيرين على الموبايل */}
+          {/* شريط تسجيل الوردية مع زر "الآن" للرجوع الفوري للوردية الحالية */}
           <div className="bg-white p-2.5 rounded-2xl shadow-sm border border-slate-200 space-y-2">
-            <div className="bg-blue-50 border border-blue-200 text-blue-900 text-[11px] font-bold py-1.5 px-2.5 rounded-xl flex justify-between items-center">
-              <button onClick={() => handleDateChange(-1)} className="px-2 py-0.5 bg-white border border-blue-200 rounded-lg text-[10px]">
-                السابق
+            <div className="bg-blue-50 border border-blue-200 text-blue-900 text-[11px] font-bold py-1.5 px-2 rounded-xl flex justify-between items-center gap-1">
+              <button
+                onClick={() => handleDateChange(-1)}
+                className="px-2.5 py-1 bg-blue-200/80 hover:bg-blue-300 text-blue-950 rounded-lg text-[10px] font-black active:scale-95 shrink-0"
+              >
+                يوم سابق
               </button>
-              <span className="font-black truncate">
-                {currentProdDate.toLocaleDateString('ar-EG', { weekday: 'long' })} ({currentDateStr}) — مقاس {selectedProductSize}
-              </span>
-              <button onClick={() => handleDateChange(1)} className="px-2 py-0.5 bg-white border border-blue-200 rounded-lg text-[10px]">
-                التالي
+
+              <div className="flex items-center gap-1.5 min-w-0">
+                <button
+                  onClick={handleGoToToday}
+                  className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-sm text-[10px] font-black flex items-center gap-1 active:scale-95 shrink-0"
+                  title="العودة لليوم والوردية الحالية الآن"
+                >
+                  <span>الآن</span>
+                  <RotateCcw className="w-3 h-3" />
+                </button>
+                <div className="text-center truncate">
+                  <span className="font-black block truncate">
+                    {currentProdDate.toLocaleDateString('ar-EG', { weekday: 'long' })} ({currentDateStr})
+                  </span>
+                </div>
+              </div>
+
+              <button
+                onClick={() => handleDateChange(1)}
+                className="px-2.5 py-1 bg-blue-200/80 hover:bg-blue-300 text-blue-950 rounded-lg text-[10px] font-black active:scale-95 shrink-0"
+              >
+                يوم تالي
               </button>
             </div>
 
@@ -2953,13 +3170,13 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
         </div>
       )}
 
-      {/* ===== 2. صفحة متابعة حالة وحرارة المواتير (منسقة للموبايل) ===== */}
+      {/* ===== 2. صفحة متابعة حالة وحرارة المواتير ===== */}
       {activeTab === 'motors' && (
         <div className="flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 p-2.5 sm:p-4 space-y-3">
           <div className="bg-slate-900 text-white p-3 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2.5">
             <div>
               <h2 className="font-black text-xs sm:text-base flex items-center gap-1.5">
-                <Cpu className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400" /> متابعة حالة وحرارة المواتير
+                <Cpu className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400" /> متابعة حالة وحرارة المواتير ({factoryName})
               </h2>
             </div>
             <div className="grid grid-cols-3 sm:flex gap-1.5 w-full sm:w-auto">
@@ -3104,7 +3321,7 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
           {motorSubView === 'add_new' && (
             <form onSubmit={handleAddMotor} className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-3 text-xs">
               <h3 className="font-black text-xs sm:text-sm text-slate-900 border-b border-slate-200 pb-2">
-                إضافة موتور جديد لقاعدة بيانات المصنع
+                إضافة موتور جديد لقاعدة بيانات ({factoryName})
               </h3>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
                 <div>
@@ -3606,7 +3823,7 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
         <div className="flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 p-3 sm:p-4 space-y-3">
           <div className="bg-slate-900 text-white p-3 rounded-2xl flex flex-wrap justify-between items-center gap-2">
             <h2 className="font-black text-xs sm:text-base flex items-center gap-1.5">
-              <Users className="w-4 h-4 text-amber-400" /> إدارة الموظفين والأكواد
+              <Users className="w-4 h-4 text-amber-400" /> إدارة الموظفين والأكواد ({factoryName})
             </h2>
             <button
               onClick={handleCopyEmployeeDirectLink}
@@ -3682,7 +3899,7 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
       {activeTab === 'archive' && (
         <div className="flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 p-2.5 sm:p-4 space-y-3">
           <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
-            <h2 className="font-black text-xs sm:text-base text-slate-900">أرشيف الورديات والتقارير</h2>
+            <h2 className="font-black text-xs sm:text-base text-slate-900">أرشيف الورديات والتقارير ({factoryName})</h2>
             {exportButtons}
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
