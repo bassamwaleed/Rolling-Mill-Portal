@@ -4,7 +4,7 @@ import {
   Gauge, DivideSquare, Maximize2, Circle, ArrowLeftRight, Zap,
   Cpu, Wrench, PlusCircle, ThumbsUp, Flame, Scissors, BookOpen,
   ChevronDown, ChevronUp, Sliders, Search, Award, Sparkles,
-  Check, ArrowLeft, Home, ShieldAlert, Cable, BatteryCharging, Radio, Square
+  Check, ArrowLeft, Home, ShieldAlert, Cable, BatteryCharging, Radio, Square, Percent
 } from 'lucide-react';
 
 /* ======================================================
@@ -239,32 +239,25 @@ const SolutionStepsBox = ({ formula, steps }) => {
 const GrooveAndCrossSectionModal = ({ onBack }) => {
   const [shape, setShape] = useState('rect'); // 'rect' | 'circle' | 'oval' | 'box' | 'diamond'
 
-  // 1) متغيرات المستطيل / المربع / الخوصة (طول × عرض)
   const [rectLen, setRectLen] = useState(50);
   const [rectWid, setRectWid] = useState(10);
-  const [cornerR, setCornerR] = useState(0); // نصف قطر تقوس السوكة إن وجد
+  const [cornerR, setCornerR] = useState(0);
 
-  // 2) متغيرات الدائرة والممر الدائري
   const [circleDia, setCircleDia] = useState(16);
   const [roundGap, setRoundGap] = useState(2.0);
 
-  // 3) متغيرات الممر البيضاوي (Oval Pass)
   const [ovalWidth, setOvalWidth] = useState(28);
   const [ovalHeight, setOvalHeight] = useState(12);
 
-  // 4) متغيرات الممر الصندوقي (Box Pass)
   const [boxBottomW, setBoxBottomW] = useState(75);
   const [boxTopW, setBoxTopW] = useState(82);
   const [boxHeight, setBoxHeight] = useState(68);
 
-  // 5) متغيرات الممر المعين (Diamond Pass)
   const [diaD1, setDiaD1] = useState(48);
   const [diaD2, setDiaD2] = useState(42);
 
-  // متغير فحص نسبة امتلاء الممر (Groove Filling Ratio)
   const [metalAreaInGroove, setMetalAreaInGroove] = useState(190);
 
-  // الحسابات الهندسية حسب الشكل المختار
   let calcArea = 0;
   let perimeter = 0;
   let eqDia = 0;
@@ -290,7 +283,6 @@ const GrooveAndCrossSectionModal = ({ onBack }) => {
     const D = num(circleDia);
     const g = Math.max(0, num(roundGap));
     const fullCircle = (Math.PI * D * D) / 4;
-    // المساحة الفعلية لممر الدرفيل الدائري مع فتح الجاب
     calcArea = fullCircle;
     const grooveEffectiveArea = Math.max(0, fullCircle - g * 0.15 * D);
     perimeter = Math.PI * D;
@@ -364,7 +356,6 @@ const GrooveAndCrossSectionModal = ({ onBack }) => {
           <ArrowLeft size={15} className="rotate-180" /> رجوع لكل القوانين
         </button>
 
-        {/* أزرار اختيار شكل المقطع أو الممر */}
         <div className="flex flex-wrap gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
           {[
             ['rect', 'طول × عرض (مستطيل/خوصة/مربع)'],
@@ -387,7 +378,6 @@ const GrooveAndCrossSectionModal = ({ onBack }) => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        {/* مدخلات الشكل المختار */}
         <div className="lg:col-span-5 bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4 h-fit">
           <h3 className="text-sm sm:text-base font-black text-slate-900 border-b border-slate-100 pb-2">
             أدخل أبعاد المقطع أو الممر بالملليمتر
@@ -424,7 +414,7 @@ const GrooveAndCrossSectionModal = ({ onBack }) => {
           {shape === 'box' && (
             <div className="grid grid-cols-2 gap-3">
               <Field label="عرض قاع الممر الصندوقي (مم)" value={boxBottomW} onChange={setBoxBottomW} />
-              <Field label="عرض فتحة الممر عند الجاب (مم)" value={boxTopW} onChange={setTopW} />
+              <Field label="عرض فتحة الممر عند الجاب (مم)" value={boxTopW} onChange={setBoxTopW} />
               <Field label="الارتفاع الكلي للممر شامل الجاب (مم)" value={boxHeight} onChange={setBoxHeight} className="col-span-2" />
             </div>
           )}
@@ -436,7 +426,6 @@ const GrooveAndCrossSectionModal = ({ onBack }) => {
             </div>
           )}
 
-          {/* فحص نسبة امتلاء الممر */}
           <div className="pt-3 border-t border-slate-100 space-y-2">
             <Field
               label="اختبار امتلاء الممر: أدخل مساحة المعدن الفعلية (مم²)"
@@ -457,7 +446,6 @@ const GrooveAndCrossSectionModal = ({ onBack }) => {
           </div>
         </div>
 
-        {/* نتائج المساحة ووزن المتر الطولي */}
         <div className="lg:col-span-7 bg-white p-4 sm:p-5 rounded-2xl border border-blue-200 shadow-sm space-y-4">
           <h3 className="text-sm sm:text-base font-black text-blue-800 border-b border-slate-100 pb-2">
             نتائج مساحة المقطع ووزن المتر الطولي
@@ -1022,7 +1010,7 @@ const RealisticPassDesignModal = ({ onBack }) => {
 };
 
 /* ======================================================
-   6. موسوعة كل القوانين الموحدة (شاملة مساحات الممرات وطول تلامس الدرفيل L)
+   6. موسوعة كل القوانين الموحدة (شاملة مساحات الممرات وحاسبة يلد وهالك الكتلة الكلية)
    ====================================================== */
 const ALL_CALCULATORS = [
   {
@@ -1050,7 +1038,7 @@ const ALL_CALCULATORS = [
     isSpecial: true
   },
 
-  // --- حاسبة الطول والعرض السريعة + حاسبة الـ L بتاع الدرفيل ---
+  // --- حاسبة الطول والعرض السريعة + قانون الدائرة + يلد الهالك في الكتلة كلها ---
   {
     id: 'c_rect_area',
     title: 'حاسبة مساحة المقطع (طول × عرض) ووزن المتر',
@@ -1112,44 +1100,43 @@ const ALL_CALCULATORS = [
     }
   },
   {
-    id: 'c_roll_L',
-    title: 'حساب الـ L بتاع الدرفيل (طول قوس التلامس Lp / Ld)',
-    desc: 'حساب طول قوس التلامس بين الدرفيل والمعدن ومساحة التلامس وذراع العزم.',
-    icon: Maximize2,
+    id: 'c_billet_yield_scrap',
+    title: 'حاسبة الإدرار (Yield) ونسبة الهالك في الكتلة كلها',
+    desc: 'حساب إجمالي وزن ونسبة الهالك (أكسيد الفرن + قطعيات المقصات + القصائر) والوزن الصافي للكتلة.',
+    icon: Percent,
     group: 'باس ديزاين وإنتاجية',
-    formula: 'طول قوس التلامس (L) = الجذر التربيعي لـ (نصف قطر الدرفيل R × مقدار الضغطة Δh)',
+    formula: 'الوزن الصافي = وزن الكتلة - إجمالي الهوالك  |  نسبة الإدرار (Yield %) = (الوزن الصافي ÷ وزن الكتلة) × 100  |  نسبة الهالك % = (إجمالي الهالك ÷ وزن الكتلة) × 100',
     inputs: [
-      { k: 'd', l: 'قطر الدرفيل الشغال D (مم)', def: 420 },
-      { k: 'h1', l: 'ارتفاع المعدن قبل الدرفيل H1 (مم)', def: 24 },
-      { k: 'h2', l: 'ارتفاع المعدن بعد الدرفيل H2 (مم)', def: 16 },
-      { k: 'w', l: 'متوسط عرض المعدن الملامس للدرفيل W (مم)', def: 45 }
+      { k: 'wBillet', l: 'وزن الكتلة (البيليت) الكلي (كجم)', def: 1592 },
+      { k: 'scalePct', l: 'نسبة فاقد أكسيد الفرن Scale (%)', def: 1.5 },
+      { k: 'cropKg', l: 'وزن قطعيات الهيد والديل للمقصات (كجم)', def: 12 },
+      { k: 'shortKg', l: 'وزن هالك القصائر أو الكعبلة في الكتلة (كجم)', def: 18 }
     ],
     calc: (v) => {
-      const d = Math.max(1, num(v.d));
-      const r = d / 2;
-      const h1 = num(v.h1);
-      const h2 = num(v.h2);
-      const w = num(v.w);
-      const dh = Math.max(0, h1 - h2);
-      const L = Math.sqrt(r * dh);
-      const contactArea = w * L;
-      const leverArmX = 0.5 * L;
-      const biteRad = Math.acos(Math.max(-1, Math.min(1, 1 - dh / d)));
-      const biteDeg = (biteRad * 180) / Math.PI;
+      const wTotal = Math.max(1, num(v.wBillet));
+      const scalePct = Math.max(0, num(v.scalePct));
+      const scaleKg = (wTotal * scalePct) / 100;
+      const cropKg = Math.max(0, num(v.cropKg));
+      const shortKg = Math.max(0, num(v.shortKg));
+
+      const totalScrapKg = scaleKg + cropKg + shortKg;
+      const netGoodKg = Math.max(0, wTotal - totalScrapKg);
+      const yieldPct = (netGoodKg / wTotal) * 100;
+      const scrapPct = (totalScrapKg / wTotal) * 100;
 
       return {
         results: {
-          'طول قوس تلامس الدرفيل (L)': `${fmt(L, 2)} مم`,
-          'قيمة الضغطة (Δh = H1 - H2)': `${fmt(dh, 2)} مم`,
-          'مساحة التلامس الكلية (A = W × L)': `${fmt(contactArea, 1)} مم²`,
-          'ذراع العزم الفعال (0.5 × L)': `${fmt(leverArmX, 2)} مم (${fmt(biteDeg, 1)}°)`
+          'إجمالي وزن الهالك في الكتلة': `${fmt(totalScrapKg, 2)} كجم`,
+          'وزن المنتج الصافي السليم': `${fmt(netGoodKg, 2)} كجم`,
+          'نسبة الإدرار الصافي (Yield %)': `${fmt(yieldPct, 2)}%`,
+          'نسبة الهالك الكلية من الكتلة': `${fmt(scrapPct, 2)}%`
         },
         steps: [
-          `نحسب نصف قطر الدرفيل (R) = القطر ${d} ÷ 2 = ${fmt(r, 1)} مم`,
-          `نحسب قيمة الضغطة (النقص في الارتفاع) = ${h1} - ${h2} = ${fmt(dh, 2)} مم`,
-          `نضرب نصف القطر في الضغطة = ${fmt(r, 1)} × ${fmt(dh, 2)} = ${fmt(r * dh, 1)}`,
-          `نأخذ الجذر التربيعي للناتج لنحصل على طول قوس التلامس (L) = جذر(${fmt(r * dh, 1)}) = ${fmt(L, 2)} مم`,
-          `مساحة منطقة التشكيل والتلامس تحت الدرفيل = العرض ${w} × الطول ${fmt(L, 2)} = ${fmt(contactArea, 1)} مم²`
+          `وزن فاقد أكسيد الفرن (${scalePct}%) = (${wTotal} × ${scalePct}) ÷ 100 = ${fmt(scaleKg, 2)} كجم`,
+          `نجمع كل الهوالك في الكتلة = ${fmt(scaleKg, 2)} (أكسيد) + ${cropKg} (قطعيات مقصات) + ${shortKg} (قصائر) = ${fmt(totalScrapKg, 2)} كجم هالك`,
+          `الوزن الصافي السليم = وزن الكتلة ${wTotal} - الهالك ${fmt(totalScrapKg, 2)} = ${fmt(netGoodKg, 2)} كجم`,
+          `نسبة الإدرار (Yield) = (${fmt(netGoodKg, 2)} ÷ ${wTotal}) × 100 = ${fmt(yieldPct, 2)}%`,
+          `نسبة الهالك الكلية في الكتلة = (${fmt(totalScrapKg, 2)} ÷ ${wTotal}) × 100 = ${fmt(scrapPct, 2)}%`
         ]
       };
     }
@@ -1695,10 +1682,10 @@ const ALL_CALCULATORS = [
   {
     id: 'e1',
     title: 'حمل وعزم وقدرة الدرفلة الميكانيكية',
-    desc: 'حساب طول قوس التلامس، قوة الدرفلة بالكيلونيوتن، والعزم والقدرة.',
+    desc: 'حساب قوة الدرفلة بالكيلونيوتن، والعزم والقدرة المطلوبة للموتور.',
     icon: Flame,
     group: 'قوى وكهرباء',
-    formula: 'طول قوس التلامس = الجذر التربيعي لـ (نصف قطر الدرفيل × الضغطة)  |  حمل الدرفلة = مقاومة المعدن × العرض × قوس التلامس',
+    formula: 'حمل الدرفلة = مقاومة المعدن للتشكيل × عرض المعدن × طول منطقة التلامس',
     inputs: [
       { k: 'sigma', l: 'مقاومة المعدن للتشكيل الساخن (MPa)', def: 110 },
       { k: 'w', l: 'عرض المعدن الملامس للدرفيل (مم)', def: 45 },
@@ -1718,14 +1705,13 @@ const ALL_CALCULATORS = [
       const powerKw = (torqueKnm * 2 * Math.PI * rpm) / 60;
       return {
         results: {
-          'طول قوس التلامس (L)': `${fmt(lp, 2)} مم`,
           'قوة وحمل الدرفلة': `${fmt(loadKn, 1)} كيلو نيوتن`,
           'عزم الدرفلة المطلوب': `${fmt(torqueKnm, 2)} kN.m`,
           'القدرة المطلوبة للدرفلة': `${fmt(powerKw, 1)} كيلووات`
         },
         steps: [
-          `طول قوس التلامس بين المعدن والدرفيل = جذر (${r} × ${dh}) = ${fmt(lp, 2)} مم`,
-          `حمل الدرفلة = (${s} × ${w} × ${fmt(lp, 2)}) ÷ 1000 = ${fmt(loadKn, 1)} كيلو نيوتن`,
+          `نحسب حمل الدرفلة المؤثر على الدرفيلين = ${fmt(loadKn, 1)} كيلو نيوتن`,
+          `عزم الدوران المطلوب = ${fmt(torqueKnm, 2)} كيلو نيوتن.متر`,
           `القدرة الميكانيكية اللازمة لتدوير الدرفيلين = ${fmt(powerKw, 1)} كيلووات`
         ]
       };
