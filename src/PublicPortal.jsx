@@ -5,7 +5,7 @@ import {
   Cpu, Wrench, PlusCircle, ThumbsUp, Flame, Scissors, BookOpen,
   ChevronDown, ChevronUp, Sliders, Search, Award, Sparkles,
   Check, ArrowLeft, Home, ShieldAlert, Cable, BatteryCharging,
-  Radio, Square, Percent, Info, Table2
+  Radio, Square, Percent, Info, Trash2
 } from 'lucide-react';
 
 /* ======================================================
@@ -191,7 +191,6 @@ const Stat = ({ label, value, unit, color = 'text-slate-900', big = false }) => 
   </div>
 );
 
-// مكون زر "تفاصيل وشرح الأداة" القابل للفتح والغلق عند الضغط
 const ToolDetailsExplainer = ({ title, explanation, whenToUse }) => {
   const [showInfo, setShowInfo] = useState(false);
 
@@ -230,7 +229,7 @@ const ToolDetailsExplainer = ({ title, explanation, whenToUse }) => {
 };
 
 const SolutionStepsBox = ({ formula, steps }) => {
-  const [open, setOpen] = useState(false); // مغلق افتراضياً
+  const [open, setOpen] = useState(false);
   if (!steps || steps.length === 0) return null;
 
   return (
@@ -273,10 +272,10 @@ const SolutionStepsBox = ({ formula, steps }) => {
 };
 
 /* ======================================================
-   3. حاسبة مساحات المقاطع والممرات (مرتبة للموبايل بنظام بطاقات شبكية + زر تفاصيل لكل اختيار)
+   3. حاسبة مساحات المقاطع والممرات
    ====================================================== */
 const GrooveAndCrossSectionModal = ({ onBack }) => {
-  const [shape, setShape] = useState('rect'); // 'rect' | 'circle' | 'oval' | 'box' | 'diamond'
+  const [shape, setShape] = useState('rect');
 
   const [rectLen, setRectLen] = useState(50);
   const [rectWid, setRectWid] = useState(10);
@@ -293,7 +292,6 @@ const GrooveAndCrossSectionModal = ({ onBack }) => {
   const [diaD1, setDiaD1] = useState(48);
   const [diaD2, setDiaD2] = useState(42);
 
-  // بيانات الشرح التفصيلي لكل شكل عند اختياره
   const SHAPE_GUIDES = {
     rect: {
       title: 'حساب مساحة المستطيل / المربع / الخوصة (طول × عرض)',
@@ -410,7 +408,6 @@ const GrooveAndCrossSectionModal = ({ onBack }) => {
         </span>
       </div>
 
-      {/* شبكة اختيار نوع المقطع (مرتبة 2×2 على الموبايل بدلاً من الشريط العرضي) */}
       <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm space-y-2.5">
         <label className="text-xs font-black text-slate-700 block">1. اختر شكل المقطع أو الممر:</label>
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
@@ -440,7 +437,6 @@ const GrooveAndCrossSectionModal = ({ onBack }) => {
         </div>
       </div>
 
-      {/* زر تفاصيل وشرح الاختيار الحالي */}
       <ToolDetailsExplainer
         title={activeGuide.title}
         explanation={activeGuide.explanation}
@@ -753,9 +749,25 @@ const BarsAndProductivityModal = ({ onBack }) => {
 };
 
 /* ======================================================
-   5. حاسبة الباس ديزاين الهندسية الحقيقية (Realistic Roll Pass Schedule)
+   5. حاسبة الباس ديزاين الهندسية + التبويب الثالث الجديد (تعديل الأقطار والمخفضات والتخفيض يدوياً)
    ====================================================== */
+const INITIAL_CUSTOM_STANDS = [
+  { id: 1, name: 'ق 1 (تخشين)', shape: 'صندوقي', dw: 455, gr: 8.5, area: 12200 },
+  { id: 2, name: 'ق 2 (تخشين)', shape: 'مربع', dw: 450, gr: 7.2, area: 8800 },
+  { id: 3, name: 'ق 3 (تخشين)', shape: 'بيضاوي', dw: 440, gr: 6.0, area: 6200 },
+  { id: 4, name: 'ق 4 (تخشين)', shape: 'مربع', dw: 435, gr: 4.8, area: 4400 },
+  { id: 5, name: 'ق 5 (متوسط)', shape: 'بيضاوي', dw: 365, gr: 3.8, area: 3150 },
+  { id: 6, name: 'ق 6 (متوسط)', shape: 'دائري كاذب', dw: 360, gr: 3.2, area: 2250 },
+  { id: 7, name: 'ق 7 (متوسط)', shape: 'بيضاوي', dw: 355, gr: 2.6, area: 1600 },
+  { id: 8, name: 'ق 8 (متوسط)', shape: 'دائري كاذب', dw: 350, gr: 2.2, area: 1150 },
+  { id: 9, name: 'ق 9 (تشطيب)', shape: 'بيضاوي', dw: 318, gr: 1.8, area: 820 },
+  { id: 10, name: 'ق 10 (تشطيب)', shape: 'دائري كاذب', dw: 315, gr: 1.5, area: 560 },
+  { id: 11, name: 'ق 11 (تشطيب)', shape: 'بيضاوي قائد', dw: 312, gr: 1.25, area: 245 },
+  { id: 12, name: 'ق 12 (نهائي)', shape: 'دائري مشرشر', dw: 310, gr: 1.0, area: 201 }
+];
+
 const RealisticPassDesignModal = ({ onBack }) => {
+  // 3 أوضاع: 'rebar' (تلقائي تسليح) | 'flat' (تلقائي خوصة) | 'custom' (إدخال وتعديل الأقطار والمخفضات والتخفيض يدوياً)
   const [mode, setMode] = useState('rebar');
   const [billetSide, setBilletSide] = useState(130);
   const [rebarSize, setRebarSize] = useState('16');
@@ -769,6 +781,11 @@ const RealisticPassDesignModal = ({ onBack }) => {
   const [flatW, setFlatW] = useState(50);
   const [flatT, setFlatT] = useState(10);
   const [flatSpeed, setFlatSpeed] = useState(2.5);
+
+  // متغيرات التبويب الثالث الجديد: محاكاة الأقطار والمخفضات المخصصة للمصنع
+  const [customBilletArea, setCustomBilletArea] = useState(16900); // 130x130
+  const [customDeliverySpeed, setCustomDeliverySpeed] = useState(11.5); // سرعة آخر قائم m/s
+  const [customStands, setCustomStands] = useState(INITIAL_CUSTOM_STANDS);
 
   const handleRebarChange = (sz) => {
     setRebarSize(sz);
@@ -838,6 +855,7 @@ const RealisticPassDesignModal = ({ onBack }) => {
 
       const linearSpeedV = Q_total / nextAreaTotal;
       const rollRpm = (linearSpeedV * 60000) / (Math.PI * workingDiaDw);
+      const gearRatio = standNum <= rCount ? +(8.5 - idx * 1.1).toFixed(2) : standNum <= rCount + iCount ? 3.2 : 1.4;
 
       schedule.push({
         standNum,
@@ -848,6 +866,7 @@ const RealisticPassDesignModal = ({ onBack }) => {
         reductionPct,
         elongFactor,
         workingDiaDw,
+        gearRatio,
         linearSpeedV,
         rollRpm
       });
@@ -885,6 +904,87 @@ const RealisticPassDesignModal = ({ onBack }) => {
   const rebarData = buildRealisticRebarSchedule();
   const flatData = buildFlatBarSchedule();
 
+  // دوال التحكم في التبويب الثالث (الأقطار والمخفضات ونسب التخفيض المخصصة)
+  const handleCustomStandUpdate = (index, field, rawVal) => {
+    const updated = [...customStands];
+    const current = { ...updated[index] };
+
+    if (field === 'redPct') {
+      // إذا عدل المستخدم نسبة التخفيض % مباشرة، نحسب المساحة الخارجة الجديدة تلقائياً
+      const prevArea = index === 0 ? Math.max(1, num(customBilletArea)) : Math.max(1, num(updated[index - 1].area));
+      const clampedRed = Math.max(1, Math.min(85, num(rawVal)));
+      current.area = +(prevArea * (1 - clampedRed / 100)).toFixed(1);
+    } else if (field === 'name' || field === 'shape') {
+      current[field] = rawVal;
+    } else {
+      current[field] = rawVal;
+    }
+
+    updated[index] = current;
+    setCustomStands(updated);
+  };
+
+  const handleCopyFromAutoSchedule = () => {
+    setCustomBilletArea(A_billet);
+    setCustomDeliverySpeed(finishSpeed);
+    const copied = rebarData.schedule.map((row) => ({
+      id: row.standNum,
+      name: `ق ${row.standNum}`,
+      shape: row.shape,
+      dw: +row.workingDiaDw.toFixed(1),
+      gr: row.gearRatio,
+      area: +row.exitAreaSingle.toFixed(1)
+    }));
+    setCustomStands(copied);
+  };
+
+  const handleAddCustomStand = () => {
+    const last = customStands[customStands.length - 1] || { dw: 310, gr: 1.2, area: 201 };
+    const nextId = customStands.length + 1;
+    setCustomStands([
+      ...customStands,
+      {
+        id: Date.now(),
+        name: `ق ${nextId}`,
+        shape: 'دائري / بيضاوي',
+        dw: last.dw,
+        gr: last.gr,
+        area: +(num(last.area) * 0.85).toFixed(1)
+      }
+    ]);
+  };
+
+  const handleRemoveCustomStand = (idx) => {
+    if (customStands.length <= 1) return;
+    setCustomStands(customStands.filter((_, i) => i !== idx));
+  };
+
+  // حسابات جدول المحاكاة المخصص بناءً على أقطار ومخفضات المستخدم
+  const lastStandArea = Math.max(1, num(customStands[customStands.length - 1]?.area || 201));
+  const customConstantQ = lastStandArea * Math.max(0.1, num(customDeliverySpeed));
+
+  const computedCustomRows = customStands.map((st, idx) => {
+    const prevArea = idx === 0 ? Math.max(1, num(customBilletArea)) : Math.max(1, num(customStands[idx - 1].area));
+    const curArea = Math.max(1, num(st.area));
+    const redPct = ((prevArea - curArea) / prevArea) * 100;
+    const elong = prevArea / curArea;
+    const dw = Math.max(1, num(st.dw));
+    const gr = Math.max(0.1, num(st.gr));
+    // السرعة من قانون ثبات الحجم Q = A * V
+    const speedMps = customConstantQ / curArea;
+    const rollRpm = (speedMps * 60000) / (Math.PI * dw);
+    const motorRpm = rollRpm * gr;
+    return {
+      ...st,
+      prevArea,
+      redPct,
+      elong,
+      speedMps,
+      rollRpm,
+      motorRpm
+    };
+  });
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2 bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm">
@@ -894,14 +994,14 @@ const RealisticPassDesignModal = ({ onBack }) => {
         >
           <ArrowLeft size={15} className="rotate-180" /> رجوع لكل الأدوات
         </button>
-        <div className="grid grid-cols-2 gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200 w-full sm:w-auto">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200 w-full sm:w-auto">
           <button
             onClick={() => setMode('rebar')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
               mode === 'rebar' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            باس ديزاين التسليح
+            1. باس ديزاين التسليح (تلقائي)
           </button>
           <button
             onClick={() => setMode('flat')}
@@ -909,18 +1009,30 @@ const RealisticPassDesignModal = ({ onBack }) => {
               mode === 'flat' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            باس ديزاين الخوصة
+            2. باس ديزاين الخوصة
+          </button>
+          <button
+            onClick={() => setMode('custom')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              mode === 'custom' ? 'bg-amber-500 text-slate-950 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            3. محاكاة بأقطار ومخفضات مخصصة
           </button>
         </div>
       </div>
 
       <ToolDetailsExplainer
-        title="شرح أداة تصميم الممرات وتوزيع السرعات (Pass Design)"
-        explanation="تقوم هذه الأداة بتوزيع نسبة التخفيض من مساحة البيليت حتى مساحة المنتج النهائي بشكل تدريجي واقعي (تخفيض عالي في التخشين، متوسط في الأوسط، وهادئ في التشطيب) وتحسب السرعة الخطية ولفات الدرفيل لكل قائم بناءً على قانون ثبات الحجم."
-        whenToUse="تُستخدم عند الرغبة في مراجعة تدرج المساحات والسرعات على القوائم أو عند التجهيز لدرفلة مقاس جديد."
+        title="شرح أداة تصميم الممرات ومحاكي الأقطار والمخفضات"
+        explanation={
+          mode === 'custom'
+            ? 'في هذا الوضع المخصص، يمكنك كتابة القطر الفعال (Dw) ونسبة الجيربوكس (Gear Ratio) ومساحة الممر أو نسبة التخفيض لكل قائم بنفسك كما هو موجود في مصنعك، وسيقوم النظام فوراً بحساب السرعة الخطية وRPM الدرفيل وRPM الموتور للتحقق من سرعات الخط.'
+            : 'تقوم هذه الأداة بتوزيع نسبة التخفيض من مساحة البيليت حتى مساحة المنتج النهائي بشكل تدريجي واقعي وتحسب السرعة الخطية ولفات الدرفيل لكل قائم بناءً على قانون ثبات الحجم.'
+        }
+        whenToUse="استخدم الوضع (1 و 2) للتصميم السريع، واستخدم الوضع (3) عندما يكون لديك أقطار درافيل ومخفضات فعلية على الخط وتريد التحقق من سرعات المواتير ونسب التخفيض عند تغيير أي قطر."
       />
 
-      {mode === 'rebar' ? (
+      {mode === 'rebar' && (
         <>
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
             <div className="lg:col-span-6 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
@@ -976,9 +1088,21 @@ const RealisticPassDesignModal = ({ onBack }) => {
           </div>
 
           <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm overflow-x-auto">
-            <h4 className="text-sm font-black text-slate-900 mb-3">
-              جدول تدرج الممرات، الأقطار الفعالة، وتزامن السرعات
-            </h4>
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+              <h4 className="text-sm font-black text-slate-900">
+                جدول تدرج الممرات، الأقطار الفعالة، وتزامن السرعات
+              </h4>
+              <button
+                type="button"
+                onClick={() => {
+                  handleCopyFromAutoSchedule();
+                  setMode('custom');
+                }}
+                className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-3 py-1.5 rounded-xl text-xs shadow-sm"
+              >
+                فتح هذا الجدول للتعديل الحر في الأقطار والمخفضات ←
+              </button>
+            </div>
             <table className="w-full text-right text-xs min-w-[720px]">
               <thead className="bg-slate-900 text-white">
                 <tr>
@@ -1013,7 +1137,9 @@ const RealisticPassDesignModal = ({ onBack }) => {
             </table>
           </div>
         </>
-      ) : (
+      )}
+
+      {mode === 'flat' && (
         <div className="space-y-4">
           <div className="bg-white p-4 rounded-2xl border border-emerald-200 shadow-sm grid grid-cols-1 md:grid-cols-3 gap-3">
             <Field label="عرض الخوصة النهائي (مم) مثل 50 أو 40" value={flatW} onChange={setFlatW} />
@@ -1058,6 +1184,159 @@ const RealisticPassDesignModal = ({ onBack }) => {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {/* التبويب الثالث الجديد: محاكاة وتعديل الأقطار والمخفضات ونسب التخفيض يدوياً لكل قائم */}
+      {mode === 'custom' && (
+        <div className="space-y-4">
+          <div className="bg-white p-4 rounded-2xl border-2 border-amber-300 shadow-sm space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
+              <div>
+                <h3 className="text-sm sm:text-base font-black text-slate-900">
+                  محاكاة الخط بأقطار الدرافيل والمخفضات الفعلية (تعديل حر لكل قائم)
+                </h3>
+                <p className="text-[11px] text-slate-500 font-bold">
+                  غيّر قطر الدرفيل أو نسبة الجيربوكس أو المساحة/التخفيض لأي قائم للتحقق الفوري من السرعة وRPM الموتور
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  onClick={handleCopyFromAutoSchedule}
+                  className="bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-bold px-3 py-1.5 rounded-xl text-xs"
+                >
+                  نسخ القيم من الباس ديزاين التلقائي
+                </button>
+                <button
+                  type="button"
+                  onClick={handleAddCustomStand}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1"
+                >
+                  <PlusCircle size={14} /> + إضافة قائم
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <Field
+                label="مساحة البيليت الداخلة لأول قائم (مم²)"
+                value={customBilletArea}
+                onChange={setCustomBilletArea}
+              />
+              <Field
+                label="سرعة خروج آخر قائم المرجعية (م/ث)"
+                value={customDeliverySpeed}
+                onChange={setCustomDeliverySpeed}
+                step="0.2"
+              />
+              <Stat
+                label="ثابت التدفق الحجمي المحسوب (Q)"
+                value={fmt(customConstantQ, 0)}
+                unit="مم².م/ث"
+                color="text-blue-700"
+              />
+            </div>
+          </div>
+
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm overflow-x-auto">
+            <table className="w-full text-right text-xs min-w-[820px]">
+              <thead className="bg-slate-900 text-white">
+                <tr>
+                  <th className="p-2.5 rounded-r-lg">القائم</th>
+                  <th className="p-2.5">القطر الفعال Dw (مم)</th>
+                  <th className="p-2.5">نسبة الجيربوكس (i)</th>
+                  <th className="p-2.5">مساحة الممر (مم²)</th>
+                  <th className="p-2.5">نسبة التخفيض %</th>
+                  <th className="p-2.5">الاستطالة λ</th>
+                  <th className="p-2.5">السرعة الخطية (م/ث)</th>
+                  <th className="p-2.5">لفات الدرفيل RPM</th>
+                  <th className="p-2.5">لفات الموتور RPM</th>
+                  <th className="p-2.5 rounded-l-lg">حذف</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 font-mono">
+                {computedCustomRows.map((row, idx) => (
+                  <tr key={row.id || idx} className="hover:bg-amber-50/40">
+                    <td className="p-2 font-sans">
+                      <input
+                        type="text"
+                        value={row.name}
+                        onChange={(e) => handleCustomStandUpdate(idx, 'name', e.target.value)}
+                        className="w-28 bg-slate-50 border border-slate-300 rounded-lg px-2 py-1 text-xs font-black text-slate-900"
+                      />
+                    </td>
+                    <td className="p-2">
+                      <input
+                        type="number"
+                        step="0.5"
+                        value={row.dw}
+                        onChange={(e) => handleCustomStandUpdate(idx, 'dw', e.target.value)}
+                        className="w-20 bg-amber-50 border-2 border-amber-400 rounded-lg px-2 py-1 text-xs font-black text-slate-900 text-center"
+                      />
+                    </td>
+                    <td className="p-2">
+                      <input
+                        type="number"
+                        step="0.05"
+                        value={row.gr}
+                        onChange={(e) => handleCustomStandUpdate(idx, 'gr', e.target.value)}
+                        className="w-20 bg-blue-50 border-2 border-blue-300 rounded-lg px-2 py-1 text-xs font-black text-blue-950 text-center"
+                      />
+                    </td>
+                    <td className="p-2">
+                      <input
+                        type="number"
+                        step="1"
+                        value={row.area}
+                        onChange={(e) => handleCustomStandUpdate(idx, 'area', e.target.value)}
+                        className="w-24 bg-slate-50 border border-slate-300 rounded-lg px-2 py-1 text-xs font-bold text-slate-900 text-center"
+                      />
+                    </td>
+                    <td className="p-2">
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          step="0.5"
+                          value={fmt(row.redPct, 1)}
+                          onChange={(e) => handleCustomStandUpdate(idx, 'redPct', e.target.value)}
+                          className="w-16 bg-emerald-50 border border-emerald-300 rounded-lg px-1.5 py-1 text-xs font-black text-emerald-800 text-center"
+                        />
+                        <span className="text-emerald-700 font-bold">%</span>
+                      </div>
+                    </td>
+                    <td className="p-2 text-slate-600 font-bold">{fmt(row.elong, 2)}</td>
+                    <td className="p-2 text-blue-700 font-black text-sm">{fmt(row.speedMps, 2)}</td>
+                    <td className="p-2 text-slate-900 font-bold">{fmt(row.rollRpm, 1)}</td>
+                    <td className="p-2">
+                      <span className="bg-slate-900 text-amber-400 px-2.5 py-1 rounded-lg font-black text-xs inline-block">
+                        {fmt(row.motorRpm, 0)} RPM
+                      </span>
+                    </td>
+                    <td className="p-2">
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveCustomStand(idx)}
+                        className="text-red-500 hover:text-red-700 p-1"
+                        title="حذف القائم"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <SolutionStepsBox
+            formula="سرعة القائم (م/ث) = ثابت التدفق Q ÷ مساحة ممر القائم  |  لفات الدرفيل = (السرعة × 60000) ÷ (3.1416 × القطر الفعال)  |  لفات الموتور = لفات الدرفيل × نسبة الجيربوكس"
+            steps={[
+              `يتم حساب ثابت التدفق الحجمي للخط من آخر قائم: Q = مساحة آخر قائم (${lastStandArea} مم²) × سرعته (${customDeliverySpeed} م/ث) = ${fmt(customConstantQ, 0)} مم².م/ث`,
+              'عندما تغير قطر أي درفيل (Dw) في الجدول، تظل السرعة الخطية للمعدن ثابتة بينما تتغير لفات الدرفيل ولفات الموتور (RPM) فوراً لتعويض فرق القطر.',
+              'وعندما تغير نسبة الجيربوكس (Gear Ratio)، تتغير لفات الموتور المطلوبة مباشرة لتناسب الجيربوكس الجديد.'
+            ]}
+          />
         </div>
       )}
     </div>
@@ -1170,7 +1449,7 @@ const UnitConverterModal = ({ onBack }) => {
 };
 
 /* ======================================================
-   7. موسوعة كل القوانين والأدوات الموحدة (مع شرح تفصيلي لكل أداة)
+   7. موسوعة كل القوانين والأدوات الموحدة
    ====================================================== */
 const ALL_CALCULATORS = [
   {
@@ -1193,9 +1472,9 @@ const ALL_CALCULATORS = [
   },
   {
     id: 'special_pass_design',
-    title: 'تصميم الممرات والسرعات',
-    shortTag: 'جدول الباس ديزاين',
-    desc: 'جدول تدريج المساحات والسرعات الواقعي لحديد التسليح والخوص.',
+    title: 'تصميم الممرات والأقطار',
+    shortTag: 'باس ديزاين + محاكي الأقطار',
+    desc: 'جدول الباس ديزاين التلقائي + محاكاة تعديل أقطار الدرافيل والمخفضات يدوياً.',
     icon: Layers,
     group: 'باس ديزاين وإنتاجية',
     isSpecial: true
@@ -1210,7 +1489,6 @@ const ALL_CALCULATORS = [
     isSpecial: true
   },
 
-  // --- أدوات المساحة والإدرار ---
   {
     id: 'c_billet_yield_scrap',
     title: 'يلد الهالك في الكتلة كلها',
@@ -1316,8 +1594,6 @@ const ALL_CALCULATORS = [
       };
     }
   },
-
-  // --- أ. حاسبات الدرفلة والسرعات ---
   {
     id: 'c1',
     title: 'السرعة الخطية للمعدن',
@@ -1561,8 +1837,6 @@ const ALL_CALCULATORS = [
       };
     }
   },
-
-  // --- ب. حاسبات الأتمتة والفنش ---
   {
     id: 'a1',
     title: 'مسافة رمي الأبرون والعلب',
@@ -1659,8 +1933,6 @@ const ALL_CALCULATORS = [
       };
     }
   },
-
-  // --- ج. حاسبات القوى والكهرباء والتحكم للفنيين ---
   {
     id: 'e_cable',
     title: 'اختيار كابل الموتور',
@@ -1924,7 +2196,6 @@ const UnifiedCalculatorsView = () => {
             </div>
           </div>
 
-          {/* زر تفاصيل وشرح الأداة يظهر داخل كل أداة */}
           <ToolDetailsExplainer
             title={`شرح أداة: ${c.title}`}
             explanation={c.details || c.desc}
@@ -1966,7 +2237,6 @@ const UnifiedCalculatorsView = () => {
 
   return (
     <div className="space-y-4">
-      {/* فلاتر الأقسام مرتبة في شبكة مريحة للموبايل */}
       <div className="flex flex-wrap items-center gap-1.5">
         {groups.map((grp) => (
           <button
@@ -1983,7 +2253,6 @@ const UnifiedCalculatorsView = () => {
         ))}
       </div>
 
-      {/* شبكة البطاقات المربعة (2×2 على الموبايل و 3 أو 4 على الكمبيوتر) بدلاً من الشكل العرضي */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-3.5">
         {visibleCalcs.map((c) => (
           <button
