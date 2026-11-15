@@ -4,7 +4,8 @@ import {
   Gauge, DivideSquare, Maximize2, Circle, ArrowLeftRight, Zap,
   Cpu, Wrench, PlusCircle, ThumbsUp, Flame, Scissors, BookOpen,
   ChevronDown, ChevronUp, Sliders, Search, Award, Sparkles,
-  Check, ArrowLeft, Home, ShieldAlert, Cable, BatteryCharging, Radio, Square, Percent
+  Check, ArrowLeft, Home, ShieldAlert, Cable, BatteryCharging,
+  Radio, Square, Percent, Info, Table2
 } from 'lucide-react';
 
 /* ======================================================
@@ -159,7 +160,7 @@ const fromCelsius = (c, u) => (u === '°F' ? (c * 9) / 5 + 32 : u === 'K' ? c + 
 const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 const fmt = (n, d = 2) => (Number.isFinite(Number(n)) ? Number(n).toFixed(d) : '—');
 const inputCls =
-  'w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-mono text-sm font-bold focus:border-blue-600 focus:bg-white outline-none transition-colors';
+  'w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-slate-900 font-mono text-sm font-bold focus:border-blue-600 focus:bg-white outline-none transition-colors';
 
 const Field = ({ label, value, onChange, step = 'any', className = '' }) => (
   <div className={className}>
@@ -190,8 +191,46 @@ const Stat = ({ label, value, unit, color = 'text-slate-900', big = false }) => 
   </div>
 );
 
+// مكون زر "تفاصيل وشرح الأداة" القابل للفتح والغلق عند الضغط
+const ToolDetailsExplainer = ({ title, explanation, whenToUse }) => {
+  const [showInfo, setShowInfo] = useState(false);
+
+  return (
+    <div className="mb-3">
+      <button
+        type="button"
+        onClick={() => setShowInfo(!showInfo)}
+        className={`w-full sm:w-auto px-3.5 py-2 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 border transition-all ${
+          showInfo
+            ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+            : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
+        }`}
+      >
+        <Info size={15} />
+        <span>{showInfo ? 'إخفاء تفاصيل وشرح الأداة' : 'اضغط لمعرفة تفاصيل وشرح هذه الأداة'}</span>
+        {showInfo ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+      </button>
+
+      {showInfo && (
+        <div className="mt-2.5 bg-blue-50/80 border border-blue-200 rounded-2xl p-3.5 text-xs space-y-2 animate-in fade-in duration-200">
+          <h4 className="font-black text-blue-950 flex items-center gap-1.5">
+            <Info size={14} className="text-blue-600 shrink-0" /> {title || 'فكرة عمل الأداة بالتفصيل:'}
+          </h4>
+          <p className="text-slate-700 font-bold leading-relaxed">{explanation}</p>
+          {whenToUse && (
+            <div className="bg-white p-2.5 rounded-xl border border-blue-100 text-slate-700 font-bold">
+              <strong className="text-blue-700 block mb-0.5">متى تستخدمها في أرض المصنع؟</strong>
+              {whenToUse}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const SolutionStepsBox = ({ formula, steps }) => {
-  const [open, setOpen] = useState(false); // مغلق افتراضياً ويفتح عند الضغط
+  const [open, setOpen] = useState(false); // مغلق افتراضياً
   if (!steps || steps.length === 0) return null;
 
   return (
@@ -234,17 +273,15 @@ const SolutionStepsBox = ({ formula, steps }) => {
 };
 
 /* ======================================================
-   3. الحاسبة الشاملة لمساحات الممرات والقطاعات (الدائرة، المستطيل، البيضاوي، الصندوقي، المعين)
+   3. حاسبة مساحات المقاطع والممرات (مرتبة للموبايل بنظام بطاقات شبكية + زر تفاصيل لكل اختيار)
    ====================================================== */
 const GrooveAndCrossSectionModal = ({ onBack }) => {
   const [shape, setShape] = useState('rect'); // 'rect' | 'circle' | 'oval' | 'box' | 'diamond'
 
   const [rectLen, setRectLen] = useState(50);
   const [rectWid, setRectWid] = useState(10);
-  const [cornerR, setCornerR] = useState(0);
 
   const [circleDia, setCircleDia] = useState(16);
-  const [roundGap, setRoundGap] = useState(2.0);
 
   const [ovalWidth, setOvalWidth] = useState(28);
   const [ovalHeight, setOvalHeight] = useState(12);
@@ -256,7 +293,34 @@ const GrooveAndCrossSectionModal = ({ onBack }) => {
   const [diaD1, setDiaD1] = useState(48);
   const [diaD2, setDiaD2] = useState(42);
 
-  const [metalAreaInGroove, setMetalAreaInGroove] = useState(190);
+  // بيانات الشرح التفصيلي لكل شكل عند اختياره
+  const SHAPE_GUIDES = {
+    rect: {
+      title: 'حساب مساحة المستطيل / المربع / الخوصة (طول × عرض)',
+      explanation: 'تضرب العرض (أو الطول) في السمك (الارتفاع) بالملليمتر لإيجاد مساحة المقطع بالمم²، ثم تضرب المساحة في الكثافة (0.00785) لإخراج وزن المتر الطولي بالكيلوجرام.',
+      whenToUse: 'تُستخدم لحساب مساحة ووزن الخوص الحديدية (مثل خوصة 50×10 أو 40×10) أو لحساب مساحة مقطع البيليت الخام (مثل 130×130 مم).'
+    },
+    circle: {
+      title: 'قانون الدائرة وحساب الممر الدائري أو البار المبروم',
+      explanation: 'تحسب مساحة المقطع الدائري من خلال ضرب (0.7854 × القطر × القطر)، ومنها تحسب وزن المتر الطولي للسيخ أو البار المبروم مباشرة.',
+      whenToUse: 'تُستخدم لحساب مساحة مقطع أسياخ حديد التسليح والبارات المبرومة، أو مساحة ممر التشطيب الدائري النهائي (Round Pass).'
+    },
+    oval: {
+      title: 'حساب مساحة الممر البيضاوي (Oval Pass)',
+      explanation: 'الممر البيضاوي يكون منحني القوسين، وتُحسب مساحته الهندسية في الدرفلة بضرب (ثلثين 2/3 × عرض البيضاوي × ارتفاع البيضاوي).',
+      whenToUse: 'تُستخدم في قوائم المتوسط والتشطيب (خصوصاً الممر البيضاوي القائد Leader Oval الذي يسبق الممر الدائري الأخير).'
+    },
+    box: {
+      title: 'حساب مساحة الممر الصندوقي (Box Pass)',
+      explanation: 'الممر الصندوقي له جوانب مائلة لتسهيل خروج الكتلة، فتُحسب مساحته بأخذ متوسط العرض (عرض القاع + عرض الفتحة مقسوماً على 2) ثم ضربه في الارتفاع.',
+      whenToUse: 'تُستخدم في أول قوائم التخشين (Roughing Stands 1 & 2) حيث يدخل البيليت المربع في ممر صندوقي لتكسير قشرة الأكسيد وعمل تخفيض كبير.'
+    },
+    diamond: {
+      title: 'حساب مساحة الممر المعين (Diamond Pass)',
+      explanation: 'الممر المعين هو مربع مائل على سيفه، وتُحسب مساحته بضرب (القطر الأفقي للممر × القطر الرأسي للممر) ثم قسمة الناتج على 2.',
+      whenToUse: 'تُستخدم في سلاسل درفلة (معين - مربع) في مرحلة التخشين والمتوسط لتشكيل الكتلة بانتظام من جميع الجوانب.'
+    }
+  };
 
   let calcArea = 0;
   let perimeter = 0;
@@ -267,33 +331,26 @@ const GrooveAndCrossSectionModal = ({ onBack }) => {
   if (shape === 'rect') {
     const L = num(rectLen);
     const W = num(rectWid);
-    const r = Math.max(0, num(cornerR));
-    const cornerDeduction = r > 0 ? (4 - Math.PI) * r * r : 0;
-    calcArea = Math.max(0, L * W - cornerDeduction);
+    calcArea = Math.max(0, L * W);
     perimeter = 2 * (L + W);
     eqDia = Math.sqrt((4 * calcArea) / Math.PI);
     formulaStr = 'مساحة المستطيل أو الخوصة = الطول (العرض) × السمك (الارتفاع)  |  وزن المتر الطولي = المساحة × 0.00785';
     stepsArr = [
-      `نضرب الطول في العرض = ${L} مم × ${W} مم = ${fmt(L * W, 2)} مم²`,
-      ...(r > 0 ? [`نخصم تقوس الأركان الأربعة (نصف قطر ${r} مم) = ${fmt(L * W, 2)} - ${fmt(cornerDeduction, 2)} = ${fmt(calcArea, 2)} مم²`] : []),
+      `نضرب الطول في العرض = ${L} مم × ${W} مم = ${fmt(calcArea, 2)} مم²`,
       `محيط المقطع = 2 × (${L} + ${W}) = ${fmt(perimeter, 1)} مم`,
       `وزن المتر الطولي للحديد = ${fmt(calcArea, 2)} × 0.00785 = ${fmt(calcArea * 0.00785, 3)} كجم/متر`
     ];
   } else if (shape === 'circle') {
     const D = num(circleDia);
-    const g = Math.max(0, num(roundGap));
-    const fullCircle = (Math.PI * D * D) / 4;
-    calcArea = fullCircle;
-    const grooveEffectiveArea = Math.max(0, fullCircle - g * 0.15 * D);
+    calcArea = (Math.PI * D * D) / 4;
     perimeter = Math.PI * D;
     eqDia = D;
     formulaStr = 'مساحة الدائرة = (3.1416 × القطر × القطر) ÷ 4  (أو 0.7854 × مربع القطر)';
     stepsArr = [
       `نربع القطر D = ${D} × ${D} = ${fmt(D * D, 2)}`,
-      `نضرب في 3.1416 ونقسم على 4 = (3.1416 × ${fmt(D * D, 2)}) ÷ 4 = ${fmt(fullCircle, 2)} مم²`,
+      `نضرب في 3.1416 ونقسم على 4 = (3.1416 × ${fmt(D * D, 2)}) ÷ 4 = ${fmt(calcArea, 2)} مم²`,
       `محيط الدائرة = 3.1416 × ${D} = ${fmt(perimeter, 2)} مم`,
-      `مساحة ممر الدرفيل الصافية (عند جاب ${g} مم) ≈ ${fmt(grooveEffectiveArea, 2)} مم²`,
-      `وزن المتر الطولي للبار المبروم = ${fmt(fullCircle, 2)} × 0.00785 = ${fmt(fullCircle * 0.00785, 3)} كجم/متر`
+      `وزن المتر الطولي للبار الدائري = ${fmt(calcArea, 2)} × 0.00785 = ${fmt(calcArea * 0.00785, 3)} كجم/متر`
     ];
   } else if (shape === 'oval') {
     const B = num(ovalWidth);
@@ -301,11 +358,10 @@ const GrooveAndCrossSectionModal = ({ onBack }) => {
     calcArea = (2 / 3) * B * H;
     perimeter = Math.PI * Math.sqrt(2 * (Math.pow(B / 2, 2) + Math.pow(H / 2, 2)));
     eqDia = Math.sqrt((4 * calcArea) / Math.PI);
-    formulaStr = 'مساحة الممر البيضاوي (Oval Pass) = (2 ÷ 3) × عرض الممر × ارتفاع الممر الكلي';
+    formulaStr = 'مساحة الممر البيضاوي (Oval Pass) = (2 ÷ 3) × عرض الممر × ارتفاع الممر';
     stepsArr = [
       `نضرب عرض الممر البيضاوي في ارتفاعه = ${B} × ${H} = ${fmt(B * H, 2)} مم²`,
-      `نضرب في معامل شكل القوس البيضاوي (2/3 أي 0.667) = 0.667 × ${fmt(B * H, 2)} = ${fmt(calcArea, 2)} مم²`,
-      `معامل الممر البيضاوي (Groove Factor) = المساحة ÷ العرض = ${fmt(calcArea, 1)} ÷ ${B} = ${fmt(calcArea / Math.max(1, B), 2)} مم`,
+      `نضرب في معامل القوس البيضاوي (2/3 أي 0.667) = 0.667 × ${fmt(B * H, 2)} = ${fmt(calcArea, 2)} مم²`,
       `وزن المتر الطولي للبار البيضاوي الخارج = ${fmt(calcArea * 0.00785, 3)} كجم/متر`
     ];
   } else if (shape === 'box') {
@@ -316,7 +372,7 @@ const GrooveAndCrossSectionModal = ({ onBack }) => {
     calcArea = avgW * h;
     perimeter = b1 + b2 + 2 * h;
     eqDia = Math.sqrt((4 * calcArea) / Math.PI);
-    formulaStr = 'مساحة الممر الصندوقي (Box Pass) = متوسط العرض [(عرض القاع + عرض الفتحة) ÷ 2] × الارتفاع الكلي';
+    formulaStr = 'مساحة الممر الصندوقي (Box Pass) = متوسط العرض [(عرض القاع + عرض الفتحة) ÷ 2] × الارتفاع';
     stepsArr = [
       `نحسب متوسط عرض الممر الصندوقي = (${b1} + ${b2}) ÷ 2 = ${fmt(avgW, 2)} مم`,
       `نضرب متوسط العرض في الارتفاع الكلي للممر (${h} مم) = ${fmt(avgW, 2)} × ${h} = ${fmt(calcArea, 2)} مم²`,
@@ -329,139 +385,126 @@ const GrooveAndCrossSectionModal = ({ onBack }) => {
     const side = Math.sqrt(Math.pow(d1 / 2, 2) + Math.pow(d2 / 2, 2));
     perimeter = 4 * side;
     eqDia = Math.sqrt((4 * calcArea) / Math.PI);
-    formulaStr = 'مساحة الممر المعين أو المربع المائل (Diamond / Square Pass) = (القطر الأفقي × القطر الرأسي) ÷ 2';
+    formulaStr = 'مساحة الممر المعين (Diamond Pass) = (القطر الأفقي × القطر الرأسي) ÷ 2';
     stepsArr = [
       `نضرب القطر الأفقي في القطر الرأسي = ${d1} × ${d2} = ${fmt(d1 * d2, 2)}`,
       `نقسم الناتج على 2 = ${fmt(d1 * d2, 2)} ÷ 2 = ${fmt(calcArea, 2)} مم²`,
-      `طول ضلع المعين = ${fmt(side, 2)} مم`
+      `وزن المتر الطولي = ${fmt(calcArea * 0.00785, 3)} كجم/متر`
     ];
   }
 
   const meterWeightKg = calcArea * 0.00785;
-  const fillPct = calcArea > 0 ? (num(metalAreaInGroove) / calcArea) * 100 : 0;
-  const fillStatus =
-    fillPct > 100
-      ? 'امتلاء زائد! خطر ظهور شنب وقشرة (Overfill)'
-      : fillPct < 80
-      ? 'أقل من الطبيعي! خطر بطح وعدم اكتمال (Underfill)'
-      : 'امتلاء مثالي وسليم للممر (80% - 98%)';
+  const activeGuide = SHAPE_GUIDES[shape];
 
   return (
     <div className="space-y-4">
-      <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-2">
+      <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
         <button
           onClick={onBack}
           className="bg-slate-100 hover:bg-slate-200 text-slate-800 px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5"
         >
-          <ArrowLeft size={15} className="rotate-180" /> رجوع لكل القوانين
+          <ArrowLeft size={15} className="rotate-180" /> رجوع لكل الأدوات
         </button>
+        <span className="text-xs font-black text-blue-700 bg-blue-50 px-3 py-1 rounded-full border border-blue-200">
+          حاسبة المساحات والممرات
+        </span>
+      </div>
 
-        <div className="flex flex-wrap gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
+      {/* شبكة اختيار نوع المقطع (مرتبة 2×2 على الموبايل بدلاً من الشريط العرضي) */}
+      <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm space-y-2.5">
+        <label className="text-xs font-black text-slate-700 block">1. اختر شكل المقطع أو الممر:</label>
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
           {[
-            ['rect', 'طول × عرض (مستطيل/خوصة/مربع)'],
-            ['circle', 'قانون الدائرة (ممر دائري)'],
-            ['oval', 'ممر بيضاوي (Oval)'],
-            ['box', 'ممر صندوقي (Box)'],
-            ['diamond', 'ممر معين (Diamond)']
-          ].map(([id, label]) => (
+            ['rect', 'طول × عرض', 'مستطيل / خوصة / مربع'],
+            ['circle', 'قانون الدائرة', 'ممر دائري / سيخ'],
+            ['oval', 'ممر بيضاوي', 'Oval Pass'],
+            ['box', 'ممر صندوقي', 'Box Pass'],
+            ['diamond', 'ممر معين', 'Diamond Pass']
+          ].map(([id, mainTitle, sub]) => (
             <button
               key={id}
+              type="button"
               onClick={() => setShape(id)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                shape === id ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
+              className={`p-2.5 rounded-xl border text-right transition-all flex flex-col justify-between ${
+                shape === id
+                  ? 'bg-blue-600 text-white border-blue-600 shadow-md'
+                  : 'bg-slate-50 text-slate-800 border-slate-200 hover:bg-slate-100'
               }`}
             >
-              {label}
+              <span className="font-black text-xs block">{mainTitle}</span>
+              <span className={`text-[10px] mt-0.5 block ${shape === id ? 'text-blue-100' : 'text-slate-500'}`}>
+                {sub}
+              </span>
             </button>
           ))}
         </div>
       </div>
 
+      {/* زر تفاصيل وشرح الاختيار الحالي */}
+      <ToolDetailsExplainer
+        title={activeGuide.title}
+        explanation={activeGuide.explanation}
+        whenToUse={activeGuide.whenToUse}
+      />
+
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
         <div className="lg:col-span-5 bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4 h-fit">
           <h3 className="text-sm sm:text-base font-black text-slate-900 border-b border-slate-100 pb-2">
-            أدخل أبعاد المقطع أو الممر بالملليمتر
+            2. أدخل الأبعاد بالملليمتر (مم)
           </h3>
 
           {shape === 'rect' && (
             <div className="grid grid-cols-2 gap-3">
-              <Field label="الطول / العرض B (مم)" value={rectLen} onChange={setRectLen} />
-              <Field label="العرض / السمك H (مم)" value={rectWid} onChange={setRectWid} />
-              <Field
-                label="نصف قطر تقوس السوكة (اختياري مم)"
-                value={cornerR}
-                onChange={setCornerR}
-                step="0.5"
-                className="col-span-2"
-              />
+              <Field label="الطول / العرض (مم)" value={rectLen} onChange={setRectLen} />
+              <Field label="العرض / السمك (مم)" value={rectWid} onChange={setRectWid} />
             </div>
           )}
 
           {shape === 'circle' && (
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="قطر الدائرة / الممر D (مم)" value={circleDia} onChange={setCircleDia} step="0.5" />
-              <Field label="خلوص الجاب بين الدرفيلين (مم)" value={roundGap} onChange={setRoundGap} step="0.5" />
+            <div>
+              <Field label="قطر الدائرة أو السيخ (مم)" value={circleDia} onChange={setCircleDia} step="0.5" />
             </div>
           )}
 
           {shape === 'oval' && (
             <div className="grid grid-cols-2 gap-3">
-              <Field label="عرض الممر البيضاوي B (مم)" value={ovalWidth} onChange={setOvalWidth} step="0.5" />
-              <Field label="ارتفاع الممر الكلي شامل الجاب H (مم)" value={ovalHeight} onChange={setOvalHeight} step="0.5" />
+              <Field label="عرض البيضاوي (مم)" value={ovalWidth} onChange={setOvalWidth} step="0.5" />
+              <Field label="ارتفاع البيضاوي (مم)" value={ovalHeight} onChange={setOvalHeight} step="0.5" />
             </div>
           )}
 
           {shape === 'box' && (
             <div className="grid grid-cols-2 gap-3">
-              <Field label="عرض قاع الممر الصندوقي (مم)" value={boxBottomW} onChange={setBoxBottomW} />
-              <Field label="عرض فتحة الممر عند الجاب (مم)" value={boxTopW} onChange={setBoxTopW} />
-              <Field label="الارتفاع الكلي للممر شامل الجاب (مم)" value={boxHeight} onChange={setBoxHeight} className="col-span-2" />
+              <Field label="عرض قاع الصندوق (مم)" value={boxBottomW} onChange={setBoxBottomW} />
+              <Field label="عرض فتحة الصندوق (مم)" value={boxTopW} onChange={setBoxTopW} />
+              <Field label="ارتفاع الممر الكلي (مم)" value={boxHeight} onChange={setBoxHeight} className="col-span-2" />
             </div>
           )}
 
           {shape === 'diamond' && (
             <div className="grid grid-cols-2 gap-3">
-              <Field label="القطر الأفقي للمعين d1 (مم)" value={diaD1} onChange={setDiaD1} />
-              <Field label="القطر الرأسي للمعين d2 (مم)" value={diaD2} onChange={setDiaD2} />
+              <Field label="القطر الأفقي للمعين (مم)" value={diaD1} onChange={setDiaD1} />
+              <Field label="القطر الرأسي للمعين (مم)" value={diaD2} onChange={setDiaD2} />
             </div>
           )}
-
-          <div className="pt-3 border-t border-slate-100 space-y-2">
-            <Field
-              label="اختبار امتلاء الممر: أدخل مساحة المعدن الفعلية (مم²)"
-              value={metalAreaInGroove}
-              onChange={setMetalAreaInGroove}
-            />
-            <div
-              className={`p-2.5 rounded-xl border text-xs font-bold ${
-                fillPct > 100
-                  ? 'bg-red-50 border-red-200 text-red-700'
-                  : fillPct < 80
-                  ? 'bg-amber-50 border-amber-200 text-amber-800'
-                  : 'bg-emerald-50 border-emerald-200 text-emerald-800'
-              }`}
-            >
-              نسبة امتلاء الممر: <strong className="font-mono">{fmt(fillPct, 1)}%</strong> — {fillStatus}
-            </div>
-          </div>
         </div>
 
         <div className="lg:col-span-7 bg-white p-4 sm:p-5 rounded-2xl border border-blue-200 shadow-sm space-y-4">
           <h3 className="text-sm sm:text-base font-black text-blue-800 border-b border-slate-100 pb-2">
-            نتائج مساحة المقطع ووزن المتر الطولي
+            النتائج الفورية
           </h3>
 
           <div className="bg-blue-50/70 border border-blue-200 rounded-2xl p-4 text-center">
             <span className="text-xs font-bold text-blue-800 block mb-1">مساحة المقطع الهندسية (Area)</span>
             <span className="text-3xl sm:text-4xl font-black font-mono text-blue-700">
-              {fmt(calcArea, 2)} <span className="text-sm">مم² (mm²)</span>
+              {fmt(calcArea, 2)} <span className="text-sm">مم²</span>
             </span>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-            <Stat label="وزن المتر الطولي للحديد" value={fmt(meterWeightKg, 3)} unit="كجم/متر" color="text-emerald-700" big />
-            <Stat label="محيط المقطع الخارجي" value={fmt(perimeter, 1)} unit="مم" />
-            <Stat label="القطر الدائري المكافئ" value={fmt(eqDia, 2)} unit="مم" />
+            <Stat label="وزن المتر الطولي" value={fmt(meterWeightKg, 3)} unit="كجم/متر" color="text-emerald-700" big />
+            <Stat label="محيط المقطع" value={fmt(perimeter, 1)} unit="مم" />
+            <Stat label="القطر المكافئ" value={fmt(eqDia, 2)} unit="مم" />
           </div>
 
           <SolutionStepsBox formula={formulaStr} steps={stepsArr} />
@@ -526,12 +569,18 @@ const BarsAndProductivityModal = ({ onBack }) => {
           onClick={onBack}
           className="bg-slate-100 hover:bg-slate-200 text-slate-800 px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5"
         >
-          <ArrowLeft size={15} className="rotate-180" /> رجوع لكل القوانين
+          <ArrowLeft size={15} className="rotate-180" /> رجوع لكل الأدوات
         </button>
         <span className="text-xs font-black text-blue-700 bg-blue-50 px-3 py-1 rounded-full border border-blue-200">
-          يعرض نتائج المقص الطائر + أسياخ العميل معاً
+          حاسبة المقص الطائر وأسياخ العميل
         </span>
       </div>
+
+      <ToolDetailsExplainer
+        title="شرح حاسبة قطعيات المقص الطائر وأسياخ العميل"
+        explanation="تحسب لك هذه الأداة في نفس اللحظة كم بار يقطعه المقص الطائر (مثلاً بطول 36م أو 48م) ليرميه على سرير التبريد وكم متر يتبقى في البار الأخير (الذيل)، ثم تحسب كم سيخ تجاري (12م) يخرج للعميل على المقص البارد."
+        whenToUse="استخدمها عند بداية الوردية أو عند تغيير وزن المتر الطولي لمعرفة طول البار الأخير وتقليل فضلة القصائر والهالك."
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
         <div className="lg:col-span-5 bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3.5 h-fit">
@@ -580,7 +629,7 @@ const BarsAndProductivityModal = ({ onBack }) => {
               onChange={handleSizeSelect}
               options={[
                 ...REBAR_SPECS.map((r) => [String(r.size), `تسليح ${r.size} مم (${r.nomW} كجم/م)`]),
-                ['custom', 'مقاس خاص / خوصة (اكتب الوزن يدوياً)']
+                ['custom', 'مقاس خاص / خوصة (يدوي)']
               ]}
             />
 
@@ -843,16 +892,16 @@ const RealisticPassDesignModal = ({ onBack }) => {
           onClick={onBack}
           className="bg-slate-100 hover:bg-slate-200 text-slate-800 px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5"
         >
-          <ArrowLeft size={15} className="rotate-180" /> رجوع لكل القوانين
+          <ArrowLeft size={15} className="rotate-180" /> رجوع لكل الأدوات
         </button>
-        <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200">
+        <div className="grid grid-cols-2 gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200 w-full sm:w-auto">
           <button
             onClick={() => setMode('rebar')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
               mode === 'rebar' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            باس ديزاين حديد التسليح
+            باس ديزاين التسليح
           </button>
           <button
             onClick={() => setMode('flat')}
@@ -860,10 +909,16 @@ const RealisticPassDesignModal = ({ onBack }) => {
               mode === 'flat' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            باس ديزاين الخوصة والقطاعات (50×10 / 40×10)
+            باس ديزاين الخوصة
           </button>
         </div>
       </div>
+
+      <ToolDetailsExplainer
+        title="شرح أداة تصميم الممرات وتوزيع السرعات (Pass Design)"
+        explanation="تقوم هذه الأداة بتوزيع نسبة التخفيض من مساحة البيليت حتى مساحة المنتج النهائي بشكل تدريجي واقعي (تخفيض عالي في التخشين، متوسط في الأوسط، وهادئ في التشطيب) وتحسب السرعة الخطية ولفات الدرفيل لكل قائم بناءً على قانون ثبات الحجم."
+        whenToUse="تُستخدم عند الرغبة في مراجعة تدرج المساحات والسرعات على القوائم أو عند التجهيز لدرفلة مقاس جديد."
+      />
 
       {mode === 'rebar' ? (
         <>
@@ -1010,863 +1065,9 @@ const RealisticPassDesignModal = ({ onBack }) => {
 };
 
 /* ======================================================
-   6. موسوعة كل القوانين الموحدة (شاملة مساحات الممرات وحاسبة يلد وهالك الكتلة الكلية)
+   6. نافذة محول الوحدات وجدول المواصفات (مدمجة داخل الأدوات)
    ====================================================== */
-const ALL_CALCULATORS = [
-  {
-    id: 'special_groove_areas',
-    title: 'حاسبة مساحات الممرات والقطاعات (الدائرة، المستطيل، البيضاوي، الصندوقي)',
-    desc: 'احسب مساحة المقطع من الطول والعرض أو قانون الدائرة والبيضاوي مع وزن المتر ونسبة امتلاء الممر.',
-    icon: Square,
-    group: 'باس ديزاين وإنتاجية',
-    isSpecial: true
-  },
-  {
-    id: 'special_bars_yield',
-    title: 'حاسبة قطعيات المقص الطائر (36م/48م) وأسياخ العميل (12م)',
-    desc: 'تعرض نتيجة المقص الطائر وأسياخ العميل معاً مع تحكم يدوي في وزن المتر الطولي.',
-    icon: Scissors,
-    group: 'باس ديزاين وإنتاجية',
-    isSpecial: true
-  },
-  {
-    id: 'special_pass_design',
-    title: 'تصميم الممرات وتوزيع السرعات (Pass Design)',
-    desc: 'جدول تدريج المساحات والسرعات الواقعي لحديد التسليح والخوص.',
-    icon: Layers,
-    group: 'باس ديزاين وإنتاجية',
-    isSpecial: true
-  },
-
-  // --- حاسبة الطول والعرض السريعة + قانون الدائرة + يلد الهالك في الكتلة كلها ---
-  {
-    id: 'c_rect_area',
-    title: 'حاسبة مساحة المقطع (طول × عرض) ووزن المتر',
-    desc: 'أدخل الطول (العرض) والسمك بالملليمتر لحساب المساحة بالمم² ووزن المتر فوراً.',
-    icon: Square,
-    group: 'درفلة وسرعات',
-    formula: 'مساحة المقطع (مم²) = الطول (العرض) × السمك (الارتفاع)  |  وزن المتر الطولي = المساحة × 0.00785',
-    inputs: [
-      { k: 'l', l: 'الطول / عرض القطاع أو البيليت (مم)', def: 50 },
-      { k: 'w', l: 'العرض / سمك القطاع أو البيليت (مم)', def: 10 }
-    ],
-    calc: (v) => {
-      const l = num(v.l);
-      const w = num(v.w);
-      const area = l * w;
-      const weight = area * 0.00785;
-      return {
-        results: {
-          'مساحة المقطع (Area)': `${fmt(area, 2)} مم²`,
-          'وزن المتر الطولي للحديد': `${fmt(weight, 3)} كجم/متر`,
-          'محيط المقطع': `${fmt(2 * (l + w), 1)} مم`
-        },
-        steps: [
-          `نضرب الطول في العرض = ${l} مم × ${w} مم = ${fmt(area, 2)} مم²`,
-          `لحساب وزن المتر الطولي نضرب المساحة في كثافة الحديد (0.00785) = ${fmt(area, 2)} × 0.00785 = ${fmt(weight, 3)} كجم/متر`
-        ]
-      };
-    }
-  },
-  {
-    id: 'c_circle_area',
-    title: 'قانون الدائرة وحساب مساحة الممر الدائري',
-    desc: 'أدخل قطر الدائرة أو السيخ بالمم لحساب مساحة المقطع والمحيط ووزن المتر.',
-    icon: Circle,
-    group: 'درفلة وسرعات',
-    formula: 'مساحة الدائرة (مم²) = (3.1416 × القطر × القطر) ÷ 4  (أو 0.7854 × مربع القطر)',
-    inputs: [
-      { k: 'd', l: 'قطر الدائرة أو الممر الدائري (مم)', def: 16 },
-      { k: 'gap', l: 'خلوص الجاب بين الدرفيلين (اختياري مم)', def: 2 }
-    ],
-    calc: (v) => {
-      const d = num(v.d);
-      const gap = Math.max(0, num(v.gap));
-      const area = (Math.PI * d * d) / 4;
-      const grooveNet = Math.max(0, area - gap * 0.15 * d);
-      const weight = area * 0.00785;
-      return {
-        results: {
-          'مساحة الدائرة الكاملة': `${fmt(area, 2)} مم²`,
-          'مساحة ممر الدرفيل الصافية': `${fmt(grooveNet, 2)} مم²`,
-          'وزن المتر الطولي للبار الدائري': `${fmt(weight, 3)} كجم/متر`
-        },
-        steps: [
-          `نربع القطر = ${d} × ${d} = ${fmt(d * d, 2)}`,
-          `نضرب في 3.1416 ونقسم على 4 = ${fmt(area, 2)} مم²`,
-          `وزن المتر الطولي = ${fmt(area, 2)} × 0.00785 = ${fmt(weight, 3)} كجم/متر`
-        ]
-      };
-    }
-  },
-  {
-    id: 'c_billet_yield_scrap',
-    title: 'حاسبة الإدرار (Yield) ونسبة الهالك في الكتلة كلها',
-    desc: 'حساب إجمالي وزن ونسبة الهالك (أكسيد الفرن + قطعيات المقصات + القصائر) والوزن الصافي للكتلة.',
-    icon: Percent,
-    group: 'باس ديزاين وإنتاجية',
-    formula: 'الوزن الصافي = وزن الكتلة - إجمالي الهوالك  |  نسبة الإدرار (Yield %) = (الوزن الصافي ÷ وزن الكتلة) × 100  |  نسبة الهالك % = (إجمالي الهالك ÷ وزن الكتلة) × 100',
-    inputs: [
-      { k: 'wBillet', l: 'وزن الكتلة (البيليت) الكلي (كجم)', def: 1592 },
-      { k: 'scalePct', l: 'نسبة فاقد أكسيد الفرن Scale (%)', def: 1.5 },
-      { k: 'cropKg', l: 'وزن قطعيات الهيد والديل للمقصات (كجم)', def: 12 },
-      { k: 'shortKg', l: 'وزن هالك القصائر أو الكعبلة في الكتلة (كجم)', def: 18 }
-    ],
-    calc: (v) => {
-      const wTotal = Math.max(1, num(v.wBillet));
-      const scalePct = Math.max(0, num(v.scalePct));
-      const scaleKg = (wTotal * scalePct) / 100;
-      const cropKg = Math.max(0, num(v.cropKg));
-      const shortKg = Math.max(0, num(v.shortKg));
-
-      const totalScrapKg = scaleKg + cropKg + shortKg;
-      const netGoodKg = Math.max(0, wTotal - totalScrapKg);
-      const yieldPct = (netGoodKg / wTotal) * 100;
-      const scrapPct = (totalScrapKg / wTotal) * 100;
-
-      return {
-        results: {
-          'إجمالي وزن الهالك في الكتلة': `${fmt(totalScrapKg, 2)} كجم`,
-          'وزن المنتج الصافي السليم': `${fmt(netGoodKg, 2)} كجم`,
-          'نسبة الإدرار الصافي (Yield %)': `${fmt(yieldPct, 2)}%`,
-          'نسبة الهالك الكلية من الكتلة': `${fmt(scrapPct, 2)}%`
-        },
-        steps: [
-          `وزن فاقد أكسيد الفرن (${scalePct}%) = (${wTotal} × ${scalePct}) ÷ 100 = ${fmt(scaleKg, 2)} كجم`,
-          `نجمع كل الهوالك في الكتلة = ${fmt(scaleKg, 2)} (أكسيد) + ${cropKg} (قطعيات مقصات) + ${shortKg} (قصائر) = ${fmt(totalScrapKg, 2)} كجم هالك`,
-          `الوزن الصافي السليم = وزن الكتلة ${wTotal} - الهالك ${fmt(totalScrapKg, 2)} = ${fmt(netGoodKg, 2)} كجم`,
-          `نسبة الإدرار (Yield) = (${fmt(netGoodKg, 2)} ÷ ${wTotal}) × 100 = ${fmt(yieldPct, 2)}%`,
-          `نسبة الهالك الكلية في الكتلة = (${fmt(totalScrapKg, 2)} ÷ ${wTotal}) × 100 = ${fmt(scrapPct, 2)}%`
-        ]
-      };
-    }
-  },
-
-  // --- أ. حاسبات الدرفلة والسرعات ---
-  {
-    id: 'c1',
-    title: 'السرعة الخطية للمعدن (متر/ثانية)',
-    desc: 'حساب سرعة خروج المعدن من القطر الفعال وعدد لفات الدرفيل.',
-    icon: Activity,
-    group: 'درفلة وسرعات',
-    formula: 'السرعة الخطية (م/ث) = (3.1416 × القطر الفعال بالمم × لفات الدرفيل بالدقيقة) ÷ 60000',
-    inputs: [
-      { k: 'd', l: 'القطر الفعال للدرفيل (مم)', def: 465 },
-      { k: 'n', l: 'سرعة دوران الدرفيل (RPM)', def: 220 }
-    ],
-    calc: (v) => {
-      const d = num(v.d);
-      const n = num(v.n);
-      const res = (Math.PI * d * n) / 60000;
-      return {
-        results: { 'السرعة الخطية (متر/ثانية)': `${fmt(res, 2)} m/s`, 'السرعة بالمتر/دقيقة': `${fmt(res * 60, 1)} m/min` },
-        steps: [
-          `نحسب محيط الدرفيل بالمتر = (3.1416 × ${d} مم) ÷ 1000 = ${fmt((Math.PI * d) / 1000, 3)} متر للفة الواحدة`,
-          `نضرب محيط اللفة في عدد اللفات بالدقيقة (${n}) = ${fmt(res * 60, 2)} متر في الدقيقة`,
-          `نقسم الناتج على 60 ثانية لنحصل على السرعة بالمتر/ثانية = ${fmt(res, 2)} م/ث`
-        ]
-      };
-    }
-  },
-  {
-    id: 'c2',
-    title: 'عدد لفات الدرفيل المطلوبة (Roll RPM)',
-    desc: 'إيجاد لفات الدرفيل المطلوبة لتحقيق سرعة خطية محددة للمعدن.',
-    icon: RotateCcw,
-    group: 'درفلة وسرعات',
-    formula: 'لفات الدرفيل (RPM) = (السرعة الخطية بالمتر/ثانية × 60000) ÷ (3.1416 × القطر الفعال بالمم)',
-    inputs: [
-      { k: 'v', l: 'السرعة الخطية المطلوبة (متر/ثانية)', def: 5.5 },
-      { k: 'd', l: 'القطر الفعال للدرفيل (مم)', def: 465 }
-    ],
-    calc: (v) => {
-      const vel = num(v.v);
-      const d = Math.max(1, num(v.d));
-      const rpm = (vel * 60000) / (Math.PI * d);
-      return {
-        results: { 'لفات الدرفيل المطلوبة (RPM)': `${fmt(rpm, 1)} لفة/دقيقة` },
-        steps: [
-          `نحول السرعة إلى ملليمتر في الدقيقة = ${vel} × 60000 = ${fmt(vel * 60000, 0)} مم/دقيقة`,
-          `نحسب محيط الدرفيل بالملليمتر = 3.1416 × ${d} = ${fmt(Math.PI * d, 2)} مم`,
-          `نقسم المسافة بالدقيقة على محيط الدرفيل = ${fmt(vel * 60000, 0)} ÷ ${fmt(Math.PI * d, 2)} = ${fmt(rpm, 1)} لفة/دقيقة`
-        ]
-      };
-    }
-  },
-  {
-    id: 'c3',
-    title: 'لفات الموتور وسرعة العض الزائدة (Over Speed)',
-    desc: 'حساب RPM الموتور من نسبة الجيربوكس وإضافة نسبة الـ Over Speed.',
-    icon: Gauge,
-    group: 'درفلة وسرعات',
-    formula: 'لفات الموتور = لفات الدرفيل × نسبة تخفيض الجيربوكس',
-    inputs: [
-      { k: 'nr', l: 'لفات الدرفيل المطلوبة (RPM)', def: 220 },
-      { k: 'gr', l: 'نسبة تخفيض الجيربوكس (Gear Ratio)', def: 3.4 },
-      { k: 'over', l: 'نسبة سرعة العض الزائدة Over Speed (%)', def: 3 }
-    ],
-    calc: (v) => {
-      const nr = num(v.nr);
-      const gr = num(v.gr);
-      const over = num(v.over);
-      const nm = nr * gr;
-      const nmOver = nm * (1 + over / 100);
-      return {
-        results: {
-          'لفات الموتور الأساسية': `${fmt(nm, 0)} RPM`,
-          'لفات الموتور شاملة الـ Over Speed': `${fmt(nmOver, 0)} RPM`
-        },
-        steps: [
-          `نضرب لفات الدرفيل في نسبة الجيربوكس = ${nr} × ${gr} = ${fmt(nm, 1)} لفة/دقيقة`,
-          `نضيف نسبة السرعة الزائدة للعض (${over}%) = ${fmt(nm, 1)} × (1 + ${over}÷100) = ${fmt(nmOver, 1)} لفة/دقيقة`
-        ]
-      };
-    }
-  },
-  {
-    id: 'c4',
-    title: 'القطر الفعال الشغال ومعامل الممر (Working Diameter)',
-    desc: 'حساب القطر الفعال للدرفيل من مساحة وعرض الممر وخلوص الدرفيلين.',
-    icon: Circle,
-    group: 'درفلة وسرعات',
-    formula: 'معامل الممر = (مساحة الممر ÷ عرض الممر) - خلوص الجاب  |  القطر الفعال = القطر الخارجي - معامل الممر',
-    inputs: [
-      { k: 'de', l: 'القطر الخارجي للدرفيل على المخرطة (مم)', def: 480 },
-      { k: 'area', l: 'مساحة مقطع الممر (مم²)', def: 650 },
-      { k: 'width', l: 'عرض الممر (مم)', def: 45 },
-      { k: 'gap', l: 'خلوص الجاب بين الدرفيلين (مم)', def: 3.5 }
-    ],
-    calc: (v) => {
-      const de = num(v.de);
-      const area = num(v.area);
-      const w = Math.max(1, num(v.width));
-      const gap = num(v.gap);
-      const gf = area / w - gap;
-      const dw = de - gf;
-      return {
-        results: { 'معامل الممر (Groove Factor)': `${fmt(gf, 2)} مم`, 'القطر الفعال الشغال (Dw)': `${fmt(dw, 2)} مم` },
-        steps: [
-          `نقسم مساحة الممر على عرض الممر = ${area} ÷ ${w} = ${fmt(area / w, 2)} مم`,
-          `نطرح خلوص الجاب (${gap} مم) لنحصل على معامل الممر = ${fmt(area / w, 2)} - ${gap} = ${fmt(gf, 2)} مم`,
-          `نطرح معامل الممر من القطر الخارجي للدرفيل = ${de} - ${fmt(gf, 2)} = ${fmt(dw, 2)} مم`
-        ]
-      };
-    }
-  },
-  {
-    id: 'c5',
-    title: 'نسبة التخفيض ومعامل الاستطالة للممر',
-    desc: 'حساب النسبة المئوية للتخفيض ومقدار استطالة المعدن في الممر.',
-    icon: DivideSquare,
-    group: 'درفلة وسرعات',
-    formula: 'نسبة التخفيض % = ((مساحة الدخول - مساحة الخروج) ÷ مساحة الدخول) × 100  |  معامل الاستطالة = مساحة الدخول ÷ مساحة الخروج',
-    inputs: [
-      { k: 'a1', l: 'مساحة المقطع الداخل للممر (مم²)', def: 1600 },
-      { k: 'a2', l: 'مساحة المقطع الخارج من الممر (مم²)', def: 1200 }
-    ],
-    calc: (v) => {
-      const a1 = Math.max(1, num(v.a1));
-      const a2 = Math.max(1, num(v.a2));
-      const red = ((a1 - a2) / a1) * 100;
-      const lam = a1 / a2;
-      return {
-        results: { 'نسبة التخفيض المئوية': `${fmt(red, 2)}%`, 'معامل الاستطالة': `${fmt(lam, 3)} مرة` },
-        steps: [
-          `مقدار النقص في المساحة = ${a1} - ${a2} = ${fmt(a1 - a2, 1)} مم²`,
-          `نسبة التخفيض المئوية = (${fmt(a1 - a2, 1)} ÷ ${a1}) × 100 = ${fmt(red, 2)}%`,
-          `معامل الاستطالة = مساحة الدخول ${a1} ÷ مساحة الخروج ${a2} = ${fmt(lam, 3)}`
-        ]
-      };
-    }
-  },
-  {
-    id: 'c6',
-    title: 'قانون ثبات الحجم وتزامن القائم التالي',
-    desc: 'حساب سرعة القائم التالي لمنع حدوث شد أو انضغاط (لوب) بين القائمين.',
-    icon: Layers,
-    group: 'درفلة وسرعات',
-    formula: 'ثابت الدرفلة = مساحة القائم الأول × سرعة القائم الأول = مساحة القائم الثاني × سرعة القائم الثاني',
-    inputs: [
-      { k: 'a1', l: 'مساحة ممر القائم الأول (مم²)', def: 1450 },
-      { k: 'v1', l: 'سرعة القائم الأول (متر/ثانية)', def: 2.4 },
-      { k: 'a2', l: 'مساحة ممر القائم الثاني (مم²)', def: 1120 }
-    ],
-    calc: (v) => {
-      const a1 = num(v.a1);
-      const v1 = num(v.v1);
-      const a2 = Math.max(1, num(v.a2));
-      const q = a1 * v1;
-      const v2 = q / a2;
-      return {
-        results: { 'ثابت تدفق المعدن (Q)': fmt(q, 0), 'السرعة المطلوبة للقائم الثاني': `${fmt(v2, 2)} م/ث` },
-        steps: [
-          `نحسب تدفق المعدن الخارج من القائم الأول = ${a1} مم² × ${v1} م/ث = ${fmt(q, 1)}`,
-          `نقسم هذا التدفق على مساحة القائم الثاني (${a2} مم²) لنحصل على سرعته المتزنة = ${fmt(q, 1)} ÷ ${a2} = ${fmt(v2, 2)} م/ث`
-        ]
-      };
-    }
-  },
-  {
-    id: 'c7',
-    title: 'سرعة القائم السابق (التحكم المتتالي Cascade)',
-    desc: 'حساب سرعة القائم الخلفي عند تعديل سرعة القائم الأمامي.',
-    icon: ArrowLeftRight,
-    group: 'درفلة وسرعات',
-    formula: 'سرعة القائم السابق = (مساحة القائم الحالي × سرعة القائم الحالي) ÷ مساحة القائم السابق',
-    inputs: [
-      { k: 'a2', l: 'مساحة القائم الحالي (مم²)', def: 850 },
-      { k: 'v2', l: 'سرعة القائم الحالي (متر/ثانية)', def: 4.8 },
-      { k: 'a1', l: 'مساحة القائم السابق له (مم²)', def: 1120 }
-    ],
-    calc: (v) => {
-      const a2 = num(v.a2);
-      const v2 = num(v.v2);
-      const a1 = Math.max(1, num(v.a1));
-      const v1 = (a2 * v2) / a1;
-      return {
-        results: { 'سرعة القائم السابق المطلوبة': `${fmt(v1, 2)} م/ث` },
-        steps: [
-          `ثابت التدفق في القائم الحالي = ${a2} × ${v2} = ${fmt(a2 * v2, 1)}`,
-          `سرعة القائم السابق = ${fmt(a2 * v2, 1)} ÷ ${a1} = ${fmt(v1, 2)} م/ث`
-        ]
-      };
-    }
-  },
-  {
-    id: 'c8',
-    title: 'الضغطة وأقصى ضغطة وزاوية العض (Roll Bite)',
-    desc: 'حساب قيمة الضغطة بالمم والتأكد من عدم زحلقة البيليت عند الدخول.',
-    icon: Maximize2,
-    group: 'باس ديزاين وإنتاجية',
-    formula: 'الضغطة = ارتفاع الدخول - ارتفاع الخروج  |  أقصى ضغطة مسموحة = مربع معامل الاحتكاك × نصف قطر الدرفيل',
-    inputs: [
-      { k: 'h1', l: 'ارتفاع المعدن قبل الدرفيل (مم)', def: 22 },
-      { k: 'h2', l: 'ارتفاع المعدن بعد الدرفيل (مم)', def: 15 },
-      { k: 'd', l: 'قطر الدرفيل (مم)', def: 420 },
-      { k: 'mu', l: 'معامل الاحتكاك الساخن (0.30 إلى 0.40)', def: 0.35 }
-    ],
-    calc: (v) => {
-      const h1 = num(v.h1);
-      const h2 = num(v.h2);
-      const d = Math.max(1, num(v.d));
-      const mu = num(v.mu);
-      const dh = Math.max(0, h1 - h2);
-      const r = d / 2;
-      const dhMax = mu * mu * r;
-      const alphaRad = Math.acos(Math.max(-1, Math.min(1, 1 - dh / d)));
-      const alphaDeg = (alphaRad * 180) / Math.PI;
-      const ok = dh <= dhMax;
-      return {
-        results: {
-          'قيمة الضغطة الحالية': `${fmt(dh, 2)} مم`,
-          'أقصى ضغطة يقبلها الدرفيل': `${fmt(dhMax, 2)} مم`,
-          'زاوية العض وحالة الدخول': `${fmt(alphaDeg, 1)}° (${ok ? 'الدرفيل يعض المعدن بأمان' : 'خطر زحلقة وعدم عض!'})`
-        },
-        steps: [
-          `قيمة الضغطة المطلوبة = ${h1} - ${h2} = ${fmt(dh, 2)} مم`,
-          `نصف قطر الدرفيل = ${d} ÷ 2 = ${r} مم`,
-          `أقصى ضغطة يقبلها الدرفيل بدون زحلقة = (${mu} × ${mu}) × ${r} = ${fmt(dhMax, 2)} مم`,
-          `بما أن الضغطة الحالية (${fmt(dh, 2)} مم) ${ok ? 'أقل من' : 'أكبر من'} الحد الأقصى (${fmt(dhMax, 2)} مم)، فإن حالة العض: ${ok ? 'سليمة' : 'تحتاج فتح الجاب أو تخشين الدرفيل'}`
-        ]
-      };
-    }
-  },
-
-  // --- ب. حاسبات الأتمتة والفنش ---
-  {
-    id: 'a1',
-    title: 'مسافة رمي الأبرون والعلب المغلقة (سرير التبريد)',
-    desc: 'حساب عدد العلب المغلقة لفرملة السيخ على الأبرون قبل سرير التبريد.',
-    icon: Flame,
-    group: 'أتمتة وفنش',
-    formula: 'عدد العلب المغلقة بالمتر = مربع سرعة آخر قائم ÷ 8',
-    inputs: [
-      { k: 'v', l: 'سرعة خروج السيخ من آخر قائم (متر/ثانية)', def: 12 },
-      { k: 'f', l: 'معامل احتكاك بلاطات الأبرون (القياسي 0.408)', def: 0.408 }
-    ],
-    calc: (v) => {
-      const vel = num(v.v);
-      const f = Math.max(0.05, num(v.f));
-      const xStd = (vel * vel) / 8;
-      const xExact = (vel * vel) / (2 * 9.81 * f);
-      return {
-        results: {
-          'عدد العلب المغلقة القياسي': `${fmt(xStd, 1)} علبة (متر)`,
-          'مسافة الفرملة الدقيقة': `${fmt(xExact, 1)} متر`
-        },
-        steps: [
-          `نربع سرعة خروج السيخ = ${vel} × ${vel} = ${fmt(vel * vel, 1)}`,
-          `نقسم مربع السرعة على 8 (حيث طول العلبة الواحدة 1 متر) = ${fmt(vel * vel, 1)} ÷ 8 = ${fmt(xStd, 1)} علبة مغلقة`
-        ]
-      };
-    }
-  },
-  {
-    id: 'a2',
-    title: 'ضبط ارتفاعات بكر اللوبر (الثابت والمتحرك)',
-    desc: 'حساب مستوى البكرة الثابتة والبكرة المتحركة (Kicker) للوبر.',
-    icon: Sliders,
-    group: 'أتمتة وفنش',
-    formula: 'ارتفاع البكرة الثابتة = ارتفاع سنتر الدليل + نصف قطر البار  |  ارتفاع البكرة المتحركة = ارتفاع الثابتة + ثلث ارتفاعها',
-    inputs: [
-      { k: 'x', l: 'ارتفاع خط سنتر الدليل عن قاعدة اللوبر (مم)', def: 150 },
-      { k: 'r', l: 'نصف قطر البار المدرفل (مم)', def: 8 }
-    ],
-    calc: (v) => {
-      const x = num(v.x);
-      const r = num(v.r);
-      const h = x + r;
-      const y = h + h / 3;
-      return {
-        results: {
-          'ارتفاع البكرة الثابتة (H)': `${fmt(h, 1)} مم`,
-          'ارتفاع البكرة المتحركة (Y)': `${fmt(y, 1)} مم`
-        },
-        steps: [
-          `ارتفاع البكرة الثابتة = ${x} + ${r} = ${fmt(h, 1)} مم`,
-          `نضيف ثلث هذا الارتفاع للبكرة المتحركة = ${fmt(h, 1)} + (${fmt(h, 1)} ÷ 3) = ${fmt(y, 1)} مم`
-        ]
-      };
-    }
-  },
-  {
-    id: 'a3',
-    title: 'تزامن المقص الطائر ونسبة السرعة الزائدة',
-    desc: 'حساب السرعة الخطية لسلاح المقص ونسبة الـ Over Speed لمنع انحناء المقدمة.',
-    icon: Scissors,
-    group: 'أتمتة وفنش',
-    formula: 'السرعة الخطية للمقص = السرعة الزاوية × نصف قطر دوران السكين',
-    inputs: [
-      { k: 'nm', l: 'سرعة موتور المقص (RPM)', def: 1200 },
-      { k: 'gr', l: 'نسبة جيربوكس المقص (Gear Ratio)', def: 4 },
-      { k: 'r', l: 'نصف قطر دوران سلاح المقص (بالمتر)', def: 0.35 },
-      { k: 'vbar', l: 'سرعة السيخ القادم من القائم السابق (م/ث)', def: 10 }
-    ],
-    calc: (v) => {
-      const nm = num(v.nm);
-      const gr = Math.max(0.1, num(v.gr));
-      const r = num(v.r);
-      const vbar = Math.max(0.1, num(v.vbar));
-      const ncv = nm / gr;
-      const w = (2 * Math.PI * ncv) / 60;
-      const vcv = w * r;
-      const over = ((vcv - vbar) / vbar) * 100;
-      return {
-        results: {
-          'السرعة الخطية لسلاح المقص': `${fmt(vcv, 2)} م/ث`,
-          'نسبة زيادة سرعة المقص (Over Speed)': `${fmt(over, 1)}%`
-        },
-        steps: [
-          `عدد لفات عمود المقص = ${nm} ÷ ${gr} = ${fmt(ncv, 1)} لفة/دقيقة`,
-          `السرعة الخطية لحافة السكين = (2 × 3.1416 × ${fmt(ncv, 1)} ÷ 60) × ${r} م = ${fmt(vcv, 2)} م/ث`,
-          `نسبة السرعة الزائدة للمقص فوق سرعة السيخ = ((${fmt(vcv, 2)} - ${vbar}) ÷ ${vbar}) × 100 = ${fmt(over, 1)}%`
-        ]
-      };
-    }
-  },
-
-  // --- ج. حاسبات القوى والكهرباء والتحكم للفنيين ---
-  {
-    id: 'e_cable',
-    title: 'اختيار كابل الموتور وحساب هبوط الجهد (Cable Sizing)',
-    desc: 'تحديد مقاس كابل النحاس المناسب بالمم² للموتور وفحص نسبة هبوط الجهد.',
-    icon: Cable,
-    group: 'قوى وكهرباء',
-    formula: 'تيار تصميم الكابل = 1.25 × أمبير الموتور الكامل  |  هبوط الجهد = (1.732 × التيار × الطول × معامل القدرة) ÷ (56 × مساحة الكابل)',
-    inputs: [
-      { k: 'kw', l: 'قدرة الموتور (كيلووات kW)', def: 75 },
-      { k: 'v', l: 'جهد التشغيل (فولت)', def: 380 },
-      { k: 'len', l: 'طول مسار الكابل (بالمتر)', def: 65 },
-      { k: 'pf', l: 'معامل القدرة (PF)', def: 0.85 }
-    ],
-    calc: (v) => {
-      const kw = num(v.kw);
-      const volt = Math.max(1, num(v.v));
-      const len = Math.max(1, num(v.len));
-      const pf = Math.max(0.1, num(v.pf));
-      const iFl = (kw * 1000) / (Math.sqrt(3) * volt * pf * 0.92);
-      const iDesign = iFl * 1.25;
-
-      let chosen = STANDARD_CABLES.find((c) => c.maxAmp >= iDesign);
-      let parallelCount = 1;
-      if (!chosen) {
-        parallelCount = Math.ceil(iDesign / 400);
-        chosen = STANDARD_CABLES.find((c) => c.maxAmp >= iDesign / parallelCount) || STANDARD_CABLES[STANDARD_CABLES.length - 1];
-      }
-
-      const totalCrossSection = chosen.size * parallelCount;
-      const vDropVolt = (Math.sqrt(3) * iFl * len * pf) / (56 * totalCrossSection);
-      const vDropPct = (vDropVolt / volt) * 100;
-      const isDropSafe = vDropPct <= 5.0;
-
-      return {
-        results: {
-          'أمبير الحمل الكامل للموتور': `${fmt(iFl, 1)} أمبير`,
-          'أمبير تصميم الكابل (شامل 25% أمان)': `${fmt(iDesign, 1)} أمبير`,
-          'مقاس كابل النحاس المناسب': parallelCount === 1 ? `3 × ${chosen.size} مم²` : `${parallelCount} كابلات بالتوازي (3 × ${chosen.size} مم²)`,
-          'هبوط الجهد عند نهاية الكابل': `${fmt(vDropPct, 2)}% (${isDropSafe ? 'ممتاز أقل من 5%' : 'يفضل اختيار المقاس الأكبر'})`
-        },
-        steps: [
-          `نحسب أمبير الموتور الفعلي = (${kw} × 1000) ÷ (1.732 × ${volt} × ${pf} × 0.92) = ${fmt(iFl, 1)} أمبير`,
-          `نضيف 25% معامل أمان للكابل = ${fmt(iFl, 1)} × 1.25 = ${fmt(iDesign, 1)} أمبير`,
-          `نختار من الجدول القياسي كابل نحاس بمقطع (${chosen.size} مم²) يتحمل بأمان هذا التيار`,
-          `هبوط الجهد لمسافة ${len} متر = ${fmt(vDropVolt, 2)} فولت أي بنسبة ${fmt(vDropPct, 2)}% من الجهد الأصلي`
-        ]
-      };
-    }
-  },
-  {
-    id: 'e_protection',
-    title: 'اختيار القاطع والكونتاكتور والأوفرلود (مباشر وستار/دلتا)',
-    desc: 'حساب سعة القاطع MCCB والكونتاكتور ورينج الأوفرلود للموتور.',
-    icon: ShieldAlert,
-    group: 'قوى وكهرباء',
-    formula: 'التشغيل المباشر: الأوفرلود = أمبير الموتور  |  ستار/دلتا: كونتاكتور الرئيسي والدلتا والأوفرلود = 58% من أمبير الموتور',
-    inputs: [
-      { k: 'kw', l: 'قدرة الموتور (كيلووات kW)', def: 45 },
-      { k: 'v', l: 'جهد التشغيل (فولت)', def: 380 }
-    ],
-    calc: (v) => {
-      const kw = num(v.kw);
-      const volt = Math.max(1, num(v.v));
-      const inAmp = (kw * 1000) / (Math.sqrt(3) * volt * 0.85 * 0.91);
-      const cbAmp = inAmp * 1.5;
-      const sdMainDelta = inAmp * 0.58;
-      const sdStar = inAmp * 0.34;
-
-      return {
-        results: {
-          'أمبير الموتور الاسمي': `${fmt(inAmp, 1)} A`,
-          'القاطع الرئيسي المناسب (MCCB)': `${fmt(cbAmp, 0)} A`,
-          'في حالة التشغيل المباشر (DOL)': `كونتاكتور ${fmt(inAmp * 1.2, 0)}A + أوفرلود يضبط على ${fmt(inAmp, 1)}A`,
-          'في حالة ستار / دلتا (Star/Delta)': `رئيسي ودلتا: ${fmt(sdMainDelta, 0)}A | ستار: ${fmt(sdStar, 0)}A | أوفرلود: ${fmt(sdMainDelta, 1)}A`
-        },
-        steps: [
-          `أمبير الموتور الاسمي التقريبي = ${fmt(inAmp, 1)} أمبير`,
-          `سعة القاطع الرئيسي لحماية الدائرة = 1.5 × ${fmt(inAmp, 1)} = ${fmt(cbAmp, 0)} أمبير`,
-          `في توصيلة ستار/دلتا يمر في الكونتاكتور الرئيسي والدلتا 58% فقط من التيار = ${fmt(sdMainDelta, 1)} أمبير، ويمر في كونتاكتور الستار 34% = ${fmt(sdStar, 1)} أمبير`
-        ]
-      };
-    }
-  },
-  {
-    id: 'e_braking',
-    title: 'حاسبة مقاومة الفرملة للإنفرتر (Braking Resistor)',
-    desc: 'حساب قيمة الأوم والكيلووات لمقاومة الفرملة لمنع عطل Overvoltage.',
-    icon: Zap,
-    group: 'قوى وكهرباء',
-    formula: 'قيمة المقاومة بالأوم = مربع جهد دائرة الـ DC ÷ قدرة الموتور بالوات',
-    inputs: [
-      { k: 'kw', l: 'قدرة موتور الدرفلة أو المقص (kW)', def: 90 },
-      { k: 'vdc', l: 'جهد دائرة الـ DC أثناء الفرملة (لـ 380V يكون 700V)', def: 700 },
-      { k: 'duty', l: 'نسبة تكرار الفرملة Braking Duty (%)', def: 15 }
-    ],
-    calc: (v) => {
-      const kw = Math.max(1, num(v.kw));
-      const vdc = num(v.vdc);
-      const duty = num(v.duty);
-      const pPeakWatt = kw * 1000;
-      const rOhm = (vdc * vdc) / pPeakWatt;
-      const resKw = kw * (duty / 100);
-
-      return {
-        results: {
-          'قيمة مقاومة الفرملة المطلوبة': `${fmt(rOhm, 1)} أوم (Ω)`,
-          'قدرة المقاومة الحرارية': `${fmt(resKw, 1)} كيلووات (kW)`,
-          'أقصى تيار فرملة': `${fmt(vdc / Math.max(0.1, rOhm), 1)} أمبير`
-        },
-        steps: [
-          `مربع جهد دائرة التيار المستمر = ${vdc} × ${vdc} = ${vdc * vdc}`,
-          `نقسم على قدرة الموتور بالوات (${pPeakWatt} وات) = ${fmt(rOhm, 1)} أوم`,
-          `القدرة الحرارية للمقاومة حسب نسبة الفرملة (${duty}%) = ${kw} × (${duty}÷100) = ${fmt(resKw, 1)} كيلووات`
-        ]
-      };
-    }
-  },
-  {
-    id: 'e_pfc',
-    title: 'مكثفات تحسين معامل القدرة (Power Factor kVAR)',
-    desc: 'حساب سعة لوحة المكثفات بالكيلوفار لرفع معامل القدرة وتقليل الأمبير.',
-    icon: BatteryCharging,
-    group: 'قوى وكهرباء',
-    formula: 'سعة المكثفات المطلوبة (kVAR) = القدرة الفعالة بالكيلووات × فرق ظل زاوية معامل القدرة قبل وبعد التحسين',
-    inputs: [
-      { k: 'kw', l: 'الحمل الفعال للمصنع أو اللوحة (kW)', def: 500 },
-      { k: 'pf1', l: 'معامل القدرة الحالي المنخفض', def: 0.76 },
-      { k: 'pf2', l: 'معامل القدرة المستهدف', def: 0.95 }
-    ],
-    calc: (v) => {
-      const kw = num(v.kw);
-      const pf1 = Math.max(0.3, Math.min(0.99, num(v.pf1)));
-      const pf2 = Math.max(0.5, Math.min(0.99, num(v.pf2)));
-      const tan1 = Math.tan(Math.acos(pf1));
-      const tan2 = Math.tan(Math.acos(pf2));
-      const kvar = Math.max(0, kw * (tan1 - tan2));
-      const capAmp = (kvar * 1000) / (Math.sqrt(3) * 380);
-
-      return {
-        results: {
-          'سعة المكثفات المطلوبة': `${fmt(kvar, 1)} kVAR`,
-          'تيار لوحة المكثفات عند 380V': `${fmt(capAmp, 1)} أمبير`
-        },
-        steps: [
-          `معامل الظل للوضع الحالي (${pf1}) = ${fmt(tan1, 3)}، وللوضع المستهدف (${pf2}) = ${fmt(tan2, 3)}`,
-          `نضرب الحمل (${kw} كيلووات) في الفرق بينهما = ${kw} × (${fmt(tan1 - tan2, 3)}) = ${fmt(kvar, 1)} كيلوفار`
-        ]
-      };
-    }
-  },
-  {
-    id: 'e_plc_scale',
-    title: 'تحويل إشارات الحساسات والـ PLC (4-20mA Scaling)',
-    desc: 'تحويل قراءة المللي أمبير إلى حرارة أو ضغط وقيمة الـ PLC الرقمية.',
-    icon: Radio,
-    group: 'قوى وكهرباء',
-    formula: 'النسبة المئوية للإشارة = ((قراءة المللي أمبير - 4) ÷ 16) × 100',
-    inputs: [
-      { k: 'ma', l: 'قراءة المللي أمبير على الأفوميتر (من 4 إلى 20)', def: 12 },
-      { k: 'min', l: 'بداية تدريج الحساس (Min)', def: 0 },
-      { k: 'max', l: 'نهاية تدريج الحساس (Max مثلاً 250 بار)', def: 250 }
-    ],
-    calc: (v) => {
-      const ma = num(v.ma);
-      const min = num(v.min);
-      const max = num(v.max);
-      const pct = ((ma - 4) / 16) * 100;
-      const engVal = min + ((ma - 4) / 16) * (max - min);
-      const siemensRaw = Math.round(((ma - 4) / 16) * 27648);
-
-      return {
-        results: {
-          'نسبة الإشارة المئوية': `${fmt(pct, 1)}%`,
-          'القراءة الفعلية للحساس (ضغط/حرارة)': fmt(engVal, 2),
-          'القيمة داخل Siemens PLC (من 27648)': siemensRaw
-        },
-        steps: [
-          `نطرح 4 مللي أمبير (نقطة الصفر) ونقسم على مدى الإشارة (16 مللي أمبير) = (${ma} - 4) ÷ 16 = ${fmt(pct, 1)}%`,
-          `نضرب النسبة في مدى الحساس (${max} - ${min}) = ${fmt(engVal, 2)}`,
-          `قيمة المسجل الرقمي داخل PLC سيمنز = النسبة × 27648 = ${siemensRaw}`
-        ]
-      };
-    }
-  },
-  {
-    id: 'e_encoder',
-    title: 'حاسبة نبضات الإنكودر والسرعة (Encoder PPR)',
-    desc: 'حساب تردد نبضات الإنكودر بالكيلوهرتز للتأكد من سلامة القراءة.',
-    icon: Cpu,
-    group: 'قوى وكهرباء',
-    formula: 'تردد النبضات بالهرتز = (سرعة الموتور بالدقيقة × عدد نبضات اللفة الواحدة) ÷ 60',
-    inputs: [
-      { k: 'ppr', l: 'عدد نبضات الإنكودر في اللفة (PPR)', def: 1024 },
-      { k: 'rpm', l: 'سرعة دوران الموتور (RPM)', def: 1500 }
-    ],
-    calc: (v) => {
-      const ppr = num(v.ppr);
-      const rpm = num(v.rpm);
-      const hz = (rpm * ppr) / 60;
-      const khz = hz / 1000;
-
-      return {
-        results: {
-          'عدد النبضات في الثانية (Hz)': `${fmt(hz, 0)} نبضة/ثانية`,
-          'التردد بالكيلوهرتز (kHz)': `${fmt(khz, 2)} kHz`
-        },
-        steps: [
-          `عدد لفات الموتور في الثانية الواحدة = ${rpm} ÷ 60 = ${fmt(rpm / 60, 2)} لفة/ثانية`,
-          `نضرب لفات الثانية في نبضات اللفة الواحدة (${ppr}) = ${fmt(hz, 0)} نبضة/ثانية (${fmt(khz, 2)} كيلوهرتز)`
-        ]
-      };
-    }
-  },
-  {
-    id: 'e1',
-    title: 'حمل وعزم وقدرة الدرفلة الميكانيكية',
-    desc: 'حساب قوة الدرفلة بالكيلونيوتن، والعزم والقدرة المطلوبة للموتور.',
-    icon: Flame,
-    group: 'قوى وكهرباء',
-    formula: 'حمل الدرفلة = مقاومة المعدن للتشكيل × عرض المعدن × طول منطقة التلامس',
-    inputs: [
-      { k: 'sigma', l: 'مقاومة المعدن للتشكيل الساخن (MPa)', def: 110 },
-      { k: 'w', l: 'عرض المعدن الملامس للدرفيل (مم)', def: 45 },
-      { k: 'r', l: 'نصف قطر الدرفيل (مم)', def: 210 },
-      { k: 'dh', l: 'مقدار الضغطة (مم)', def: 6 },
-      { k: 'rpm', l: 'سرعة دوران الدرفيل (RPM)', def: 240 }
-    ],
-    calc: (v) => {
-      const s = num(v.sigma);
-      const w = num(v.w);
-      const r = num(v.r);
-      const dh = Math.max(0, num(v.dh));
-      const rpm = num(v.rpm);
-      const lp = Math.sqrt(r * dh);
-      const loadKn = (s * w * lp) / 1000;
-      const torqueKnm = loadKn * (lp / 1000);
-      const powerKw = (torqueKnm * 2 * Math.PI * rpm) / 60;
-      return {
-        results: {
-          'قوة وحمل الدرفلة': `${fmt(loadKn, 1)} كيلو نيوتن`,
-          'عزم الدرفلة المطلوب': `${fmt(torqueKnm, 2)} kN.m`,
-          'القدرة المطلوبة للدرفلة': `${fmt(powerKw, 1)} كيلووات`
-        },
-        steps: [
-          `نحسب حمل الدرفلة المؤثر على الدرفيلين = ${fmt(loadKn, 1)} كيلو نيوتن`,
-          `عزم الدوران المطلوب = ${fmt(torqueKnm, 2)} كيلو نيوتن.متر`,
-          `القدرة الميكانيكية اللازمة لتدوير الدرفيلين = ${fmt(powerKw, 1)} كيلووات`
-        ]
-      };
-    }
-  }
-];
-
-const UnifiedCalculatorsView = () => {
-  const [selectedGroup, setSelectedGroup] = useState('الكل');
-  const [activeCalcId, setActiveCalcId] = useState(null);
-  const [vals, setVals] = useState({});
-
-  const groups = ['الكل', 'باس ديزاين وإنتاجية', 'درفلة وسرعات', 'قوى وكهرباء', 'أتمتة وفنش'];
-
-  const openCalculator = (c) => {
-    if (c.isSpecial) {
-      setActiveCalcId(c.id);
-      return;
-    }
-    const defaults = {};
-    c.inputs.forEach((inp) => {
-      defaults[inp.k] = inp.def !== undefined ? inp.def : 1;
-    });
-    setVals(defaults);
-    setActiveCalcId(c.id);
-  };
-
-  if (activeCalcId === 'special_groove_areas') {
-    return <GrooveAndCrossSectionModal onBack={() => setActiveCalcId(null)} />;
-  }
-  if (activeCalcId === 'special_pass_design') {
-    return <RealisticPassDesignModal onBack={() => setActiveCalcId(null)} />;
-  }
-  if (activeCalcId === 'special_bars_yield') {
-    return <BarsAndProductivityModal onBack={() => setActiveCalcId(null)} />;
-  }
-
-  if (activeCalcId) {
-    const c = ALL_CALCULATORS.find((x) => x.id === activeCalcId);
-    const { results, steps } = c.calc(vals);
-    return (
-      <div className="space-y-4">
-        <button
-          onClick={() => {
-            setActiveCalcId(null);
-            setVals({});
-          }}
-          className="bg-white hover:bg-slate-100 text-slate-800 border border-slate-200 px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm"
-        >
-          <ArrowLeft size={15} className="rotate-180" /> رجوع لكل القوانين
-        </button>
-
-        <div className="bg-white p-4 sm:p-6 rounded-3xl border border-slate-200 max-w-2xl mx-auto shadow-lg">
-          <div className="flex items-center gap-3 mb-4 border-b border-slate-100 pb-3.5">
-            <div className="bg-blue-50 p-2.5 rounded-xl border border-blue-200 shrink-0">
-              <c.icon className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
-            </div>
-            <div>
-              <span className="text-[11px] text-blue-600 font-bold">{c.group}</span>
-              <h2 className="text-base sm:text-xl font-black text-slate-900">{c.title}</h2>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {c.inputs.map((inp) => (
-              <div key={inp.k}>
-                <label className="block text-[11px] sm:text-xs font-bold text-slate-600 mb-1">{inp.l}</label>
-                <input
-                  type="number"
-                  step="any"
-                  value={vals[inp.k] ?? ''}
-                  onChange={(e) => setVals({ ...vals, [inp.k]: e.target.value })}
-                  className={inputCls}
-                />
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-5 bg-blue-50/60 p-4 rounded-2xl border border-blue-200 space-y-2.5">
-            {Object.entries(results).map(([k, v]) => (
-              <div key={k} className="flex justify-between items-center border-b border-blue-100 last:border-0 pb-2 last:pb-0 gap-2">
-                <span className="text-slate-700 font-bold text-xs sm:text-sm">{k}</span>
-                <span className="text-blue-700 font-black font-mono text-sm sm:text-lg text-left">{v}</span>
-              </div>
-            ))}
-          </div>
-
-          <SolutionStepsBox formula={c.formula} steps={steps} />
-        </div>
-      </div>
-    );
-  }
-
-  const visibleCalcs =
-    selectedGroup === 'الكل' ? ALL_CALCULATORS : ALL_CALCULATORS.filter((c) => c.group === selectedGroup);
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
-        {groups.map((grp) => (
-          <button
-            key={grp}
-            onClick={() => setSelectedGroup(grp)}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all shrink-0 ${
-              selectedGroup === grp
-                ? 'bg-blue-600 text-white shadow-sm'
-                : 'bg-white text-slate-600 border border-slate-200 hover:text-slate-900'
-            }`}
-          >
-            {grp}
-          </button>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        {visibleCalcs.map((c) => (
-          <button
-            key={c.id}
-            onClick={() => openCalculator(c)}
-            className={`text-right p-4 rounded-2xl border transition-all flex items-start gap-3 group hover:-translate-y-0.5 shadow-sm hover:shadow-md ${
-              c.isSpecial
-                ? 'bg-gradient-to-l from-blue-50/80 to-white border-blue-300 hover:border-blue-500'
-                : 'bg-white border-slate-200 hover:border-blue-400'
-            }`}
-          >
-            <div
-              className={`w-10 h-10 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-105 ${
-                c.isSpecial ? 'bg-blue-600 text-white shadow-sm' : 'bg-blue-50 border border-blue-100 text-blue-600'
-              }`}
-            >
-              <c.icon className="w-5 h-5" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between gap-1">
-                <span className="text-[10px] font-bold text-blue-600">{c.group}</span>
-                {c.isSpecial && (
-                  <span className="text-[9px] bg-amber-100 text-amber-800 border border-amber-300 px-2 py-0.5 rounded-full font-black">
-                    شامل ذكي
-                  </span>
-                )}
-              </div>
-              <h3 className="text-xs sm:text-sm font-black text-slate-900 mt-0.5 truncate">{c.title}</h3>
-              <p className="text-[11px] text-slate-500 font-medium line-clamp-1 mt-0.5">{c.desc}</p>
-            </div>
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-};
-
-/* ======================================================
-   7. الجداول ومحول الوحدات الهندسي (Tables & Converter)
-   ====================================================== */
-const TablesAndConverterView = () => {
+const UnitConverterModal = ({ onBack }) => {
   const [cat, setCat] = useState('speed');
   const [unit, setUnit] = useState('m/s');
   const [val, setVal] = useState(10);
@@ -1881,7 +1082,25 @@ const TablesAndConverterView = () => {
       })();
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
+      <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+        <button
+          onClick={onBack}
+          className="bg-slate-100 hover:bg-slate-200 text-slate-800 px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5"
+        >
+          <ArrowLeft size={15} className="rotate-180" /> رجوع لكل الأدوات
+        </button>
+        <span className="text-xs font-black text-blue-700 bg-blue-50 px-3 py-1 rounded-full border border-blue-200">
+          محول الوحدات والجداول القياسية
+        </span>
+      </div>
+
+      <ToolDetailsExplainer
+        title="شرح محول الوحدات وجدول الأوزان القياسية"
+        explanation="يحول لك فوراً بين وحدات السرعة (م/ث إلى كم/س أو م/دقيقة)، والأوزان، والقدرات (حصان إلى كيلووات)، ويعرض بالأسفل جدول الأوزان القياسية المسموحة لحديد التسليح."
+        whenToUse="استخدمه عند مراجعة أوزان العينات مع قسم الجودة للتأكد من وقوع وزن المتر الطولي بين الحد الأدنى والحد الأقصى للمواصفة."
+      />
+
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
         <div className="lg:col-span-5 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
           <h3 className="text-sm sm:text-base font-black text-slate-900 border-b border-slate-100 pb-2">
@@ -1945,6 +1164,865 @@ const TablesAndConverterView = () => {
             ))}
           </tbody>
         </table>
+      </div>
+    </div>
+  );
+};
+
+/* ======================================================
+   7. موسوعة كل القوانين والأدوات الموحدة (مع شرح تفصيلي لكل أداة)
+   ====================================================== */
+const ALL_CALCULATORS = [
+  {
+    id: 'special_groove_areas',
+    title: 'مساحات الممرات والقطاعات',
+    shortTag: 'الدائرة والمستطيل والبيضاوي',
+    desc: 'حساب مساحة المقطع من الطول والعرض أو قانون الدائرة والبيضاوي مع وزن المتر.',
+    icon: Square,
+    group: 'باس ديزاين وإنتاجية',
+    isSpecial: true
+  },
+  {
+    id: 'special_bars_yield',
+    title: 'المقص الطائر وأسياخ العميل',
+    shortTag: 'قطعيات 36م/48م و 12م',
+    desc: 'نتيجة المقص الطائر وأسياخ العميل معاً مع تحكم يدوي في وزن المتر.',
+    icon: Scissors,
+    group: 'باس ديزاين وإنتاجية',
+    isSpecial: true
+  },
+  {
+    id: 'special_pass_design',
+    title: 'تصميم الممرات والسرعات',
+    shortTag: 'جدول الباس ديزاين',
+    desc: 'جدول تدريج المساحات والسرعات الواقعي لحديد التسليح والخوص.',
+    icon: Layers,
+    group: 'باس ديزاين وإنتاجية',
+    isSpecial: true
+  },
+  {
+    id: 'special_unit_converter',
+    title: 'محول الوحدات وجدول الأوزان',
+    shortTag: 'التحويلات والمواصفات',
+    desc: 'تحويل وحدات السرعة والقدرة والأوزان مع جدول أوزان حديد التسليح.',
+    icon: Ruler,
+    group: 'باس ديزاين وإنتاجية',
+    isSpecial: true
+  },
+
+  // --- أدوات المساحة والإدرار ---
+  {
+    id: 'c_billet_yield_scrap',
+    title: 'يلد الهالك في الكتلة كلها',
+    shortTag: 'الإدرار والفواقد %',
+    desc: 'حساب إجمالي وزن ونسبة الهالك (أكسيد الفرن + المقصات + القصائر) والوزن الصافي.',
+    details: 'تقوم هذه الأداة بجمع كل الفواقد التي تخرج من الكتلة الواحدة (قشور الأكسيد في الفرن + قطعية الرأس والذيل على المقصات + القصائر أو الكعبلة) وتطرحها من وزن البيليت الأصلي لتعطيك الوزن الصافي ونسبة الإدرار المئوية (Yield %) ونسبة الهالك.',
+    whenToUse: 'تُستخدم لحساب كفاءة الوردية أو معرفة كم كيلوجرام يضيع من كل كتلة.',
+    icon: Percent,
+    group: 'باس ديزاين وإنتاجية',
+    formula: 'الوزن الصافي = وزن الكتلة - إجمالي الهوالك  |  نسبة الإدرار (Yield %) = (الوزن الصافي ÷ وزن الكتلة) × 100',
+    inputs: [
+      { k: 'wBillet', l: 'وزن الكتلة (البيليت) الكلي (كجم)', def: 1592 },
+      { k: 'scalePct', l: 'نسبة فاقد أكسيد الفرن Scale (%)', def: 1.5 },
+      { k: 'cropKg', l: 'وزن قطعيات الهيد والديل للمقصات (كجم)', def: 12 },
+      { k: 'shortKg', l: 'وزن هالك القصائر أو الكعبلة في الكتلة (كجم)', def: 18 }
+    ],
+    calc: (v) => {
+      const wTotal = Math.max(1, num(v.wBillet));
+      const scalePct = Math.max(0, num(v.scalePct));
+      const scaleKg = (wTotal * scalePct) / 100;
+      const cropKg = Math.max(0, num(v.cropKg));
+      const shortKg = Math.max(0, num(v.shortKg));
+
+      const totalScrapKg = scaleKg + cropKg + shortKg;
+      const netGoodKg = Math.max(0, wTotal - totalScrapKg);
+      const yieldPct = (netGoodKg / wTotal) * 100;
+      const scrapPct = (totalScrapKg / wTotal) * 100;
+
+      return {
+        results: {
+          'إجمالي وزن الهالك في الكتلة': `${fmt(totalScrapKg, 2)} كجم`,
+          'وزن المنتج الصافي السليم': `${fmt(netGoodKg, 2)} كجم`,
+          'نسبة الإدرار الصافي (Yield %)': `${fmt(yieldPct, 2)}%`,
+          'نسبة الهالك الكلية من الكتلة': `${fmt(scrapPct, 2)}%`
+        },
+        steps: [
+          `وزن فاقد أكسيد الفرن (${scalePct}%) = (${wTotal} × ${scalePct}) ÷ 100 = ${fmt(scaleKg, 2)} كجم`,
+          `نجمع كل الهوالك في الكتلة = ${fmt(scaleKg, 2)} + ${cropKg} + ${shortKg} = ${fmt(totalScrapKg, 2)} كجم هالك`,
+          `الوزن الصافي السليم = ${wTotal} - ${fmt(totalScrapKg, 2)} = ${fmt(netGoodKg, 2)} كجم`,
+          `نسبة الإدرار (Yield) = (${fmt(netGoodKg, 2)} ÷ ${wTotal}) × 100 = ${fmt(yieldPct, 2)}%`
+        ]
+      };
+    }
+  },
+  {
+    id: 'c_rect_area',
+    title: 'مساحة المقطع (طول × عرض)',
+    shortTag: 'المساحة ووزن المتر',
+    desc: 'أدخل الطول والسمك بالملليمتر لحساب المساحة بالمم² ووزن المتر فوراً.',
+    details: 'تحسب مساحة أي مقطع مستطيل أو مربع (بيليت أو خوصة) بضرب الطول في العرض، ثم تضرب المساحة في 0.00785 لإيجاد وزن المتر الطولي بالكيلوجرام.',
+    whenToUse: 'تُستخدم عند قياس أبعاد العينة بالقدمة ذات الورنية لمعرفة مساحتها ووزن مترها فوراً.',
+    icon: Square,
+    group: 'درفلة وسرعات',
+    formula: 'مساحة المقطع (مم²) = الطول (العرض) × السمك (الارتفاع)  |  وزن المتر الطولي = المساحة × 0.00785',
+    inputs: [
+      { k: 'l', l: 'الطول / عرض القطاع أو البيليت (مم)', def: 50 },
+      { k: 'w', l: 'العرض / سمك القطاع أو البيليت (مم)', def: 10 }
+    ],
+    calc: (v) => {
+      const l = num(v.l);
+      const w = num(v.w);
+      const area = l * w;
+      const weight = area * 0.00785;
+      return {
+        results: {
+          'مساحة المقطع (Area)': `${fmt(area, 2)} مم²`,
+          'وزن المتر الطولي للحديد': `${fmt(weight, 3)} كجم/متر`,
+          'محيط المقطع': `${fmt(2 * (l + w), 1)} مم`
+        },
+        steps: [
+          `نضرب الطول في العرض = ${l} مم × ${w} مم = ${fmt(area, 2)} مم²`,
+          `وزن المتر الطولي = ${fmt(area, 2)} × 0.00785 = ${fmt(weight, 3)} كجم/متر`
+        ]
+      };
+    }
+  },
+  {
+    id: 'c_circle_area',
+    title: 'قانون الدائرة ومساحة الممر',
+    shortTag: 'مساحة الدائرة ووزنها',
+    desc: 'أدخل قطر الدائرة أو السيخ بالمم لحساب مساحة المقطع ووزن المتر.',
+    details: 'تطبق قانون مساحة الدائرة الهندسي (3.1416 × نصف القطر تربيع) لإيجاد مساحة مقطع السيخ الدائري ووزن المتر الطولي.',
+    whenToUse: 'تُستخدم لحساب مساحة البار المبروم أو الممر الدائري النهائي.',
+    icon: Circle,
+    group: 'درفلة وسرعات',
+    formula: 'مساحة الدائرة (مم²) = (3.1416 × القطر × القطر) ÷ 4',
+    inputs: [{ k: 'd', l: 'قطر الدائرة أو الممر الدائري (مم)', def: 16 }],
+    calc: (v) => {
+      const d = num(v.d);
+      const area = (Math.PI * d * d) / 4;
+      const weight = area * 0.00785;
+      return {
+        results: {
+          'مساحة الدائرة الكاملة': `${fmt(area, 2)} مم²`,
+          'وزن المتر الطولي للبار الدائري': `${fmt(weight, 3)} كجم/متر`,
+          'محيط الدائرة': `${fmt(Math.PI * d, 2)} مم`
+        },
+        steps: [
+          `نربع القطر = ${d} × ${d} = ${fmt(d * d, 2)}`,
+          `نضرب في 3.1416 ونقسم على 4 = ${fmt(area, 2)} مم²`,
+          `وزن المتر الطولي = ${fmt(area, 2)} × 0.00785 = ${fmt(weight, 3)} كجم/متر`
+        ]
+      };
+    }
+  },
+
+  // --- أ. حاسبات الدرفلة والسرعات ---
+  {
+    id: 'c1',
+    title: 'السرعة الخطية للمعدن',
+    shortTag: 'متر / ثانية',
+    desc: 'حساب سرعة خروج المعدن من القطر الفعال وعدد لفات الدرفيل.',
+    details: 'تحسب سرعة جريان السيخ بالمتر في الثانية الواحدة بناءً على القطر الفعال للدرفيل وسرعة دورانه (RPM).',
+    whenToUse: 'تُستخدم لمعرفة سرعة خروج المعدن عند أي قائم ومطابقتها مع القائم الذي يليه.',
+    icon: Activity,
+    group: 'درفلة وسرعات',
+    formula: 'السرعة الخطية (م/ث) = (3.1416 × القطر الفعال بالمم × لفات الدرفيل بالدقيقة) ÷ 60000',
+    inputs: [
+      { k: 'd', l: 'القطر الفعال للدرفيل (مم)', def: 465 },
+      { k: 'n', l: 'سرعة دوران الدرفيل (RPM)', def: 220 }
+    ],
+    calc: (v) => {
+      const d = num(v.d);
+      const n = num(v.n);
+      const res = (Math.PI * d * n) / 60000;
+      return {
+        results: { 'السرعة الخطية (متر/ثانية)': `${fmt(res, 2)} m/s`, 'السرعة بالمتر/دقيقة': `${fmt(res * 60, 1)} m/min` },
+        steps: [
+          `محيط الدرفيل بالمتر = (3.1416 × ${d} مم) ÷ 1000 = ${fmt((Math.PI * d) / 1000, 3)} متر`,
+          `السرعة بالمتر/ثانية = (${fmt((Math.PI * d) / 1000, 3)} × ${n}) ÷ 60 = ${fmt(res, 2)} م/ث`
+        ]
+      };
+    }
+  },
+  {
+    id: 'c2',
+    title: 'عدد لفات الدرفيل (RPM)',
+    shortTag: 'لفات الدرفيل',
+    desc: 'إيجاد لفات الدرفيل المطلوبة لتحقيق سرعة خطية محددة للمعدن.',
+    details: 'عكس حاسبة السرعة الخطية؛ تعطيها السرعة التي تريد أن يخرج بها المعدن (م/ث) وقطر الدرفيل، فتحسب لك كم لفة في الدقيقة يجب أن يدورها الدرفيل.',
+    whenToUse: 'تُستخدم عند تعويض نقص قطر الدرفيل بعد خرطه في المخرطة للحفاظ على نفس سرعة الخط.',
+    icon: RotateCcw,
+    group: 'درفلة وسرعات',
+    formula: 'لفات الدرفيل (RPM) = (السرعة الخطية بالمتر/ثانية × 60000) ÷ (3.1416 × القطر الفعال بالمم)',
+    inputs: [
+      { k: 'v', l: 'السرعة الخطية المطلوبة (متر/ثانية)', def: 5.5 },
+      { k: 'd', l: 'القطر الفعال للدرفيل (مم)', def: 465 }
+    ],
+    calc: (v) => {
+      const vel = num(v.v);
+      const d = Math.max(1, num(v.d));
+      const rpm = (vel * 60000) / (Math.PI * d);
+      return {
+        results: { 'لفات الدرفيل المطلوبة (RPM)': `${fmt(rpm, 1)} لفة/دقيقة` },
+        steps: [
+          `نحول السرعة إلى مم/دقيقة = ${vel} × 60000 = ${fmt(vel * 60000, 0)}`,
+          `نقسم على محيط الدرفيل (3.1416 × ${d}) = ${fmt(rpm, 1)} لفة/دقيقة`
+        ]
+      };
+    }
+  },
+  {
+    id: 'c3',
+    title: 'لفات الموتور والجيربوكس',
+    shortTag: 'Motor RPM',
+    desc: 'حساب RPM الموتور من نسبة الجيربوكس وإضافة نسبة الـ Over Speed.',
+    details: 'تحسب السرعة التي يجب ضبط إنفرتر الموتور عليها عن طريق ضرب لفات الدرفيل في نسبة تخفيض صندوق التروس (Gear Ratio).',
+    whenToUse: 'تُستخدم لضبط سرعة المواتير على شاشة الـ WinCC أو الـ HMI في غرفة التحكم.',
+    icon: Gauge,
+    group: 'درفلة وسرعات',
+    formula: 'لفات الموتور = لفات الدرفيل × نسبة تخفيض الجيربوكس',
+    inputs: [
+      { k: 'nr', l: 'لفات الدرفيل المطلوبة (RPM)', def: 220 },
+      { k: 'gr', l: 'نسبة تخفيض الجيربوكس (Gear Ratio)', def: 3.4 },
+      { k: 'over', l: 'نسبة سرعة العض الزائدة Over Speed (%)', def: 3 }
+    ],
+    calc: (v) => {
+      const nr = num(v.nr);
+      const gr = num(v.gr);
+      const over = num(v.over);
+      const nm = nr * gr;
+      const nmOver = nm * (1 + over / 100);
+      return {
+        results: {
+          'لفات الموتور الأساسية': `${fmt(nm, 0)} RPM`,
+          'لفات الموتور شاملة الـ Over Speed': `${fmt(nmOver, 0)} RPM`
+        },
+        steps: [
+          `لفات الموتور = ${nr} × ${gr} = ${fmt(nm, 1)} لفة/دقيقة`,
+          `شاملة Over Speed (${over}%) = ${fmt(nmOver, 1)} لفة/دقيقة`
+        ]
+      };
+    }
+  },
+  {
+    id: 'c4',
+    title: 'القطر الفعال ومعامل الممر',
+    shortTag: 'Working Dia Dw',
+    desc: 'حساب القطر الفعال للدرفيل من مساحة وعرض الممر وخلوص الجاب.',
+    details: 'بما أن الممر محفور داخل الدرفيل، فإن القطر الذي يدفع المعدن فعلياً (القطر الفعال Dw) يكون أصغر من القطر الخارجي للدرفيل بمقدار يسمى معامل الممر (Groove Factor).',
+    whenToUse: 'تُستخدم لإدخال القطر الفعال الصحيح في شاشة الكنترول بعد تغيير الدرفيل أو تغيير الممر.',
+    icon: Circle,
+    group: 'درفلة وسرعات',
+    formula: 'معامل الممر = (مساحة الممر ÷ عرض الممر) - الجاب  |  القطر الفعال = القطر الخارجي - معامل الممر',
+    inputs: [
+      { k: 'de', l: 'القطر الخارجي للدرفيل على المخرطة (مم)', def: 480 },
+      { k: 'area', l: 'مساحة مقطع الممر (مم²)', def: 650 },
+      { k: 'width', l: 'عرض الممر (مم)', def: 45 },
+      { k: 'gap', l: 'خلوص الجاب بين الدرفيلين (مم)', def: 3.5 }
+    ],
+    calc: (v) => {
+      const de = num(v.de);
+      const area = num(v.area);
+      const w = Math.max(1, num(v.width));
+      const gap = num(v.gap);
+      const gf = area / w - gap;
+      const dw = de - gf;
+      return {
+        results: { 'معامل الممر (Groove Factor)': `${fmt(gf, 2)} مم`, 'القطر الفعال الشغال (Dw)': `${fmt(dw, 2)} مم` },
+        steps: [
+          `معامل الممر = (${area} ÷ ${w}) - ${gap} = ${fmt(gf, 2)} مم`,
+          `القطر الفعال الشغال = ${de} - ${fmt(gf, 2)} = ${fmt(dw, 2)} مم`
+        ]
+      };
+    }
+  },
+  {
+    id: 'c5',
+    title: 'نسبة التخفيض والاستطالة',
+    shortTag: 'Reduction %',
+    desc: 'حساب النسبة المئوية للتخفيض ومقدار استطالة المعدن في الممر.',
+    details: 'تحسب نسبة العصر (التخفيض في المساحة) التي يقوم بها القائم، وكم مرة زاد طول السيخ بعد خروجه من القائم (معامل الاستطالة).',
+    whenToUse: 'تُستخدم للتأكد من عدم تحميل القائم بنسبة تخفيض أعلى من المسموح.',
+    icon: DivideSquare,
+    group: 'درفلة وسرعات',
+    formula: 'نسبة التخفيض % = ((مساحة الدخول - مساحة الخروج) ÷ مساحة الدخول) × 100',
+    inputs: [
+      { k: 'a1', l: 'مساحة المقطع الداخل للممر (مم²)', def: 1600 },
+      { k: 'a2', l: 'مساحة المقطع الخارج من الممر (مم²)', def: 1200 }
+    ],
+    calc: (v) => {
+      const a1 = Math.max(1, num(v.a1));
+      const a2 = Math.max(1, num(v.a2));
+      const red = ((a1 - a2) / a1) * 100;
+      const lam = a1 / a2;
+      return {
+        results: { 'نسبة التخفيض المئوية': `${fmt(red, 2)}%`, 'معامل الاستطالة': `${fmt(lam, 3)} مرة` },
+        steps: [
+          `نسبة التخفيض = ((${a1} - ${a2}) ÷ ${a1}) × 100 = ${fmt(red, 2)}%`,
+          `معامل الاستطالة = ${a1} ÷ ${a2} = ${fmt(lam, 3)}`
+        ]
+      };
+    }
+  },
+  {
+    id: 'c6',
+    title: 'تزامن القائم التالي (ثبات الحجم)',
+    shortTag: 'A1 × V1 = A2 × V2',
+    desc: 'حساب سرعة القائم التالي لمنع حدوث شد أو انضغاط (لوب).',
+    details: 'تطبق قاعدة اتزان الكتلة (كمية المعدن الداخلة للقائم تساوي الخارجة منه) لحساب السرعة المضبوطة للقائم التالي.',
+    whenToUse: 'تُستخدم لضبط التزامن بين قائمين متتاليين ومنع الشد أو الكعبلة.',
+    icon: Layers,
+    group: 'درفلة وسرعات',
+    formula: 'سرعة القائم الثاني = (مساحة الأول × سرعة الأول) ÷ مساحة الثاني',
+    inputs: [
+      { k: 'a1', l: 'مساحة ممر القائم الأول (مم²)', def: 1450 },
+      { k: 'v1', l: 'سرعة القائم الأول (متر/ثانية)', def: 2.4 },
+      { k: 'a2', l: 'مساحة ممر القائم الثاني (مم²)', def: 1120 }
+    ],
+    calc: (v) => {
+      const a1 = num(v.a1);
+      const v1 = num(v.v1);
+      const a2 = Math.max(1, num(v.a2));
+      const q = a1 * v1;
+      const v2 = q / a2;
+      return {
+        results: { 'ثابت تدفق المعدن (Q)': fmt(q, 0), 'السرعة المطلوبة للقائم الثاني': `${fmt(v2, 2)} م/ث` },
+        steps: [
+          `ثابت التدفق = ${a1} × ${v1} = ${fmt(q, 1)}`,
+          `سرعة القائم الثاني = ${fmt(q, 1)} ÷ ${a2} = ${fmt(v2, 2)} م/ث`
+        ]
+      };
+    }
+  },
+  {
+    id: 'c7',
+    title: 'سرعة القائم السابق (Cascade)',
+    shortTag: 'الرجوع للخلف',
+    desc: 'حساب سرعة القائم الخلفي عند تعديل سرعة القائم الأمامي.',
+    details: 'تحسب سرعة القائم السابق بناءً على سرعة ومساحة القائم الحالي كما يفعل نظام الـ Cascade في غرفة التحكم.',
+    whenToUse: 'تُستخدم عند تثبيت سرعة الفنش والرغبة في معرفة سرعة القوائم التي قبله.',
+    icon: ArrowLeftRight,
+    group: 'درفلة وسرعات',
+    formula: 'سرعة القائم السابق = (مساحة الحالي × سرعة الحالي) ÷ مساحة السابق',
+    inputs: [
+      { k: 'a2', l: 'مساحة القائم الحالي (مم²)', def: 850 },
+      { k: 'v2', l: 'سرعة القائم الحالي (متر/ثانية)', def: 4.8 },
+      { k: 'a1', l: 'مساحة القائم السابق له (مم²)', def: 1120 }
+    ],
+    calc: (v) => {
+      const a2 = num(v.a2);
+      const v2 = num(v.v2);
+      const a1 = Math.max(1, num(v.a1));
+      const v1 = (a2 * v2) / a1;
+      return {
+        results: { 'سرعة القائم السابق المطلوبة': `${fmt(v1, 2)} م/ث` },
+        steps: [`سرعة القائم السابق = (${a2} × ${v2}) ÷ ${a1} = ${fmt(v1, 2)} م/ث`]
+      };
+    }
+  },
+  {
+    id: 'c8',
+    title: 'الضغطة وزاوية العض (Roll Bite)',
+    shortTag: 'منع الزحلقة',
+    desc: 'حساب قيمة الضغطة بالمم والتأكد من عدم زحلقة البيليت عند الدخول.',
+    details: 'تقارن الضغطة المطلوبة بأقصى ضغطة يقبلها قطر الدرفيل ومعامل الاحتكاك للتأكد من أن الدرفيل سيعض البيليت دون زحلقة (Slipping).',
+    whenToUse: 'تُستخدم عند حدوث زحلقة لمقدمة البيليت على قوائم التخشين.',
+    icon: Maximize2,
+    group: 'باس ديزاين وإنتاجية',
+    formula: 'الضغطة = ارتفاع الدخول - ارتفاع الخروج  |  أقصى ضغطة مسموحة = مربع معامل الاحتكاك × نصف قطر الدرفيل',
+    inputs: [
+      { k: 'h1', l: 'ارتفاع المعدن قبل الدرفيل (مم)', def: 22 },
+      { k: 'h2', l: 'ارتفاع المعدن بعد الدرفيل (مم)', def: 15 },
+      { k: 'd', l: 'قطر الدرفيل (مم)', def: 420 },
+      { k: 'mu', l: 'معامل الاحتكاك الساخن (0.30 إلى 0.40)', def: 0.35 }
+    ],
+    calc: (v) => {
+      const h1 = num(v.h1);
+      const h2 = num(v.h2);
+      const d = Math.max(1, num(v.d));
+      const mu = num(v.mu);
+      const dh = Math.max(0, h1 - h2);
+      const r = d / 2;
+      const dhMax = mu * mu * r;
+      const alphaRad = Math.acos(Math.max(-1, Math.min(1, 1 - dh / d)));
+      const alphaDeg = (alphaRad * 180) / Math.PI;
+      const ok = dh <= dhMax;
+      return {
+        results: {
+          'قيمة الضغطة الحالية': `${fmt(dh, 2)} مم`,
+          'أقصى ضغطة يقبلها الدرفيل': `${fmt(dhMax, 2)} مم`,
+          'زاوية العض وحالة الدخول': `${fmt(alphaDeg, 1)}° (${ok ? 'يعض بأمان' : 'خطر زحلقة!'})`
+        },
+        steps: [
+          `الضغطة = ${h1} - ${h2} = ${fmt(dh, 2)} مم`,
+          `أقصى ضغطة مسموحة = (${mu} × ${mu}) × ${r} = ${fmt(dhMax, 2)} مم`
+        ]
+      };
+    }
+  },
+
+  // --- ب. حاسبات الأتمتة والفنش ---
+  {
+    id: 'a1',
+    title: 'مسافة رمي الأبرون والعلب',
+    shortTag: 'سرير التبريد V²/8',
+    desc: 'حساب عدد العلب المغلقة لفرملة السيخ على الأبرون قبل سرير التبريد.',
+    details: 'تحسب المسافة (عدد العلب المغلقة بطول 1 متر للعلبة) اللازمة لفرملة السيخ القادم من آخر قائم حتى يتوقف في مكانه الصحيح على سرير التبريد.',
+    whenToUse: 'تُستخدم عند زيادة سرعة الخط لضبط مسافة رمي الأسياخ على الفرش ومنع خبط الأسياخ في النهاية.',
+    icon: Flame,
+    group: 'أتمتة وفنش',
+    formula: 'عدد العلب المغلقة بالمتر = مربع سرعة آخر قائم ÷ 8',
+    inputs: [
+      { k: 'v', l: 'سرعة خروج السيخ من آخر قائم (متر/ثانية)', def: 12 },
+      { k: 'f', l: 'معامل احتكاك بلاطات الأبرون (القياسي 0.408)', def: 0.408 }
+    ],
+    calc: (v) => {
+      const vel = num(v.v);
+      const f = Math.max(0.05, num(v.f));
+      const xStd = (vel * vel) / 8;
+      const xExact = (vel * vel) / (2 * 9.81 * f);
+      return {
+        results: {
+          'عدد العلب المغلقة القياسي': `${fmt(xStd, 1)} علبة (متر)`,
+          'مسافة الفرملة الدقيقة': `${fmt(xExact, 1)} متر`
+        },
+        steps: [`عدد العلب المغلقة = (${vel} × ${vel}) ÷ 8 = ${fmt(xStd, 1)} علبة`]
+      };
+    }
+  },
+  {
+    id: 'a2',
+    title: 'ضبط ارتفاع بكر اللوبر',
+    shortTag: 'الثابت والمتحرك',
+    desc: 'حساب مستوى البكرة الثابتة والبكرة المتحركة (Kicker) للوبر.',
+    details: 'تحسب الارتفاع الصحيح لبكر اللوبر الثابت والمتحرك عن قاعدة اللوبر لضمان دخول البار في سنتر الدليل التالي دون احتكاك.',
+    whenToUse: 'تُستخدم مع فنيي الميكانيكا عند صيانة أو معايرة اللوبر.',
+    icon: Sliders,
+    group: 'أتمتة وفنش',
+    formula: 'البكرة الثابتة = ارتفاع السنتر + نصف قطر البار  |  البكرة المتحركة = الثابتة + ثلثها',
+    inputs: [
+      { k: 'x', l: 'ارتفاع خط سنتر الدليل عن قاعدة اللوبر (مم)', def: 150 },
+      { k: 'r', l: 'نصف قطر البار المدرفل (مم)', def: 8 }
+    ],
+    calc: (v) => {
+      const x = num(v.x);
+      const r = num(v.r);
+      const h = x + r;
+      const y = h + h / 3;
+      return {
+        results: {
+          'ارتفاع البكرة الثابتة (H)': `${fmt(h, 1)} مم`,
+          'ارتفاع البكرة المتحركة (Y)': `${fmt(y, 1)} مم`
+        },
+        steps: [
+          `البكرة الثابتة = ${x} + ${r} = ${fmt(h, 1)} مم`,
+          `البكرة المتحركة = ${fmt(h, 1)} + (${fmt(h, 1)} ÷ 3) = ${fmt(y, 1)} مم`
+        ]
+      };
+    }
+  },
+  {
+    id: 'a3',
+    title: 'تزامن المقص الطائر',
+    shortTag: 'Shear Over Speed',
+    desc: 'حساب السرعة الخطية لسلاح المقص ونسبة الـ Over Speed.',
+    details: 'يجب أن تكون سرعة سكين المقص الطائر لحظة القطع أعلى قليلاً من سرعة السيخ (Over Speed) حتى لا ينحني رأس السيخ أثناء القطع.',
+    whenToUse: 'تُستخدم عند مراجعة تزامن المقص الطائر ومقصات التطهير.',
+    icon: Scissors,
+    group: 'أتمتة وفنش',
+    formula: 'السرعة الخطية للمقص = السرعة الزاوية × نصف قطر دوران السكين',
+    inputs: [
+      { k: 'nm', l: 'سرعة موتور المقص (RPM)', def: 1200 },
+      { k: 'gr', l: 'نسبة جيربوكس المقص (Gear Ratio)', def: 4 },
+      { k: 'r', l: 'نصف قطر دوران سلاح المقص (بالمتر)', def: 0.35 },
+      { k: 'vbar', l: 'سرعة السيخ القادم من القائم السابق (م/ث)', def: 10 }
+    ],
+    calc: (v) => {
+      const nm = num(v.nm);
+      const gr = Math.max(0.1, num(v.gr));
+      const r = num(v.r);
+      const vbar = Math.max(0.1, num(v.vbar));
+      const ncv = nm / gr;
+      const w = (2 * Math.PI * ncv) / 60;
+      const vcv = w * r;
+      const over = ((vcv - vbar) / vbar) * 100;
+      return {
+        results: {
+          'السرعة الخطية لسلاح المقص': `${fmt(vcv, 2)} م/ث`,
+          'نسبة زيادة سرعة المقص (Over Speed)': `${fmt(over, 1)}%`
+        },
+        steps: [
+          `لفات عمود المقص = ${nm} ÷ ${gr} = ${fmt(ncv, 1)} RPM`,
+          `سرعة السكين = ${fmt(vcv, 2)} م/ث (بزيادة ${fmt(over, 1)}%)`
+        ]
+      };
+    }
+  },
+
+  // --- ج. حاسبات القوى والكهرباء والتحكم للفنيين ---
+  {
+    id: 'e_cable',
+    title: 'اختيار كابل الموتور',
+    shortTag: 'مقاس الكابل وهبوط الجهد',
+    desc: 'تحديد مقاس كابل النحاس المناسب بالمم² للموتور وفحص هبوط الجهد.',
+    details: 'تحسب أمبير الحمل الكامل للموتور، وتضيف معامل أمان 25%، ثم تختار لك مقاس كابل النحاس القياسي وتفحص نسبة هبوط الجهد حسب طول الكابل.',
+    whenToUse: 'تُستخدم عند تأسيس أو تغيير كابل باور لأي موتور في المصنع.',
+    icon: Cable,
+    group: 'قوى وكهرباء',
+    formula: 'تيار تصميم الكابل = 1.25 × أمبير الموتور الكامل',
+    inputs: [
+      { k: 'kw', l: 'قدرة الموتور (كيلووات kW)', def: 75 },
+      { k: 'v', l: 'جهد التشغيل (فولت)', def: 380 },
+      { k: 'len', l: 'طول مسار الكابل (بالمتر)', def: 65 },
+      { k: 'pf', l: 'معامل القدرة (PF)', def: 0.85 }
+    ],
+    calc: (v) => {
+      const kw = num(v.kw);
+      const volt = Math.max(1, num(v.v));
+      const len = Math.max(1, num(v.len));
+      const pf = Math.max(0.1, num(v.pf));
+      const iFl = (kw * 1000) / (Math.sqrt(3) * volt * pf * 0.92);
+      const iDesign = iFl * 1.25;
+
+      let chosen = STANDARD_CABLES.find((c) => c.maxAmp >= iDesign);
+      let parallelCount = 1;
+      if (!chosen) {
+        parallelCount = Math.ceil(iDesign / 400);
+        chosen = STANDARD_CABLES.find((c) => c.maxAmp >= iDesign / parallelCount) || STANDARD_CABLES[STANDARD_CABLES.length - 1];
+      }
+
+      const totalCrossSection = chosen.size * parallelCount;
+      const vDropVolt = (Math.sqrt(3) * iFl * len * pf) / (56 * totalCrossSection);
+      const vDropPct = (vDropVolt / volt) * 100;
+      const isDropSafe = vDropPct <= 5.0;
+
+      return {
+        results: {
+          'أمبير الحمل الكامل للموتور': `${fmt(iFl, 1)} أمبير`,
+          'مقاس كابل النحاس المناسب': parallelCount === 1 ? `3 × ${chosen.size} مم²` : `${parallelCount} كابلات (3 × ${chosen.size} مم²)`,
+          'هبوط الجهد عند نهاية الكابل': `${fmt(vDropPct, 2)}% (${isDropSafe ? 'آمن أقل من 5%' : 'يفضل المقاس الأكبر'})`
+        },
+        steps: [
+          `أمبير الموتور = ${fmt(iFl, 1)} أمبير`,
+          `أمبير تصميم الكابل = ${fmt(iDesign, 1)} أمبير ← كابل ${chosen.size} مم²`
+        ]
+      };
+    }
+  },
+  {
+    id: 'e_protection',
+    title: 'القاطع والكونتاكتور والأوفرلود',
+    shortTag: 'مباشر وستار/دلتا',
+    desc: 'حساب سعة القاطع MCCB والكونتاكتور ورينج الأوفرلود للموتور.',
+    details: 'تحسب سعة القاطع الرئيسي ومقاسات الكونتاكتورات والأوفرلود سواء كانت الدائرة تعمل بنظام التشغيل المباشر (DOL) أو ستار/دلتا.',
+    whenToUse: 'تُستخدم عند تجميع لوحة باور أو استبدال كونتاكتور أو أوفرلود تالف.',
+    icon: ShieldAlert,
+    group: 'قوى وكهرباء',
+    formula: 'ستار/دلتا: كونتاكتور الرئيسي والدلتا والأوفرلود = 58% من أمبير الموتور، والستار = 34%',
+    inputs: [
+      { k: 'kw', l: 'قدرة الموتور (كيلووات kW)', def: 45 },
+      { k: 'v', l: 'جهد التشغيل (فولت)', def: 380 }
+    ],
+    calc: (v) => {
+      const kw = num(v.kw);
+      const volt = Math.max(1, num(v.v));
+      const inAmp = (kw * 1000) / (Math.sqrt(3) * volt * 0.85 * 0.91);
+      const cbAmp = inAmp * 1.5;
+      const sdMainDelta = inAmp * 0.58;
+      const sdStar = inAmp * 0.34;
+
+      return {
+        results: {
+          'أمبير الموتور الاسمي': `${fmt(inAmp, 1)} A`,
+          'القاطع الرئيسي (MCCB)': `${fmt(cbAmp, 0)} A`,
+          'تشغيل مباشر (DOL)': `كونتاكتور ${fmt(inAmp * 1.2, 0)}A | أوفرلود ${fmt(inAmp, 1)}A`,
+          'ستار / دلتا (Star/Delta)': `رئيسي ودلتا: ${fmt(sdMainDelta, 0)}A | ستار: ${fmt(sdStar, 0)}A | أوفرلود: ${fmt(sdMainDelta, 1)}A`
+        },
+        steps: [`أمبير الموتور = ${fmt(inAmp, 1)}A | قاطع الحماية = ${fmt(cbAmp, 0)}A`]
+      };
+    }
+  },
+  {
+    id: 'e_braking',
+    title: 'مقاومة الفرملة للإنفرتر',
+    shortTag: 'Braking Resistor Ω',
+    desc: 'حساب قيمة الأوم والكيلووات لمقاومة الفرملة لمنع عطل Overvoltage.',
+    details: 'تحسب قيمة المقاومة بالأوم وقدرتها بالكيلووات لتفريغ الطاقة الراجعة من الموتور أثناء التباطؤ السريع.',
+    whenToUse: 'تُستخدم عند ظهور عطل F0002 / DC Link Overvoltage في الدرايفات.',
+    icon: Zap,
+    group: 'قوى وكهرباء',
+    formula: 'قيمة المقاومة بالأوم = مربع جهد دائرة الـ DC ÷ قدرة الموتور بالوات',
+    inputs: [
+      { k: 'kw', l: 'قدرة موتور الدرفلة أو المقص (kW)', def: 90 },
+      { k: 'vdc', l: 'جهد دائرة الـ DC أثناء الفرملة (V)', def: 700 },
+      { k: 'duty', l: 'نسبة تكرار الفرملة Braking Duty (%)', def: 15 }
+    ],
+    calc: (v) => {
+      const kw = Math.max(1, num(v.kw));
+      const vdc = num(v.vdc);
+      const duty = num(v.duty);
+      const pPeakWatt = kw * 1000;
+      const rOhm = (vdc * vdc) / pPeakWatt;
+      const resKw = kw * (duty / 100);
+
+      return {
+        results: {
+          'قيمة مقاومة الفرملة': `${fmt(rOhm, 1)} أوم (Ω)`,
+          'قدرة المقاومة الحرارية': `${fmt(resKw, 1)} كيلووات (kW)`
+        },
+        steps: [`المقاومة = (${vdc} × ${vdc}) ÷ ${pPeakWatt} = ${fmt(rOhm, 1)} أوم`]
+      };
+    }
+  },
+  {
+    id: 'e_pfc',
+    title: 'مكثفات معامل القدرة',
+    shortTag: 'لوحة الـ kVAR',
+    desc: 'حساب سعة لوحة المكثفات بالكيلوفار لرفع معامل القدرة وتقليل الأمبير.',
+    details: 'تحسب كم كيلوفار (kVAR) من المكثفات تحتاجه اللوحة لرفع معامل القدرة وتجنب غرامات الكهرباء.',
+    whenToUse: 'تُستخدم عند صيانة لوحات تحسين معامل القدرة بالمصنع.',
+    icon: BatteryCharging,
+    group: 'قوى وكهرباء',
+    formula: 'سعة المكثفات (kVAR) = القدرة بالكيلووات × فرق ظل الزاوية',
+    inputs: [
+      { k: 'kw', l: 'الحمل الفعال للمصنع أو اللوحة (kW)', def: 500 },
+      { k: 'pf1', l: 'معامل القدرة الحالي المنخفض', def: 0.76 },
+      { k: 'pf2', l: 'معامل القدرة المستهدف', def: 0.95 }
+    ],
+    calc: (v) => {
+      const kw = num(v.kw);
+      const pf1 = Math.max(0.3, Math.min(0.99, num(v.pf1)));
+      const pf2 = Math.max(0.5, Math.min(0.99, num(v.pf2)));
+      const tan1 = Math.tan(Math.acos(pf1));
+      const tan2 = Math.tan(Math.acos(pf2));
+      const kvar = Math.max(0, kw * (tan1 - tan2));
+      return {
+        results: { 'سعة المكثفات المطلوبة': `${fmt(kvar, 1)} kVAR` },
+        steps: [`سعة المكثفات = ${fmt(kvar, 1)} كيلوفار`]
+      };
+    }
+  },
+  {
+    id: 'e_plc_scale',
+    title: 'إشارات الحساسات 4-20mA',
+    shortTag: 'PLC Analog Scaling',
+    desc: 'تحويل قراءة المللي أمبير إلى حرارة أو ضغط وقيمة الـ PLC الرقمية.',
+    details: 'تحول قراءة الأفوميتر بالمللي أمبير (من 4 إلى 20mA) إلى القيمة المقابلة للحساس (بار أو درجة مئوية) وقيمة مسجل الـ PLC.',
+    whenToUse: 'تُستخدم عند فحص حساسات ضغط الهيدروليك أو حرارة الأفران.',
+    icon: Radio,
+    group: 'قوى وكهرباء',
+    formula: 'النسبة المئوية للإشارة = ((قراءة المللي أمبير - 4) ÷ 16) × 100',
+    inputs: [
+      { k: 'ma', l: 'قراءة المللي أمبير على الأفوميتر (4 إلى 20)', def: 12 },
+      { k: 'min', l: 'بداية تدريج الحساس (Min)', def: 0 },
+      { k: 'max', l: 'نهاية تدريج الحساس (Max)', def: 250 }
+    ],
+    calc: (v) => {
+      const ma = num(v.ma);
+      const min = num(v.min);
+      const max = num(v.max);
+      const pct = ((ma - 4) / 16) * 100;
+      const engVal = min + ((ma - 4) / 16) * (max - min);
+      const siemensRaw = Math.round(((ma - 4) / 16) * 27648);
+
+      return {
+        results: {
+          'نسبة الإشارة المئوية': `${fmt(pct, 1)}%`,
+          'القراءة الفعلية للحساس': fmt(engVal, 2),
+          'القيمة داخل Siemens PLC': siemensRaw
+        },
+        steps: [`نسبة الإشارة = ${fmt(pct, 1)}% ← القراءة = ${fmt(engVal, 2)}`]
+      };
+    }
+  },
+  {
+    id: 'e_encoder',
+    title: 'نبضات الإنكودر والسرعة',
+    shortTag: 'Encoder PPR & kHz',
+    desc: 'حساب تردد نبضات الإنكودر بالكيلوهرتز للتأكد من سلامة القراءة.',
+    details: 'تحسب عدد النبضات في الثانية الواحدة الخارجة من الإنكودر عند سرعة معينة للموتور.',
+    whenToUse: 'تُستخدم عند تغيير إنكودر موتور درفلة أو مقص طائر.',
+    icon: Cpu,
+    group: 'قوى وكهرباء',
+    formula: 'تردد النبضات بالهرتز = (سرعة الموتور بالدقيقة × عدد نبضات اللفة) ÷ 60',
+    inputs: [
+      { k: 'ppr', l: 'عدد نبضات الإنكودر في اللفة (PPR)', def: 1024 },
+      { k: 'rpm', l: 'سرعة دوران الموتور (RPM)', def: 1500 }
+    ],
+    calc: (v) => {
+      const ppr = num(v.ppr);
+      const rpm = num(v.rpm);
+      const hz = (rpm * ppr) / 60;
+      return {
+        results: {
+          'عدد النبضات في الثانية': `${fmt(hz, 0)} Hz`,
+          'التردد بالكيلوهرتز': `${fmt(hz / 1000, 2)} kHz`
+        },
+        steps: [`التردد = (${rpm} × ${ppr}) ÷ 60 = ${fmt(hz, 0)} نبضة/ثانية`]
+      };
+    }
+  }
+];
+
+const UnifiedCalculatorsView = () => {
+  const [selectedGroup, setSelectedGroup] = useState('الكل');
+  const [activeCalcId, setActiveCalcId] = useState(null);
+  const [vals, setVals] = useState({});
+
+  const groups = ['الكل', 'باس ديزاين وإنتاجية', 'درفلة وسرعات', 'قوى وكهرباء', 'أتمتة وفنش'];
+
+  const openCalculator = (c) => {
+    if (c.isSpecial) {
+      setActiveCalcId(c.id);
+      return;
+    }
+    const defaults = {};
+    c.inputs.forEach((inp) => {
+      defaults[inp.k] = inp.def !== undefined ? inp.def : 1;
+    });
+    setVals(defaults);
+    setActiveCalcId(c.id);
+  };
+
+  if (activeCalcId === 'special_groove_areas') {
+    return <GrooveAndCrossSectionModal onBack={() => setActiveCalcId(null)} />;
+  }
+  if (activeCalcId === 'special_pass_design') {
+    return <RealisticPassDesignModal onBack={() => setActiveCalcId(null)} />;
+  }
+  if (activeCalcId === 'special_bars_yield') {
+    return <BarsAndProductivityModal onBack={() => setActiveCalcId(null)} />;
+  }
+  if (activeCalcId === 'special_unit_converter') {
+    return <UnitConverterModal onBack={() => setActiveCalcId(null)} />;
+  }
+
+  if (activeCalcId) {
+    const c = ALL_CALCULATORS.find((x) => x.id === activeCalcId);
+    const { results, steps } = c.calc(vals);
+    return (
+      <div className="space-y-4">
+        <button
+          onClick={() => {
+            setActiveCalcId(null);
+            setVals({});
+          }}
+          className="bg-white hover:bg-slate-100 text-slate-800 border border-slate-200 px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm"
+        >
+          <ArrowLeft size={15} className="rotate-180" /> رجوع لكل الأدوات
+        </button>
+
+        <div className="bg-white p-4 sm:p-6 rounded-3xl border border-slate-200 max-w-2xl mx-auto shadow-lg">
+          <div className="flex items-center gap-3 mb-3 border-b border-slate-100 pb-3.5">
+            <div className="bg-blue-50 p-2.5 rounded-xl border border-blue-200 shrink-0">
+              <c.icon className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
+            </div>
+            <div>
+              <span className="text-[11px] text-blue-600 font-bold">{c.group}</span>
+              <h2 className="text-base sm:text-xl font-black text-slate-900">{c.title}</h2>
+            </div>
+          </div>
+
+          {/* زر تفاصيل وشرح الأداة يظهر داخل كل أداة */}
+          <ToolDetailsExplainer
+            title={`شرح أداة: ${c.title}`}
+            explanation={c.details || c.desc}
+            whenToUse={c.whenToUse}
+          />
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+            {c.inputs.map((inp) => (
+              <div key={inp.k}>
+                <label className="block text-[11px] sm:text-xs font-bold text-slate-600 mb-1">{inp.l}</label>
+                <input
+                  type="number"
+                  step="any"
+                  value={vals[inp.k] ?? ''}
+                  onChange={(e) => setVals({ ...vals, [inp.k]: e.target.value })}
+                  className={inputCls}
+                />
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-5 bg-blue-50/60 p-4 rounded-2xl border border-blue-200 space-y-2.5">
+            {Object.entries(results).map(([k, v]) => (
+              <div key={k} className="flex justify-between items-center border-b border-blue-100 last:border-0 pb-2 last:pb-0 gap-2">
+                <span className="text-slate-700 font-bold text-xs sm:text-sm">{k}</span>
+                <span className="text-blue-700 font-black font-mono text-sm sm:text-lg text-left">{v}</span>
+              </div>
+            ))}
+          </div>
+
+          <SolutionStepsBox formula={c.formula} steps={steps} />
+        </div>
+      </div>
+    );
+  }
+
+  const visibleCalcs =
+    selectedGroup === 'الكل' ? ALL_CALCULATORS : ALL_CALCULATORS.filter((c) => c.group === selectedGroup);
+
+  return (
+    <div className="space-y-4">
+      {/* فلاتر الأقسام مرتبة في شبكة مريحة للموبايل */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        {groups.map((grp) => (
+          <button
+            key={grp}
+            onClick={() => setSelectedGroup(grp)}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+              selectedGroup === grp
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'bg-white text-slate-600 border border-slate-200 hover:text-slate-900'
+            }`}
+          >
+            {grp}
+          </button>
+        ))}
+      </div>
+
+      {/* شبكة البطاقات المربعة (2×2 على الموبايل و 3 أو 4 على الكمبيوتر) بدلاً من الشكل العرضي */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-3.5">
+        {visibleCalcs.map((c) => (
+          <button
+            key={c.id}
+            onClick={() => openCalculator(c)}
+            className={`text-right p-3.5 sm:p-4 rounded-2xl border transition-all flex flex-col justify-between group hover:-translate-y-0.5 shadow-sm hover:shadow-md ${
+              c.isSpecial
+                ? 'bg-gradient-to-b from-blue-50/70 to-white border-blue-300 hover:border-blue-500'
+                : 'bg-white border-slate-200 hover:border-blue-400'
+            }`}
+          >
+            <div>
+              <div className="flex items-center justify-between gap-1 mb-2.5">
+                <div
+                  className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-105 ${
+                    c.isSpecial ? 'bg-blue-600 text-white shadow-sm' : 'bg-blue-50 border border-blue-100 text-blue-600'
+                  }`}
+                >
+                  <c.icon className="w-5 h-5" />
+                </div>
+                {c.isSpecial && (
+                  <span className="text-[9px] bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded-full font-black">
+                    شامل
+                  </span>
+                )}
+              </div>
+
+              <h3 className="text-xs sm:text-sm font-black text-slate-900 leading-snug">{c.title}</h3>
+              <p className="text-[10px] sm:text-[11px] text-slate-500 font-bold mt-1 line-clamp-2 leading-relaxed">
+                {c.desc}
+              </p>
+            </div>
+
+            <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px] font-bold text-blue-600">
+              <span>{c.shortTag || 'فتح الأداة'}</span>
+              <ArrowLeft size={12} />
+            </div>
+          </button>
+        ))}
       </div>
     </div>
   );
@@ -2097,12 +2175,12 @@ const CommunityProView = () => {
       {subMode === 'feed' ? (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
           <div className="lg:col-span-8 space-y-4">
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+            <div className="flex flex-wrap items-center gap-1.5">
               {categories.map((cat) => (
                 <button
                   key={cat}
                   onClick={() => setCategoryFilter(cat)}
-                  className={`px-3 py-1.5 rounded-lg text-[11px] font-bold whitespace-nowrap transition-all ${
+                  className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all ${
                     categoryFilter === cat
                       ? 'bg-blue-600 text-white shadow-sm'
                       : 'bg-white text-slate-600 border border-slate-200 hover:text-slate-900'
@@ -2340,14 +2418,13 @@ const CommunityProView = () => {
 };
 
 /* ======================================================
-   9. المكون الرئيسي لبوابة المهندسين (PublicPortal - Light Mode)
+   9. المكون الرئيسي لبوابة المهندسين (شريط علوي مبسط من زرين فقط)
    ====================================================== */
 export default function PublicPortal({ onBack }) {
   const [activeTab, setActiveTab] = useState('calculators');
   const tabs = [
-    { id: 'calculators', label: 'كل القوانين والحاسبات', icon: Calculator },
-    { id: 'tables', label: 'التحويلات والجداول', icon: Ruler },
-    { id: 'community', label: 'المجتمع والأعطال', icon: MessageCircle }
+    { id: 'calculators', label: 'الحاسبات والأدوات الهندسية', icon: Calculator },
+    { id: 'community', label: 'المجتمع وموسوعة الأعطال', icon: MessageCircle }
   ];
 
   return (
@@ -2378,12 +2455,12 @@ export default function PublicPortal({ onBack }) {
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="grid grid-cols-3 sm:flex bg-slate-100 p-1 rounded-xl border border-slate-200 w-full sm:w-auto">
+            <div className="grid grid-cols-2 sm:flex bg-slate-100 p-1 rounded-xl border border-slate-200 w-full sm:w-auto">
               {tabs.map((t) => (
                 <button
                   key={t.id}
                   onClick={() => setActiveTab(t.id)}
-                  className={`px-2.5 sm:px-3.5 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+                  className={`px-3 sm:px-4 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
                     activeTab === t.id ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
@@ -2405,7 +2482,6 @@ export default function PublicPortal({ onBack }) {
 
       <main className="max-w-6xl mx-auto px-3 py-4 pb-12">
         {activeTab === 'calculators' && <UnifiedCalculatorsView />}
-        {activeTab === 'tables' && <TablesAndConverterView />}
         {activeTab === 'community' && <CommunityProView />}
       </main>
     </div>
