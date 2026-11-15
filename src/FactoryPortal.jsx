@@ -6,7 +6,7 @@ import {
   ShieldAlert, Key, Eye, Layers, Wrench, ArrowLeftRight,
   FileSpreadsheet, FileText, Inbox, Check, XCircle, Hourglass,
   Cpu, PlusCircle, Building2, FileSignature, BookMarked, Disc,
-  Siren, Share2, Copy, Users, Link2, Activity, Thermometer
+  Share2, Copy, Users, Link2, Search, Thermometer
 } from 'lucide-react';
 import { signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { doc, setDoc, onSnapshot } from 'firebase/firestore';
@@ -83,43 +83,10 @@ const DEFAULT_ROLL_SHOP = [
   { id: 'rs3', code: 'RL-804-C', standName: 'ستاند 8', material: 'High Speed Steel (HSS)', maxDia: 340, currentDia: 315, minScrapDia: 295, redressCount: 4, totalTonsRolled: 19200, status: 'جاهز بالورشة (احتياطي)', lastRedressDate: '10/11/2026' }
 ];
 
-const EMERGENCY_SOPS = [
-  {
-    id: 'sop-power',
-    title: 'انقطاع التيار الكهربي المفاجئ ووجود بيليت في الخط',
-    badge: 'طوارئ قصوى',
-    color: 'border-red-500 bg-red-50',
-    steps: [
-      'تحويل مفاتيح محابس مياه تبريد الممرات والدلائل فوراً من وضع ON إلى وضع OFF لمنع تلف الدرافيل الساخنة.',
-      'تأمين وضع الأبرون (Slider) ومراجعة وضعه على الـ PLC قبل إعادة التشغيل.',
-      'إبلاغ فنيي صالة الدرفلة لتقطيع وسحب البيليت المتوقف بين القوائم وتأمين المقصات.',
-      'مراجعة جاهزية كبائن الدرايفات (VFDs) والتأكد من عدم وجود أعطال Undervoltage معلقة.'
-    ]
-  },
-  {
-    id: 'sop-looper',
-    title: 'خلل مفاجئ في اللوبر أو ارتفاع اللوب (Cobble Risk)',
-    badge: 'تحكم وتزامن',
-    color: 'border-amber-500 bg-amber-50',
-    steps: [
-      'إيقاف دفع بيليت جديد من الفرن فوراً ومراقبة خروج السيخ الحالي.',
-      'حفظ التغيرات الموجودة في سرعات القوائم (Speed Cascade) ومراجعتها مع مهندس الوردية.',
-      'استدعاء فني الكهرباء لمسح عدسة خلية اللوبر (Looper Scanner) والتأكد من ضغط هواء التبريد.',
-      'التأكد من عدم وجود ضوء شمس مباشر يؤثر على حساسات الـ HMD واللوابر.'
-    ]
-  },
-  {
-    id: 'sop-coolingbed',
-    title: 'حدوث كعبلة على سرير التبريد أو مسافة رمي خاطئة',
-    badge: 'منطقة الفنش',
-    color: 'border-blue-500 bg-blue-50',
-    steps: [
-      'تفعيل تقطيع البيليت على مقص الطوارئ (Chopping Shear) بدلاً من تراكم الحديد الساخن على سرير التبريد.',
-      'عدم السماح بدخول الأفراد لرفع الهالك من على سرير التبريد إلا بعد توقف البكر والأبرون تماماً.',
-      'مراجعة عدد العلب المغلقة للأبرون (X = V² / 8) وزمن بدء دورة الأبرون بعد المقص الطائر.',
-      'لا يتم إعادة التشغيل إلا بعد تأكيد فني كنترول سرير التبريد بالجاهزية.'
-    ]
-  }
+const DEFAULT_MOTORS = [
+  { id: 'm1', category: 'rolling', stand: '1', locationName: 'ستاند 1', code: 'MTR-ST1', brand: 'Siemens SINAMICS', kw: '400', rpm: '1500', amps: '720', megger: '550 MΩ', bodyTemp: '52', bearingTemp: '58', status: 'يعمل بحالة ممتازة', dateAdded: '10/11/2026', logs: [] },
+  { id: 'm2', category: 'rolling', stand: '2', locationName: 'ستاند 2', code: 'MTR-ST2', brand: 'Siemens SINAMICS', kw: '400', rpm: '1500', amps: '710', megger: '520 MΩ', bodyTemp: '54', bearingTemp: '60', status: 'يعمل بحالة ممتازة', dateAdded: '10/11/2026', logs: [] },
+  { id: 'm3', category: 'aux', stand: '0', locationName: 'المقص الطائر (Flying Shear)', code: 'MTR-SH1', brand: 'Parker / ABB', kw: '110', rpm: '1750', amps: '210', megger: '600 MΩ', bodyTemp: '48', bearingTemp: '53', status: 'يعمل بحالة ممتازة', dateAdded: '10/11/2026', logs: [] }
 ];
 
 const SHIFTS_NORMAL = ['الوردية الأولى', 'الوردية الثانية', 'الوردية الثالثة'];
@@ -155,7 +122,7 @@ const buildStand = (cfg) => {
     passes: createPassesArray(totalPasses, 1, 0),
     isActive: true,
     accumulatedTons: 0,
-    creditedShiftKey: '', // المفتاح الذكي لحفظ الكتل التي أُضيفت للممر القديم في الوردية الحالية
+    creditedShiftKey: '',
     creditedShiftTons: 0,
     creditedShiftBillets: 0,
     maxLimit: Number(cfg.maxLimit) || 1500,
@@ -214,27 +181,6 @@ const normalizeList = (raw) => {
   return raw.map((st, idx) => normalizeStand(st, idx));
 };
 
-const LiveClock = () => {
-  const [time, setTime] = useState(new Date());
-  useEffect(() => {
-    const t = setInterval(() => setTime(new Date()), 1000);
-    return () => clearInterval(t);
-  }, []);
-  return (
-    <div className="flex bg-slate-800 border border-slate-700 rounded px-2 py-0.5 items-center gap-1.5 shadow-inner">
-      <Clock className="w-3 h-3 text-blue-400" />
-      <div className="flex flex-col items-center leading-none mt-0.5">
-        <span className="text-[10px] font-mono font-bold text-slate-100" dir="ltr">
-          {time.toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-        </span>
-        <span className="text-[7px] text-slate-400 mt-0.5">
-          {time.toLocaleDateString('ar-EG', { weekday: 'short', day: 'numeric', month: 'short' })}
-        </span>
-      </div>
-    </div>
-  );
-};
-
 const formatDateToISO = (d) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const formatDateToGB = (iso) => {
@@ -250,11 +196,11 @@ const convertGBToISO = (gb) => {
 };
 
 /* ======================================================
-   2. التصدير (Excel / PDF) الشامل + تقرير المواتير المستقل
+   2. التصدير الشامل (Excel / PDF) + تقرير حرارة المواتير للورديات
    ====================================================== */
 const esc = (s) => String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 
-const buildReportHTML = ({ factoryName, stands, archive, changes, downtimes, motors, billetWeight }) => {
+const buildReportHTML = ({ factoryName, stands, archive, changes, downtimes, motors, tempShiftLogs, billetWeight }) => {
   const now = new Date().toLocaleString('ar-EG');
   const th = (arr) => `<tr>${arr.map((h) => `<th>${esc(h)}</th>`).join('')}</tr>`;
   const td = (arr) => `<tr>${arr.map((c) => `<td>${esc(c)}</td>`).join('')}</tr>`;
@@ -281,7 +227,7 @@ const buildReportHTML = ({ factoryName, stands, archive, changes, downtimes, mot
     .map((l) => td([l.date, l.dayName, l.shift, l.productSize || '', l.billets, l.tons.toFixed(1), l.by || '-', l.time]))
     .join('');
   const sumT = logs.reduce((a, l) => a + l.tons, 0).toFixed(1);
-  const sumB = logs.reduce((a, l) => a + l.billets, 0);
+  const sumB = logs.reduce((a, c) => a + c.billets, 0);
 
   const changeRows = changes
     .map((c) =>
@@ -300,25 +246,55 @@ const buildReportHTML = ({ factoryName, stands, archive, changes, downtimes, mot
     .join('');
 
   const downRows = (downtimes || [])
-    .map((d) => td([d.date, d.shift, d.category, d.standName || 'عام', `${d.durationMins} ق`, d.reason, d.actionTaken || '', d.by || '']))
+    .map((d) =>
+      td([
+        d.date,
+        d.shift,
+        d.category,
+        d.standName || 'عام',
+        `${d.durationMins} ق`,
+        d.reason,
+        d.actionTaken || '',
+        d.techName || d.by || ''
+      ])
+    )
     .join('');
   const sumDownMins = (downtimes || []).reduce((a, d) => a + (Number(d.durationMins) || 0), 0);
 
   const motorRows = (motors || [])
     .map((m) =>
       td([
-        m.category === 'aux' ? 'كهرباء ومعدات مساعدة' : 'مواتير الدرفلة الرئيسية',
+        m.category === 'aux' ? 'كهرباء ومعدات مساعدة' : 'درفلة رئيسي',
         m.locationName || `ستاند ${m.stand}`,
         m.code,
         m.brand || '',
         `${m.kw} kW`,
         m.rpm,
         m.amps || '-',
+        `${m.bodyTemp || '-'} °C`,
+        `${m.bearingTemp || '-'} °C`,
         m.megger || '-',
-        m.bearingTemp || '-',
-        m.status || 'يعمل',
+        m.lastTechName || '-',
         (m.logs || []).length
       ])
+    )
+    .join('');
+
+  const tempLogsRows = (tempShiftLogs || [])
+    .flatMap((batch) =>
+      (batch.readings || []).map((r) =>
+        td([
+          batch.date,
+          batch.shift,
+          r.motorCode,
+          r.locationName,
+          `${r.bodyTemp || '-'} °C`,
+          `${r.bearingTemp || '-'} °C`,
+          `${r.amps || '-'} A`,
+          batch.recordedBy || '-',
+          batch.supervisor || '-'
+        ])
+      )
     )
     .join('');
 
@@ -335,7 +311,7 @@ const buildReportHTML = ({ factoryName, stands, archive, changes, downtimes, mot
   .tot td{font-weight:bold;background:#dbeafe!important}
   @media print{ body{padding:0} h2{break-after:avoid} tr{break-inside:avoid} }
 </style></head><body>
-<h1>${esc(factoryName)} - التقرير الشامل للإنتاج والدرافيل والمواتير</h1>
+<h1>${esc(factoryName)} - التقرير الشامل للإنتاج والدرافيل وحرارة المواتير</h1>
 <div class="meta">تاريخ التقرير: ${esc(now)} | عدد الستاندات: ${stands.length} | وزن البليت: ${esc(billetWeight)} طن</div>
 <h2>1. حالة الستاندات والممرات (${stands.length} ستاند)</h2>
 <table>${th(['الستاند', 'الشكل', 'القطر', 'تاريخ دخول الدرفيل', 'الممر الحالي', 'إنتاج الممر الحالي (طن)', 'الحد الأقصى', 'النسبة', 'إجمالي إنتاج الدرفيل (طن)'])}${standsRows}</table>
@@ -343,12 +319,14 @@ const buildReportHTML = ({ factoryName, stands, archive, changes, downtimes, mot
 <table>${th(['التاريخ', 'اليوم', 'الوردية', 'المقاس', 'البليت', 'الطن', 'المسجل', 'وقت التسجيل'])}${archiveRows}
 <tr class="tot"><td colspan="4">الإجمالي</td><td>${sumB}</td><td>${sumT}</td><td colspan="2"></td></tr></table>
 <h2>3. سجل الأعطال والتوقفات بالورديات (Downtime Log)</h2>
-<table>${th(['التاريخ', 'الوردية', 'التصنيف', 'الستاند/المعدة', 'مدة التوقف', 'سبب العطل/التوقف', 'الإجراء المتخذ', 'بواسطة'])}${downRows}
+<table>${th(['التاريخ', 'الوردية', 'التصنيف', 'الستاند/المعدة', 'مدة التوقف', 'سبب العطل/التوقف', 'الإجراء المتخذ', 'الفني/الملاحظ'])}${downRows}
 <tr class="tot"><td colspan="4">إجمالي وقت التوقفات</td><td>${sumDownMins} دقيقة</td><td colspan="3"></td></tr></table>
-<h2>4. سجل تغيير الممرات والدرافيل</h2>
+<h2>4. سجل حرارة المواتير والأمبير للورديات</h2>
+<table>${th(['التاريخ', 'الوردية', 'كود الموتور (ID)', 'الموقع/الستاند', 'حرارة الجسم', 'حرارة البلي', 'الأمبير', 'الفني القائم بالقياس', 'الملاحظ/المشرف'])}${tempLogsRows}</table>
+<h2>5. سجل بيانات وصيانة المواتير</h2>
+<table>${th(['القسم', 'الموقع/الستاند', 'كود الموتور (ID)', 'الماركة', 'القدرة', 'RPM', 'الأمبير', 'حرارة الجسم', 'حرارة البلي', 'العزل Megger', 'آخر فني صيانة', 'عدد الصيانات'])}${motorRows}</table>
+<h2>6. سجل تغيير الممرات والدرافيل</h2>
 <table>${th(['التاريخ', 'الوردية', 'الستاند', 'التغيير', 'إنتاج الممر المغلق (طن)', 'كتل الوردية قبل التغيير', 'المقاس', 'بواسطة', 'ملاحظات'])}${changeRows}</table>
-<h2>5. سجل وتقارير مواتير الدرفلة ومواتير الكهرباء المساعدة</h2>
-<table>${th(['القسم', 'الموقع/الستاند', 'كود الموتور', 'النوع/الدرايف', 'القدرة', 'RPM', 'الأمبير', 'العزل Megger', 'حرارة البلي', 'الحالة', 'عمليات الصيانة'])}${motorRows}</table>
 </body></html>`;
 };
 
@@ -389,7 +367,6 @@ const applyPassChange = (list, req, billetWeight, approver, archiveList = []) =>
   const prev = st.activePass;
   const shiftKey = `${req.date}__${req.shift}`;
 
-  // هل تم تسجيل إنتاج هذه الوردية بالفعل قبل طلب تغيير الممر؟
   const existingShiftLog = (archiveList || []).find((l) => l.date === req.date && l.shift === req.shift);
 
   const base = {
@@ -435,8 +412,6 @@ const applyPassChange = (list, req, billetWeight, approver, archiveList = []) =>
 
     if (billetsOnOldInThisShift > 0) {
       if (existingShiftLog) {
-        // حالة 1: الوردية مسجلة مسبقاً (مثلاً سجل 400 كتلة أولاً ثم عمل تغيير الممر بعد 12 كتلة)
-        // نخصم من الرصيد الحالي ما يخص الممر الجديد، ويبدأ الممر الجديد بباقي الوردية (400 - 12 = 388 كتلة)
         const shiftTotalTons = Number(existingShiftLog.tons) || 0;
         const tonsBeforeThisShift = Math.max(0, currentAccumulated - shiftTotalTons);
         finalOldPassTons = tonsBeforeThisShift + tonsOnOldInThisShift;
@@ -445,9 +420,6 @@ const applyPassChange = (list, req, billetWeight, approver, archiveList = []) =>
         st.creditedShiftTons = 0;
         st.creditedShiftBillets = 0;
       } else {
-        // حالة 2 (الأكثر شيوعاً في المصنع): في بداية أو وسط الوردية الجديدة بعد 12 كتلة غيرنا الممر قبل تقفيل الوردية
-        // نضيف الـ 12 كتلة على رصيد الممر القديم التراكمي (مثلاً 300 طن + وزن 12 كتلة = 309 طن) ويُقفل القديم على ذلك!
-        // ويبدأ الممر الجديد من صفر، ونحفظ أن هناك 12 كتلة تم حسابها خلاص عشان لما يقفل الوردية بـ 400 كتلة يضيف للجديد (400 - 12 = 388 كتلة) فقط!
         finalOldPassTons = currentAccumulated + tonsOnOldInThisShift;
         newPassOpeningTons = 0;
         st.creditedShiftKey = shiftKey;
@@ -455,7 +427,6 @@ const applyPassChange = (list, req, billetWeight, approver, archiveList = []) =>
         st.creditedShiftBillets = (st.creditedShiftKey === shiftKey ? Number(st.creditedShiftBillets) || 0 : 0) + billetsOnOldInThisShift;
       }
     } else {
-      // لم يكتب عدد كتل: يُقفل الممر القديم على رصيده الحالي ويبدأ الجديد من صفر
       finalOldPassTons = currentAccumulated;
       newPassOpeningTons = 0;
       st.creditedShiftKey = '';
@@ -505,39 +476,27 @@ const Overlay = ({ z = 50, children }) => (
 );
 
 /* ======================================================
-   4. المكون الرئيسي لبوابة المصانع (FactoryPortal)
+   4. المكون الرئيسي لبوابة المصانع (FactoryPortal - مع دعم الروابط وزر الرجوع في الموبايل)
    ====================================================== */
-export default function FactoryPortal({ onBack, factoryConfig, factoriesList = [], onSelectFactory }) {
-  const [currentUser, setCurrentUser] = useState('none'); // 'none' | 'tech' | 'manager' | 'admin'
-  const [loggedEmployeeName, setLoggedEmployeeName] = useState(''); // اسم الموظف أو المدير المسجل حالياً
-  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
-  const [activeTab, setActiveTab] = useState('dashboard');
-  const [userAuth, setUserAuth] = useState(null);
-
+export default function FactoryPortal({ onBack, factoryConfig }) {
   const appId = factoryConfig?.id || 'al-gioshy-steel-rolls';
   const factoryName = factoryConfig?.name || 'شركة الجيوشي للصلب';
+
+  // قراءة التبويب الحالي من الرابط (URL) عند الفتح
+  const getInitialTabFromUrl = () => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('tab') || 'dashboard';
+  };
+
+  const [currentUser, setCurrentUser] = useState('none');
+  const [loggedEmployeeName, setLoggedEmployeeName] = useState('');
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [activeTab, setActiveTabState] = useState(getInitialTabFromUrl);
+  const [userAuth, setUserAuth] = useState(null);
 
   const isManagerLike = currentUser === 'manager' || currentUser === 'admin';
   const roleLabel =
     loggedEmployeeName || (currentUser === 'tech' ? 'فني تشغيل' : currentUser === 'manager' ? 'مدير المصنع' : 'أدمن');
-
-  const secretTapCount = useRef(0);
-  const secretTapTimer = useRef(null);
-  const handleSecretAdminTrigger = () => {
-    secretTapCount.current += 1;
-    if (secretTapTimer.current) clearTimeout(secretTapTimer.current);
-    if (secretTapCount.current >= 5) {
-      secretTapCount.current = 0;
-      if (isSuperAdmin) {
-        setCurrentUser('admin');
-        setActiveTab('admin');
-      } else setLoginPrompt({ isOpen: true, role: 'admin', codeInput: '', error: '' });
-    } else {
-      secretTapTimer.current = setTimeout(() => {
-        secretTapCount.current = 0;
-      }, 1500);
-    }
-  };
 
   const [stands, setStands] = useState(buildInitialStands);
   const [shiftBillets, setShiftBillets] = useState('');
@@ -545,12 +504,12 @@ export default function FactoryPortal({ onBack, factoryConfig, factoriesList = [
   const [passChanges, setPassChanges] = useState([]);
   const [pendingList, setPendingList] = useState([]);
   const [downtimesList, setDowntimesList] = useState([]);
-  const [handoverNotesList, setHandoverNotesList] = useState([]);
-  const [motorsList, setMotorsList] = useState([]);
-  const [staffList, setStaffList] = useState(DEFAULT_STAFF); // قائمة الموظفين وأكوادهم الخاصة
+  const [handoverNotesList, setHandoverNotesList] = useState([]); // تم إصلاح الخطأ المطبعي هنا
+  const [motorsList, setMotorsList] = useState(DEFAULT_MOTORS);
+  const [tempShiftLogs, setTempShiftLogs] = useState([]);
+  const [staffList, setStaffList] = useState(DEFAULT_STAFF);
   const [recipesList, setRecipesList] = useState(DEFAULT_RECIPES);
   const [rollShopList, setRollShopList] = useState(DEFAULT_ROLL_SHOP);
-  const [checkedSopSteps, setCheckedSopSteps] = useState({});
   const [whatsappModalOpen, setWhatsappModalOpen] = useState(false);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
 
@@ -572,28 +531,38 @@ export default function FactoryPortal({ onBack, factoryConfig, factoriesList = [
   });
   const [targetStandsCount, setTargetStandsCount] = useState(12);
 
-  // فورم التوقفات
+  const [downFilterCat, setDownFilterCat] = useState('الكل');
+  const [downSearchQuery, setDownSearchQuery] = useState('');
   const [downForm, setDownForm] = useState({
     category: 'كهرباء وكنترول',
     standName: 'عام / الخط بالكامل',
     durationMins: '',
     reason: '',
-    actionTaken: ''
+    actionTaken: '',
+    techName: ''
   });
   const [handoverText, setHandoverText] = useState('');
 
-  // فورم المواتير وسجل الصيانة المتقدم
-  const [motorCategoryFilter, setMotorCategoryFilter] = useState('all'); // 'all' | 'rolling' | 'aux'
+  const [motorSubView, setMotorSubView] = useState('cards');
+  const [motorCategoryFilter, setMotorCategoryFilter] = useState('all');
+  const [motorSearchId, setMotorSearchId] = useState('');
   const [selectedMotorForLog, setSelectedMotorForLog] = useState(null);
   const [motorMaintForm, setMotorMaintForm] = useState({
     type: 'فحص دوري وعزل',
+    techName: '',
+    supervisorName: '',
     megger: '',
+    bodyTemp: '',
     bearingTemp: '',
     ampsRead: '',
     notes: ''
   });
+  const [shiftTempInputs, setShiftTempInputs] = useState({});
+  const [shiftTempTech, setShiftTempTech] = useState('');
+  const [shiftTempSupervisor, setShiftTempSupervisor] = useState('');
+
   const [newMotor, setNewMotor] = useState({
-    category: 'rolling', // 'rolling' (موتور درفلة رئيسي) | 'aux' (موتور كهرباء ومعدات مساعدة)
+    category: 'rolling',
     stand: '1',
     locationName: 'ستاند 1',
     code: '',
@@ -602,12 +571,24 @@ export default function FactoryPortal({ onBack, factoryConfig, factoriesList = [
     rpm: '',
     amps: '',
     gearRatio: '',
-    megger: '500 MΩ',
-    bearingTemp: '55 °C',
+    megger: '550 MΩ',
+    bodyTemp: '50',
+    bearingTemp: '55',
     status: 'يعمل بحالة ممتازة'
   });
 
-  // فورم إدارة الموظفين (للمدير)
+  const [editingRollId, setEditingRollId] = useState(null);
+  const [rollFormOpen, setRollFormOpen] = useState(false);
+  const [newRollItem, setNewRollItem] = useState({
+    code: '',
+    standName: 'ستاند 1',
+    material: 'SG Iron / HSS',
+    maxDia: 400,
+    currentDia: 390,
+    minScrapDia: 340,
+    status: 'جاهز بالورشة (جديد)'
+  });
+
   const [newStaffForm, setNewStaffForm] = useState({
     name: '',
     pin: '',
@@ -626,15 +607,6 @@ export default function FactoryPortal({ onBack, factoryConfig, factoriesList = [
     flyingShearLen: '48 متر',
     activeStandsCount: 12,
     notes: ''
-  });
-
-  const [newRollItem, setNewRollItem] = useState({
-    code: '',
-    standName: 'ستاند 1',
-    material: 'SG Iron / HSS',
-    maxDia: 400,
-    currentDia: 390,
-    minScrapDia: 340
   });
 
   const [adminState, setAdminState] = useState({
@@ -679,6 +651,70 @@ export default function FactoryPortal({ onBack, factoryConfig, factoriesList = [
   const showAlert = (title, message) => setModal({ isOpen: true, type: 'alert', title, message, onConfirm: null });
   const showConfirm = (title, message, onConfirm) =>
     setModal({ isOpen: true, type: 'confirm', title, message, onConfirm });
+
+  /* ---------- نظام الروابط والتنقل بزر الرجوع في الموبايل (Browser History & Back Button) ---------- */
+  const setActiveTab = (newTab) => {
+    setActiveTabState(newTab);
+    const params = new URLSearchParams(window.location.search);
+    params.set('mode', 'factory');
+    params.set('f', appId);
+    params.set('tab', newTab);
+    window.history.pushState({ mode: 'factory', f: appId, tab: newTab }, '', `?${params.toString()}`);
+  };
+
+  useEffect(() => {
+    const handlePopState = () => {
+      // إذا كان هناك نافذة فرعية مفتوحة، يغلقها زر الرجوع أولاً بدلاً من الخروج من الصفحة
+      if (resetModal.isOpen) {
+        setResetModal({ isOpen: false, standIndex: null });
+        return;
+      }
+      if (rollModal.isOpen) {
+        setRollModal({ isOpen: false, standIndex: null, isEditingInfo: false });
+        return;
+      }
+      if (selectedMotorForLog) {
+        setSelectedMotorForLog(null);
+        return;
+      }
+      if (whatsappModalOpen) {
+        setWhatsappModalOpen(false);
+        return;
+      }
+      if (approvalsOpen) {
+        setApprovalsOpen(false);
+        return;
+      }
+      const params = new URLSearchParams(window.location.search);
+      const urlTab = params.get('tab');
+      if (urlTab) {
+        setActiveTabState(urlTab);
+      } else if (params.get('mode') !== 'factory' && onBack) {
+        onBack();
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [resetModal.isOpen, rollModal.isOpen, selectedMotorForLog, whatsappModalOpen, approvalsOpen, onBack]);
+
+  const secretTapCount = useRef(0);
+  const secretTapTimer = useRef(null);
+  const handleSecretAdminTrigger = () => {
+    secretTapCount.current += 1;
+    if (secretTapTimer.current) clearTimeout(secretTapTimer.current);
+    if (secretTapCount.current >= 5) {
+      secretTapCount.current = 0;
+      if (isSuperAdmin) {
+        setCurrentUser('admin');
+        setActiveTab('staff');
+      } else setLoginPrompt({ isOpen: true, role: 'admin', codeInput: '', error: '' });
+    } else {
+      secretTapTimer.current = setTimeout(() => {
+        secretTapCount.current = 0;
+      }, 1500);
+    }
+  };
 
   /* ---------- الاتصال وجلب بيانات المصنع من Firebase ---------- */
   useEffect(() => {
@@ -762,8 +798,10 @@ export default function FactoryPortal({ onBack, factoryConfig, factoriesList = [
       } else setDoc(downtimesRef, { downtimes: [], handovers: [] });
     });
     const u8 = onSnapshot(motorsRef, (snap) => {
-      if (snap.exists()) setMotorsList(snap.data().motors || []);
-      else setDoc(motorsRef, { motors: [] });
+      if (snap.exists()) {
+        setMotorsList(snap.data().motors || DEFAULT_MOTORS);
+        setTempShiftLogs(snap.data().tempShiftLogs || []);
+      } else setDoc(motorsRef, { motors: DEFAULT_MOTORS, tempShiftLogs: [] });
     });
     const u9 = onSnapshot(recipesRef, (snap) => {
       if (snap.exists() && Array.isArray(snap.data().recipes)) setRecipesList(snap.data().recipes);
@@ -843,6 +881,7 @@ export default function FactoryPortal({ onBack, factoryConfig, factoriesList = [
     downtimes,
     handovers,
     motors,
+    tempLogs,
     recipes,
     rollShop,
     staff
@@ -865,7 +904,16 @@ export default function FactoryPortal({ onBack, factoryConfig, factoriesList = [
             { merge: true }
           );
         }
-        if (motors !== undefined) await setDoc(ref('motorsState'), { motors });
+        if (motors !== undefined || tempLogs !== undefined) {
+          await setDoc(
+            ref('motorsState'),
+            {
+              motors: motors !== undefined ? motors : motorsList,
+              tempShiftLogs: tempLogs !== undefined ? tempLogs : tempShiftLogs
+            },
+            { merge: true }
+          );
+        }
         if (recipes !== undefined) await setDoc(ref('recipesState'), { recipes });
         if (rollShop !== undefined) await setDoc(ref('rollShopState'), { rolls: rollShop });
         if (staff !== undefined) await setDoc(ref('staffState'), { staff });
@@ -889,13 +937,14 @@ export default function FactoryPortal({ onBack, factoryConfig, factoriesList = [
       if (downtimes !== undefined) setDowntimesList(downtimes);
       if (handovers !== undefined) setHandoverNotesList(handovers);
       if (motors !== undefined) setMotorsList(motors);
+      if (tempLogs !== undefined) setTempShiftLogs(tempLogs);
       if (recipes !== undefined) setRecipesList(recipes);
       if (rollShop !== undefined) setRollShopList(rollShop);
       if (staff !== undefined) setStaffList(staff);
     }
   };
 
-  /* ---------- إدارة الموظفين والرابط المباشر (Staff & Direct Link Control) ---------- */
+  /* ---------- إدارة الموظفين والرابط المباشر ---------- */
   const handleAddStaffMember = (e) => {
     e.preventDefault();
     if (!newStaffForm.name.trim() || !newStaffForm.pin.trim()) return;
@@ -908,7 +957,7 @@ export default function FactoryPortal({ onBack, factoryConfig, factoriesList = [
       id: `emp-${Date.now()}`,
       name: newStaffForm.name.trim(),
       pin: cleanPin,
-      role: newStaffForm.role, // 'tech' | 'manager'
+      role: newStaffForm.role,
       jobTitle: newStaffForm.jobTitle.trim() || 'فني تشغيل',
       active: true
     };
@@ -927,21 +976,19 @@ export default function FactoryPortal({ onBack, factoryConfig, factoriesList = [
 
   const handleCopyEmployeeDirectLink = () => {
     const baseUrl = window.location.origin + window.location.pathname;
-    const directUrl = `${baseUrl}?f=${encodeURIComponent(appId)}`;
+    const directUrl = `${baseUrl}?mode=factory&f=${encodeURIComponent(appId)}`;
     navigator.clipboard.writeText(directUrl);
     showAlert(
       'تم نسخ رابط الموظفين المباشر',
-      `انسخ هذا الرابط وأرسله للموظفين على الواتساب:\n${directUrl}\n\nعندما يضغط الموظف عليه، سيفتح له شاشة مصنع (${factoryName}) مباشرة ويطلب منه كود الموظف فقط دون الحاجة لكود تفعيل المصنع!`
+      `انسخ هذا الرابط وأرسله للموظفين على الواتساب:\n${directUrl}\n\nعندما يضغط الموظف عليه، سيفتح له شاشة مصنع (${factoryName}) مباشرة ويطلب منه كود الموظف فقط!`
     );
   };
 
-  // الدخول الموحد السريع بالكود الشخصي (يتعرف تلقائياً هل هو موظف أم مدير أم أدمن)
   const handleQuickPinLogin = (e) => {
     e.preventDefault();
     const code = quickPinInput.trim();
     if (!code) return;
 
-    // 1. فحص كود الأدمن الشامل
     if (code === adminState.adminCode) {
       setIsSuperAdmin(true);
       setLoggedEmployeeName('م. بسام (Admin)');
@@ -951,7 +998,6 @@ export default function FactoryPortal({ onBack, factoryConfig, factoriesList = [
       return;
     }
 
-    // 2. فحص كود مدير المصنع الرئيسي
     if (code === adminState.managerCode) {
       setIsSuperAdmin(false);
       setLoggedEmployeeName('مدير المصنع');
@@ -961,7 +1007,6 @@ export default function FactoryPortal({ onBack, factoryConfig, factoriesList = [
       return;
     }
 
-    // 3. فحص قائمة الموظفين المخصصين
     const foundEmp = staffList.find((emp) => emp.pin === code);
     if (foundEmp) {
       if (!foundEmp.active) {
@@ -980,7 +1025,6 @@ export default function FactoryPortal({ onBack, factoryConfig, factoriesList = [
       return;
     }
 
-    // 4. فحص كود الفني العام الافتراضي
     if (code === adminState.techCode) {
       if (adminState.isMaintenance) {
         setQuickPinError('النظام في وضع الصيانة حالياً.');
@@ -1034,29 +1078,82 @@ export default function FactoryPortal({ onBack, factoryConfig, factoriesList = [
     save({ recipes: recipesList.filter((r) => r.id !== id) });
   };
 
-  /* ---------- وظائف رادار الدرافيل والمخرطة ---------- */
-  const handleAddRollShopItem = (e) => {
+  /* ---------- وظائف رادار الدرافيل والمخرطة (إضافة + تعديل + حذف كامل) ---------- */
+  const handleSaveRollShopItem = (e) => {
     e.preventDefault();
     if (!newRollItem.code.trim()) return;
-    const item = {
-      id: `rs-${Date.now()}`,
-      code: newRollItem.code.trim().toUpperCase(),
-      standName: newRollItem.standName,
-      material: newRollItem.material,
-      maxDia: Number(newRollItem.maxDia) || 400,
-      currentDia: Number(newRollItem.currentDia) || 390,
-      minScrapDia: Number(newRollItem.minScrapDia) || 340,
-      redressCount: 0,
-      totalTonsRolled: 0,
-      status: 'جاهز بالورشة (جديد)',
-      lastRedressDate: new Date().toLocaleDateString('en-GB')
-    };
-    save({ rollShop: [item, ...rollShopList] });
-    setNewRollItem({ code: '', standName: 'ستاند 1', material: 'SG Iron / HSS', maxDia: 400, currentDia: 390, minScrapDia: 340 });
+
+    if (editingRollId) {
+      const updated = rollShopList.map((r) =>
+        r.id === editingRollId
+          ? {
+              ...r,
+              code: newRollItem.code.trim().toUpperCase(),
+              standName: newRollItem.standName,
+              material: newRollItem.material,
+              maxDia: Number(newRollItem.maxDia) || 400,
+              currentDia: Number(newRollItem.currentDia) || 390,
+              minScrapDia: Number(newRollItem.minScrapDia) || 340,
+              status: newRollItem.status || r.status
+            }
+          : r
+      );
+      save({ rollShop: updated });
+      setEditingRollId(null);
+      setRollFormOpen(false);
+    } else {
+      const item = {
+        id: `rs-${Date.now()}`,
+        code: newRollItem.code.trim().toUpperCase(),
+        standName: newRollItem.standName,
+        material: newRollItem.material,
+        maxDia: Number(newRollItem.maxDia) || 400,
+        currentDia: Number(newRollItem.currentDia) || 390,
+        minScrapDia: Number(newRollItem.minScrapDia) || 340,
+        redressCount: 0,
+        totalTonsRolled: 0,
+        status: newRollItem.status || 'جاهز بالورشة (جديد)',
+        lastRedressDate: new Date().toLocaleDateString('en-GB')
+      };
+      save({ rollShop: [item, ...rollShopList] });
+      setRollFormOpen(false);
+    }
+    setNewRollItem({
+      code: '',
+      standName: 'ستاند 1',
+      material: 'SG Iron / HSS',
+      maxDia: 400,
+      currentDia: 390,
+      minScrapDia: 340,
+      status: 'جاهز بالورشة (جديد)'
+    });
+  };
+
+  const handleStartEditRollItem = (roll) => {
+    setEditingRollId(roll.id);
+    setNewRollItem({
+      code: roll.code,
+      standName: roll.standName,
+      material: roll.material,
+      maxDia: roll.maxDia,
+      currentDia: roll.currentDia,
+      minScrapDia: roll.minScrapDia,
+      status: roll.status
+    });
+    setRollFormOpen(true);
+  };
+
+  const handleDeleteRollShopItem = (id) => {
+    showConfirm('حذف طقم الدرافيل', 'هل أنت متأكد من حذف هذا الدرفيل نهائياً من سجل الورشة؟', () => {
+      save({ rollShop: rollShopList.filter((r) => r.id !== id) });
+    });
   };
 
   const handleRecordRedressing = (roll) => {
-    const mmRemoved = prompt(`كم ملليمتر تم خرطها من قطر الدرفيل (${roll.code}) في المخرطة؟ (القطر الحالي: ${roll.currentDia} مم)`, '4');
+    const mmRemoved = prompt(
+      `كم ملليمتر تم خرطها من قطر الدرفيل (${roll.code}) في المخرطة؟ (القطر الحالي: ${roll.currentDia} مم)`,
+      '4'
+    );
     if (mmRemoved === null) return;
     const cut = Number(mmRemoved) || 0;
     if (cut <= 0) return;
@@ -1106,7 +1203,9 @@ export default function FactoryPortal({ onBack, factoryConfig, factoriesList = [
     const downStr =
       currentShiftDowntimes.length === 0
         ? 'لا يوجد توقفات (تشغيل مستمر 100%)'
-        : currentShiftDowntimes.map((d) => `• ${d.standName} (${d.durationMins} ق): ${d.reason}`).join('\n');
+        : currentShiftDowntimes
+            .map((d) => `• ${d.standName} (${d.durationMins} ق): ${d.reason} [فني: ${d.techName || d.by}]`)
+            .join('\n');
 
     return `🏭 *تقرير وردية خط الدرفلة - ${factoryName}*
 📅 *اليوم:* ${dayName} (${currentDateStr})
@@ -1209,27 +1308,7 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
     const pct = Math.max(0, (tons / limit) * 100);
     if (pct >= 100) return { color: 'danger', bg: 'bg-red-100', border: 'border-red-500', bar: 'bg-red-600', text: 'text-red-700', hex: '#dc2626' };
     if (pct >= 80) return { color: 'warning', bg: 'bg-yellow-100', border: 'border-yellow-400', bar: 'bg-yellow-500', text: 'text-yellow-700', hex: '#eab308' };
-    return { color: 'good', bg: 'bg-slate-50', border: 'border-slate-300', bar: 'bg-green-500', text: 'text-slate-700', hex: '#22c55e' };
-  };
-
-  const openSettingsModal = () => {
-    setTempLogoUrl(customLogo);
-    setIsSettingsOpen(true);
-  };
-  const handleLogoUpload = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    if (file.size > 1024 * 1024) {
-      showAlert('خطأ', 'حجم الصورة كبير جداً. يرجى اختيار صورة أقل من 1 ميجابايت.');
-      return;
-    }
-    const reader = new FileReader();
-    reader.onloadend = () => setTempLogoUrl(reader.result);
-    reader.readAsDataURL(file);
-  };
-  const handleSaveSettings = () => {
-    if (tempLogoUrl && tempLogoUrl.trim() !== '') save({ logo: tempLogoUrl.trim() });
-    setIsSettingsOpen(false);
+    return { color: 'good', bg: 'bg-white', border: 'border-slate-300', bar: 'bg-emerald-500', text: 'text-slate-800', hex: '#10b981' };
   };
 
   const handleToggleActive = (index, e) => {
@@ -1238,7 +1317,7 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
     save({ stands: ns });
   };
 
-  /* ---------- صفحة الدرفيل ---------- */
+  /* ---------- صفحة الدرفيل (مع دفع حالة للتاريخ لدعم زر الرجوع) ---------- */
   const openStandRollPage = (index) => {
     const st = stands[index];
     setRollEditForm({
@@ -1250,6 +1329,7 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
       entryDate: convertGBToISO(st.entryDate),
       totalPasses: st.totalPasses || 6
     });
+    window.history.pushState({ modal: 'roll' }, '');
     setRollModal({ isOpen: true, standIndex: index, isEditingInfo: false });
   };
 
@@ -1313,7 +1393,7 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
       return;
     }
     save({ pending: [req, ...pendingList] });
-    showAlert('تم إرسال الطلب', 'تم إرسال طلب التغيير للمدير. هيتنفذ بعد موافقته، وتقدر تتابع حالته من كارت الستاند.');
+    showAlert('تم إرسال الطلب', 'تم إرسال طلب التغيير للمدير. هيتنفذ بعد موافقته.');
   };
 
   const handleInstallNewRoll = () => {
@@ -1328,7 +1408,7 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
       'تركيب درفيل جديد',
       isManagerLike
         ? 'سيتم تصفير جميع الممرات والبدء من الممر 1 بتاريخ اليوم.'
-        : 'سيتم إرسال طلب تركيب درفيل جديد للمدير. لن يتغير شيء قبل موافقته.',
+        : 'سيتم إرسال طلب تركيب درفيل جديد للمدير.',
       () => submitChange(buildRequest(st, 'newRoll', { notes: 'تركيب درفيل جديد' }))
     );
   };
@@ -1362,6 +1442,7 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
       const next = st.passes.find((p) => p.status === 'unused' && p.passNumber !== st.activePass);
       setResetTargetPass(next ? next.passNumber : st.activePass);
     }
+    window.history.pushState({ modal: 'reset' }, '');
     setResetModal({ isOpen: true, standIndex: index });
   };
 
@@ -1394,12 +1475,7 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
   const approveRequest = (r) => {
     const merged = { ...r, ...(r.kind === 'pass' ? getEdit(r) : {}) };
     const res = applyPassChange(stands, merged, billetWeight, roleLabel, productionArchive);
-    if (!res) {
-      showAlert('خطأ', 'تعذر تنفيذ الطلب: الستاند غير موجود.');
-      return;
-    }
-    const edited = JSON.stringify(getEdit(r)) !== JSON.stringify({ targetPass: r.targetPass, billets: r.billets, notes: r.notes });
-    if (edited && r.kind === 'pass') res.log.notes = `${res.log.notes} (عُدّل بواسطة المدير)`;
+    if (!res) return;
     save({ stands: res.list, changes: [res.log, ...passChanges], pending: pendingList.filter((x) => x.id !== r.id) });
   };
   const rejectRequest = (r) => {
@@ -1409,39 +1485,12 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
   };
   const dismissRequest = (id) => save({ pending: pendingList.filter((x) => x.id !== id) });
 
-  const handleResetAllStands = () => {
-    showConfirm('تحذير شديد', 'هل أنت متأكد من تصفير كافة الستاندات والممرات بالكامل والبدء من ممر 1؟', () => {
-      const today = new Date().toLocaleDateString('en-GB');
-      save({
-        stands: stands.map((s) => ({
-          ...s,
-          activePass: 1,
-          accumulatedTons: 0,
-          creditedShiftKey: '',
-          creditedShiftTons: 0,
-          creditedShiftBillets: 0,
-          lastResetDate: today,
-          passes: createPassesArray(s.totalPasses, 1, 0)
-        }))
-      });
-    });
-  };
-  const handleClearArchive = () => {
-    showConfirm('تحذير نهائي', 'هل أنت متأكد من مسح جميع بيانات الأرشيف القديمة وسجل الممرات بالكامل والبدء من جديد؟', () => {
-      save({ archive: [], changes: [] });
-      showAlert('تمت العملية', 'تم مسح الأرشيف وسجل الممرات بنجاح.');
-    });
-  };
-  const handleLimitChange = (index, v) => {
-    const val = Number(v);
-    if (val > 0) save({ stands: stands.map((s, i) => (i === index ? { ...s, maxLimit: val } : s)) });
-  };
   const handleWeightChange = (v) => {
     const val = Number(v);
     if (val > 0) save({ weight: val });
   };
 
-  /* ---------- إنتاج الوردية (مع خصم الكتل التي راحت للممر القديم تلقائياً) ---------- */
+  /* ---------- إنتاج الوردية ---------- */
   const handleAddShiftProduction = () => {
     const n = Number(shiftBillets);
     if (n <= 0 || isNaN(n)) return;
@@ -1466,15 +1515,12 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
 
     const newStands = stands.map((s) => {
       if (!s.isActive) return s;
-
-      // فحص هل هذا الستاند تم تغيير ممره في هذه الوردية وأخذ الممر القديم جزءاً من كتل الوردية؟
       const alreadyCreditedTons = s.creditedShiftKey === shiftKey ? Number(s.creditedShiftTons) || 0 : 0;
 
       let deltaTons = newTons;
       if (mode === 'replace' && existing) {
         deltaTons = newTons - existing.tons;
       } else if (!existing && alreadyCreditedTons > 0) {
-        // نخصم الأطنان التي أُضيفت للممر القديم في بداية الوردية، ونضيف الباقي فقط للممر الجديد!
         deltaTons = Math.max(0, newTons - alreadyCreditedTons);
       }
 
@@ -1530,7 +1576,7 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
       nd.setDate(nd.getDate() + 1);
       setCurrentProdDate(nd);
       setSelectedShift(shiftsFor(nd.getDay() === 5)[0]);
-      showAlert('تم الإقفال', `تم إقفال يوم ${dayName} وتسجيل إنتاج ${selectedShift} بنجاح!\n\nتم فتح يوم جديد تلقائياً.`);
+      showAlert('تم الإقفال', `تم إقفال يوم ${dayName} وتسجيل إنتاج ${selectedShift} بنجاح!`);
     } else setSelectedShift(dayShifts[i >= 0 ? i + 1 : 0]);
     setShiftBillets('');
   };
@@ -1550,6 +1596,7 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
       durationMins: Number(downForm.durationMins) || 0,
       reason: downForm.reason.trim(),
       actionTaken: downForm.actionTaken.trim(),
+      techName: downForm.techName.trim() || roleLabel,
       productSize: selectedProductSize,
       by: roleLabel
     };
@@ -1561,29 +1608,17 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
     save({ downtimes: downtimesList.filter((d) => d.id !== id) });
   };
 
-  const handleAddHandoverNote = () => {
-    if (!handoverText.trim()) return;
-    const item = {
-      id: Date.now(),
-      date: currentDateStr,
-      shift: selectedShift,
-      time: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }),
-      text: handoverText.trim(),
-      by: roleLabel
-    };
-    save({ handovers: [item, ...handoverNotesList] });
-    setHandoverText('');
-  };
-
-  /* ---------- سجل وصيانة وتقارير المواتير (الدرفلة + الكهرباء المساعدة) ---------- */
+  /* ---------- سجل المواتير + تسجيل حرارة الوردية + الصيانة ---------- */
   const handleAddMotor = (e) => {
     e.preventDefault();
     if (!newMotor.code.trim() || !newMotor.kw) return;
     const m = {
-      id: Date.now(),
+      id: Date.now().toString(),
       ...newMotor,
+      code: newMotor.code.trim().toUpperCase(),
       locationName: newMotor.category === 'rolling' ? `ستاند ${newMotor.stand}` : newMotor.locationName || 'معدة مساعدة',
       dateAdded: new Date().toLocaleDateString('en-GB'),
+      lastTechName: roleLabel,
       logs: []
     };
     save({ motors: [m, ...motorsList] });
@@ -1597,10 +1632,56 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
       rpm: '',
       amps: '',
       gearRatio: '',
-      megger: '500 MΩ',
-      bearingTemp: '55 °C',
+      megger: '550 MΩ',
+      bodyTemp: '50',
+      bearingTemp: '55',
       status: 'يعمل بحالة ممتازة'
     });
+    setMotorSubView('cards');
+    showAlert('تم الحفظ', `تم إضافة الموتور (${m.code}) بنجاح.`);
+  };
+
+  const handleSaveShiftTemperatures = (e) => {
+    e.preventDefault();
+    const readings = motorsList.map((m) => {
+      const inp = shiftTempInputs[m.id] || {};
+      return {
+        motorId: m.id,
+        motorCode: m.code,
+        locationName: m.locationName || `ستاند ${m.stand}`,
+        bodyTemp: inp.bodyTemp !== undefined && inp.bodyTemp !== '' ? inp.bodyTemp : m.bodyTemp || '50',
+        bearingTemp: inp.bearingTemp !== undefined && inp.bearingTemp !== '' ? inp.bearingTemp : m.bearingTemp || '55',
+        amps: inp.amps !== undefined && inp.amps !== '' ? inp.amps : m.amps || '-'
+      };
+    });
+
+    const batchLog = {
+      id: Date.now(),
+      date: currentDateStr,
+      dayName: currentProdDate.toLocaleDateString('ar-EG', { weekday: 'long' }),
+      shift: selectedShift,
+      time: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }),
+      recordedBy: shiftTempTech.trim() || roleLabel,
+      supervisor: shiftTempSupervisor.trim() || '-',
+      readings
+    };
+
+    const updatedMotors = motorsList.map((m) => {
+      const r = readings.find((x) => x.motorId === m.id);
+      if (!r) return m;
+      return {
+        ...m,
+        bodyTemp: r.bodyTemp,
+        bearingTemp: r.bearingTemp,
+        amps: r.amps,
+        lastTempShift: `${currentDateStr} (${selectedShift})`,
+        lastTechName: batchLog.recordedBy
+      };
+    });
+
+    save({ motors: updatedMotors, tempLogs: [batchLog, ...tempShiftLogs] });
+    setShiftTempInputs({});
+    showAlert('تم تسجيل حرارة الوردية', `تم حفظ قراءات حرارة المواتير لـ (${selectedShift} - ${currentDateStr}) بنجاح!`);
   };
 
   const handleAddMotorMaintenanceLog = (e) => {
@@ -1609,9 +1690,13 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
     const logItem = {
       id: Date.now(),
       date: new Date().toLocaleDateString('en-GB'),
+      shift: selectedShift,
       time: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }),
       type: motorMaintForm.type,
+      techName: motorMaintForm.techName.trim() || roleLabel,
+      supervisorName: motorMaintForm.supervisorName.trim() || '-',
       megger: motorMaintForm.megger || selectedMotorForLog.megger,
+      bodyTemp: motorMaintForm.bodyTemp || selectedMotorForLog.bodyTemp,
       bearingTemp: motorMaintForm.bearingTemp || selectedMotorForLog.bearingTemp,
       ampsRead: motorMaintForm.ampsRead || selectedMotorForLog.amps,
       notes: motorMaintForm.notes.trim(),
@@ -1622,23 +1707,34 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
         ? {
             ...m,
             megger: logItem.megger || m.megger,
+            bodyTemp: logItem.bodyTemp || m.bodyTemp,
             bearingTemp: logItem.bearingTemp || m.bearingTemp,
             amps: logItem.ampsRead || m.amps,
+            lastTechName: logItem.techName,
             logs: [logItem, ...(m.logs || [])]
           }
         : m
     );
     save({ motors: updatedMotors });
     setSelectedMotorForLog(updatedMotors.find((m) => m.id === selectedMotorForLog.id));
-    setMotorMaintForm({ type: 'فحص دوري وعزل', megger: '', bearingTemp: '', ampsRead: '', notes: '' });
+    setMotorMaintForm({
+      type: 'فحص دوري وعزل',
+      techName: '',
+      supervisorName: '',
+      megger: '',
+      bodyTemp: '',
+      bearingTemp: '',
+      ampsRead: '',
+      notes: ''
+    });
   };
 
   const handleDeleteMotor = (id) => {
-    save({ motors: motorsList.filter((m) => m.id !== id) });
+    showConfirm('حذف موتور', 'هل أنت متأكد من حذف هذا الموتور وسجلاته؟', () => {
+      save({ motors: motorsList.filter((m) => m.id !== id) });
+    });
   };
 
-  /* ---------- الدخول والأدمن ---------- */
-  const openLoginModal = (role) => setLoginPrompt({ isOpen: true, role, codeInput: '', error: '' });
   const closeLogin = () => setLoginPrompt({ isOpen: false, role: '', codeInput: '', error: '' });
 
   const handleVerifyAccessCode = (e) => {
@@ -1649,7 +1745,7 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
       setIsSuperAdmin(true);
       setLoggedEmployeeName('م. بسام (Admin)');
       setCurrentUser(role === 'admin' ? 'admin' : role);
-      setActiveTab(role === 'admin' ? 'admin' : 'dashboard');
+      setActiveTab('dashboard');
       closeLogin();
       return;
     }
@@ -1664,11 +1760,7 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
     }
     const ok = (role === 'tech' && code === adminState.techCode) || (role === 'manager' && code === adminState.managerCode);
     if (!ok) {
-      setLoginPrompt((p) => ({ ...p, error: 'الكود غير صحيح! حاول مرة أخرى.' }));
-      return;
-    }
-    if (adminState.isMaintenance && role !== 'manager') {
-      setLoginPrompt((p) => ({ ...p, error: 'الموقع في وضع الصيانة والتحديث حالياً!' }));
+      setLoginPrompt((p) => ({ ...p, error: 'الكود غير صحيح!' }));
       return;
     }
     setIsSuperAdmin(false);
@@ -1678,22 +1770,11 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
     closeLogin();
   };
 
-  const handleSuperAdminSwitchRole = (role) => {
-    if (!isSuperAdmin) return;
-    setCurrentUser(role);
-    if (role === 'admin') setActiveTab('admin');
-    else if (activeTab === 'admin') setActiveTab('dashboard');
-  };
   const handleLogout = () => {
     setCurrentUser('none');
     setLoggedEmployeeName('');
     setIsSuperAdmin(false);
     setActiveTab('dashboard');
-  };
-  const handleSaveAdminSettings = (updated) => {
-    setAdminState(updated);
-    save({ admin: updated });
-    showAlert('تم الحفظ', 'تم تحديث إعدادات المدير والأكواد بنجاح.');
   };
 
   /* ---------- تجميع الأرشيف والتقارير ---------- */
@@ -1715,9 +1796,6 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
     groupedArchive[k].shiftsList.sort((a, b) => (shiftOrder[a.shift] || 9) - (shiftOrder[b.shift] || 9))
   );
   const sortedDates = Object.keys(groupedArchive).sort((a, b) => groupedArchive[b].timestamp - groupedArchive[a].timestamp);
-  const aggregatedLogs = Object.values(groupedArchive)
-    .flatMap((d) => d.shiftsList)
-    .sort((a, b) => b.timestamp - a.timestamp);
 
   const reportData = {
     factoryName,
@@ -1726,22 +1804,26 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
     changes: passChanges,
     downtimes: downtimesList,
     motors: motorsList,
+    tempShiftLogs,
     billetWeight
   };
 
   const exportButtons = (
     <div className="flex flex-wrap gap-1.5">
       <button
-        onClick={() => setWhatsappModalOpen(true)}
-        className="bg-green-600 hover:bg-green-700 text-white font-bold py-1.5 px-3 rounded text-[10px] flex items-center gap-1 shadow active:scale-95 transition-colors"
+        onClick={() => {
+          window.history.pushState({ modal: 'whatsapp' }, '');
+          setWhatsappModalOpen(true);
+        }}
+        className="bg-green-600 hover:bg-green-700 text-white font-bold py-1.5 px-2.5 rounded-lg text-[10px] flex items-center gap-1 shadow active:scale-95"
       >
-        <Share2 className="w-3.5 h-3.5" /> ملخص واتساب
+        <Share2 className="w-3.5 h-3.5" /> واتساب
       </button>
       <button
         onClick={() => downloadExcel(reportData)}
-        className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1.5 px-3 rounded text-[10px] flex items-center gap-1 shadow active:scale-95 transition-colors"
+        className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1.5 px-2.5 rounded-lg text-[10px] flex items-center gap-1 shadow active:scale-95"
       >
-        <FileSpreadsheet className="w-3.5 h-3.5" /> تصدير Excel
+        <FileSpreadsheet className="w-3.5 h-3.5" /> Excel
       </button>
       <button
         onClick={() =>
@@ -1749,44 +1831,21 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
             showAlert('تعذر الفتح', 'المتصفح منع النافذة. اسمح بالنوافذ المنبثقة لهذا الموقع وجرّب تاني.')
           )
         }
-        className="bg-rose-600 hover:bg-rose-700 text-white font-bold py-1.5 px-3 rounded text-[10px] flex items-center gap-1 shadow active:scale-95 transition-colors"
+        className="bg-rose-600 hover:bg-rose-700 text-white font-bold py-1.5 px-2.5 rounded-lg text-[10px] flex items-center gap-1 shadow active:scale-95"
       >
-        <FileText className="w-3.5 h-3.5" /> طباعة / PDF
+        <FileText className="w-3.5 h-3.5" /> PDF
       </button>
     </div>
   );
 
   const pendingCount = pendingList.filter((r) => r.status === 'pending').length;
 
-  /* ======================================================
-     الواجهة: صيانة + شاشة الدخول الموحدة للموظفين والمدير
-     ====================================================== */
-  if (adminState.isMaintenance && !isSuperAdmin && currentUser !== 'none') {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-900 text-white p-4 text-center" dir="rtl">
-        <div className="bg-slate-800 p-8 rounded-2xl max-w-md w-full border-2 border-amber-500 shadow-2xl flex flex-col items-center gap-4">
-          <div className="bg-amber-500/20 p-4 rounded-full border border-amber-500/40 animate-pulse">
-            <Wrench className="w-14 h-14 text-amber-400" />
-          </div>
-          <h1 className="text-2xl font-black text-amber-400">جاري التعديل والتحديث</h1>
-          <p className="text-sm text-slate-300 leading-relaxed font-bold">{adminState.maintenanceMessage}</p>
-          <button onClick={handleLogout} className="mt-4 bg-slate-700 hover:bg-slate-600 text-white font-bold px-6 py-2.5 rounded-lg text-xs">
-            العودة لشاشة الدخول
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   const loginModalJSX = loginPrompt.isOpen && (
     <Overlay z={90}>
       <form onSubmit={handleVerifyAccessCode} className="bg-slate-800 border border-slate-600 rounded-xl max-w-xs w-full p-5 shadow-2xl flex flex-col gap-3 text-white">
         <div className="flex justify-between items-center border-b border-slate-700 pb-2">
           <h3 className="font-bold text-sm flex items-center gap-1.5">
-            <Key className="w-4 h-4 text-blue-400" />
-            {loginPrompt.role === 'tech' && 'كود دخول الموظف / الفني'}
-            {loginPrompt.role === 'manager' && 'كود دخول مدير المصنع'}
-            {loginPrompt.role === 'admin' && 'بوابة مسؤول النظام (Admin)'}
+            <Key className="w-4 h-4 text-blue-400" /> كود الدخول
           </h3>
           <button type="button" onClick={closeLogin} className="text-slate-400 hover:text-white">
             <X className="w-4 h-4" />
@@ -1798,14 +1857,14 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
           value={loginPrompt.codeInput}
           onChange={(e) => setLoginPrompt((p) => ({ ...p, codeInput: e.target.value, error: '' }))}
           placeholder="أدخل الكود الشخصي..."
-          className="w-full bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-center font-mono text-lg tracking-widest text-white focus:border-blue-500 outline-none"
+          className="w-full bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-center font-mono text-lg tracking-widest text-white outline-none"
         />
         {loginPrompt.error && (
           <p className="text-red-400 text-xs font-bold text-center bg-red-950/50 border border-red-800 p-1.5 rounded">
             {loginPrompt.error}
           </p>
         )}
-        <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg shadow-lg text-sm">
+        <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg text-sm">
           تأكيد الدخول
         </button>
       </form>
@@ -1816,7 +1875,7 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 text-slate-900 p-4 select-none font-sans" dir="rtl">
         {loginModalJSX}
-        <div className="bg-white p-7 sm:p-8 rounded-3xl max-w-sm w-full text-center border border-slate-200 shadow-xl relative space-y-4">
+        <div className="bg-white p-6 sm:p-8 rounded-3xl max-w-sm w-full text-center border border-slate-200 shadow-xl relative space-y-4">
           <div onClick={handleSecretAdminTrigger} className="cursor-pointer inline-block w-full">
             {customLogo ? (
               <div className="w-full flex justify-center mb-3 bg-slate-50 p-2 rounded-xl border border-slate-200">
@@ -1833,7 +1892,7 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
               {factoryName}
             </h1>
             <p className="text-xs text-slate-500 font-bold mt-1">
-              منظومة تتبع الدرافيل والممرات والمواتير ({stands.length} ستاند)
+              منظومة تتبع الدرافيل والممرات وحرارة المواتير ({stands.length} ستاند)
             </p>
           </div>
 
@@ -1889,12 +1948,38 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
   const selectedRollStand = rollModal.standIndex !== null ? stands[rollModal.standIndex] : null;
   const resetStandObj = resetModal.standIndex !== null ? stands[resetModal.standIndex] : null;
 
+  const filteredMotors = motorsList.filter((m) => {
+    const matchCat =
+      motorCategoryFilter === 'all'
+        ? true
+        : motorCategoryFilter === 'aux'
+        ? m.category === 'aux'
+        : m.category !== 'aux';
+    const q = motorSearchId.trim().toLowerCase();
+    const matchSearch =
+      !q ||
+      (m.code && m.code.toLowerCase().includes(q)) ||
+      (m.locationName && m.locationName.toLowerCase().includes(q)) ||
+      (m.brand && m.brand.toLowerCase().includes(q));
+    return matchCat && matchSearch;
+  });
+
+  const filteredDowntimes = downtimesList.filter((d) => {
+    const matchCat = downFilterCat === 'الكل' || d.category === downFilterCat;
+    const q = downSearchQuery.trim().toLowerCase();
+    const matchSearch =
+      !q ||
+      (d.reason && d.reason.toLowerCase().includes(q)) ||
+      (d.standName && d.standName.toLowerCase().includes(q)) ||
+      (d.techName && d.techName.toLowerCase().includes(q));
+    return matchCat && matchSearch;
+  });
+
   return (
-    <div className="h-dvh bg-slate-100 text-slate-900 font-sans flex flex-col p-1 gap-1 overflow-hidden" dir="rtl">
-      {/* تنبيه / تأكيد */}
+    <div className="min-h-dvh bg-slate-100 text-slate-900 font-sans flex flex-col p-1.5 sm:p-2 gap-2" dir="rtl">
       {modal.isOpen && (
         <Overlay z={100}>
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden border border-slate-200">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden border border-slate-200">
             <div className="p-5">
               <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
                 {modal.type === 'alert' ? <CheckCircle className="text-green-500 w-5 h-5" /> : <AlertTriangle className="text-orange-500 w-5 h-5" />}
@@ -1925,7 +2010,6 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
 
       {loginModalJSX}
 
-      {/* نافذة ملخص الوردية السريع للواتساب */}
       {whatsappModalOpen && (
         <Overlay z={95}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-300 flex flex-col max-h-[90vh]">
@@ -1960,7 +2044,6 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
         </Overlay>
       )}
 
-      {/* نافذة إضافة ستاند أو تعديل عدد الستاندات */}
       {addStandOpen && isManagerLike && (
         <Overlay z={85}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-300">
@@ -2037,24 +2120,6 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                       className="w-full border border-slate-300 rounded p-1.5 font-mono"
                     />
                   </div>
-                  <div>
-                    <label className="font-bold text-slate-600 block mb-1">كود الدرفيل:</label>
-                    <input
-                      type="text"
-                      value={newStandForm.rollCode}
-                      onChange={(e) => setNewStandForm({ ...newStandForm, rollCode: e.target.value })}
-                      className="w-full border border-slate-300 rounded p-1.5 font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="font-bold text-slate-600 block mb-1">الحد الأقصى للممر (طن):</label>
-                    <input
-                      type="number"
-                      value={newStandForm.maxLimit}
-                      onChange={(e) => setNewStandForm({ ...newStandForm, maxLimit: e.target.value })}
-                      className="w-full border border-slate-300 rounded p-1.5 font-mono"
-                    />
-                  </div>
                 </div>
                 <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-lg shadow">
                   + إضافة الستاند للخط
@@ -2065,7 +2130,6 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
         </Overlay>
       )}
 
-      {/* نافذة: الوردية مسجلة قبل كده */}
       {dupModal && existingShiftLog && (
         <Overlay z={95}>
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden border border-amber-300">
@@ -2079,8 +2143,7 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                 <div>المسجل: <span className="font-mono text-blue-700">{existingShiftLog.billets} بليت</span></div>
                 <div className="font-mono text-green-700">{existingShiftLog.tons.toFixed(1)} طن</div>
                 <div className="col-span-2 border-t border-slate-200 pt-2">
-                  الجديد: <span className="font-mono text-amber-700">{Number(shiftBillets)} بليت</span>{' '}
-                  <span className="font-mono text-slate-500">({(Number(shiftBillets) * billetWeight).toFixed(1)} طن)</span>
+                  الجديد: <span className="font-mono text-amber-700">{Number(shiftBillets)} بليت</span>
                 </div>
               </div>
               <button onClick={() => commitShift('replace')} className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 rounded-lg shadow">
@@ -2104,7 +2167,6 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
         const pct = Math.min(100, Math.max(0, (st.accumulatedTons / st.maxLimit) * 100));
         const rollTotal = st.passes.reduce((a, p) => a + (Number(p.tons) || 0), 0);
         const usedCount = st.passes.filter((p) => p.status === 'used' || p.status === 'active').length;
-        const ordered = st.passes.filter((p) => p.order !== null && p.order !== undefined).sort((a, b) => a.order - b.order);
         const myPending = pendingList.filter((r) => String(r.standId) === String(st.id));
         const kpi = (label, value, unit, cls = 'text-slate-900') => (
           <div className="bg-white rounded-xl border border-slate-200 p-3 flex flex-col gap-0.5">
@@ -2121,32 +2183,24 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
               <div className="bg-slate-900 text-white p-4 shrink-0">
                 <div className="flex justify-between items-start gap-3">
                   <div className="flex items-center gap-3">
-                    <div className="bg-amber-400 text-slate-950 font-black rounded-xl w-14 h-14 flex flex-col items-center justify-center leading-none shadow">
+                    <div className="bg-amber-400 text-slate-950 font-black rounded-xl w-12 h-12 sm:w-14 sm:h-14 flex flex-col items-center justify-center leading-none shadow">
                       <span className="text-[9px] font-bold">ستاند</span>
-                      <span className="text-2xl">{st.id}</span>
+                      <span className="text-xl sm:text-2xl">{st.id}</span>
                     </div>
                     <div>
-                      <h3 className="font-black text-lg leading-tight">{st.name}</h3>
+                      <h3 className="font-black text-base sm:text-lg leading-tight">{st.name}</h3>
                       <div className="flex flex-wrap gap-1.5 mt-1.5 text-[10px] font-bold">
-                        {st.type && <span className="bg-slate-800 border border-slate-700 px-2 py-0.5 rounded">شكل الممر: {st.type}</span>}
+                        {st.type && <span className="bg-slate-800 border border-slate-700 px-2 py-0.5 rounded">الممر: {st.type}</span>}
                         {st.diameter && (
                           <span className="bg-slate-800 border border-slate-700 px-2 py-0.5 rounded">
                             القطر: <span className="font-mono text-amber-300">{st.diameter}</span> مم
                           </span>
                         )}
-                        {st.hardness && (
-                          <span className="bg-slate-800 border border-slate-700 px-2 py-0.5 rounded">
-                            الصلابة: <span className="font-mono">{st.hardness}</span>
-                          </span>
-                        )}
                         {st.rollCode && (
                           <span className="bg-slate-800 border border-slate-700 px-2 py-0.5 rounded">
-                            كود الدرفيل: <span className="font-mono">{st.rollCode}</span>
+                            كود: <span className="font-mono">{st.rollCode}</span>
                           </span>
                         )}
-                        <span className="bg-slate-800 border border-slate-700 px-2 py-0.5 rounded">
-                          دخل الخدمة: <span className="font-mono text-green-400">{st.entryDate}</span>
-                        </span>
                       </div>
                     </div>
                   </div>
@@ -2158,12 +2212,12 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                   </button>
                 </div>
 
-                <div className="mt-4">
+                <div className="mt-3">
                   <div className="flex justify-between text-[10px] font-bold text-slate-300 mb-1">
                     <span>إنتاج الممر الحالي مقابل الحد الأقصى</span>
                     <span className="font-mono">{pct.toFixed(0)}%</span>
                   </div>
-                  <div className="h-2.5 bg-slate-700 rounded-full overflow-hidden">
+                  <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
                     <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: stat.hex }} />
                   </div>
                 </div>
@@ -2198,10 +2252,10 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                 </div>
 
                 <div className="flex flex-wrap items-center justify-between gap-2 bg-white p-2.5 rounded-xl border border-slate-200">
-                  <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-1.5">
                     <button
                       onClick={() => initiateResetStand(rollModal.standIndex)}
-                      className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-lg text-xs flex items-center gap-1.5 shadow"
+                      className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-3.5 py-2 rounded-lg text-xs flex items-center gap-1.5 shadow"
                     >
                       <ArrowLeftRight className="w-3.5 h-3.5" /> {isManagerLike ? 'تغيير الممر' : 'طلب تغيير ممر'}
                     </button>
@@ -2209,7 +2263,7 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                       onClick={handleInstallNewRoll}
                       className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold px-3 py-2 rounded-lg text-xs flex items-center gap-1.5 border border-emerald-300"
                     >
-                      <RefreshCw className="w-3.5 h-3.5" /> {isManagerLike ? 'تركيب درفيل جديد' : 'طلب تركيب درفيل جديد'}
+                      <RefreshCw className="w-3.5 h-3.5" /> {isManagerLike ? 'تركيب درفيل جديد' : 'طلب درفيل جديد'}
                     </button>
                     <button
                       onClick={() => setHistoryModal({ isOpen: true, standId: st.id })}
@@ -2224,13 +2278,12 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                         onClick={() => setRollModal((prev) => ({ ...prev, isEditingInfo: !prev.isEditingInfo }))}
                         className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold px-3 py-2 rounded-lg text-xs flex items-center gap-1.5 border border-slate-300"
                       >
-                        <Edit3 className="w-3.5 h-3.5 text-blue-600" /> {rollModal.isEditingInfo ? 'إخفاء التعديل' : 'تعديل بيانات الدرفيل'}
+                        <Edit3 className="w-3.5 h-3.5 text-blue-600" /> تعديل البيانات
                       </button>
                       {stands.length > 1 && (
                         <button
                           onClick={() => handleDeleteStand(rollModal.standIndex)}
                           className="bg-red-50 hover:bg-red-100 text-red-700 font-bold px-2.5 py-2 rounded-lg text-xs border border-red-200"
-                          title="حذف هذا الستاند"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -2254,52 +2307,20 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                         <label className="text-[10px] font-bold text-slate-700 block mb-1">{label}:</label>
                         <input
                           type={type}
-                          min={type === 'number' ? 1 : undefined}
-                          max={type === 'number' ? 40 : undefined}
                           value={rollEditForm[key]}
                           onChange={(e) => setRollEditForm({ ...rollEditForm, [key]: e.target.value })}
                           className="w-full p-1.5 rounded border border-slate-300 text-xs font-mono bg-white"
                         />
                       </div>
                     ))}
-                    <div className="flex justify-end">
-                      <button
-                        onClick={handleSaveRollMetadata}
-                        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-1.5 rounded-lg text-xs flex items-center justify-center gap-1 shadow"
-                      >
-                        <Save className="w-3.5 h-3.5" /> حفظ
-                      </button>
-                    </div>
+                    <button
+                      onClick={handleSaveRollMetadata}
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-lg text-xs flex items-center justify-center gap-1 shadow"
+                    >
+                      <Save className="w-3.5 h-3.5" /> حفظ
+                    </button>
                   </div>
                 )}
-
-                <div className="bg-white p-3 rounded-xl border border-slate-200">
-                  <h4 className="text-xs font-black text-slate-800 mb-2 flex items-center gap-1.5">
-                    <Layers className="w-4 h-4 text-blue-600" /> تسلسل تشغيل الممرات
-                  </h4>
-                  {ordered.length === 0 ? (
-                    <p className="text-[11px] text-slate-400 font-bold">لم يبدأ التشغيل بعد.</p>
-                  ) : (
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      {ordered.map((p, i) => (
-                        <div key={p.passNumber} className="flex items-center gap-1.5">
-                          <div
-                            className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1.5 border ${
-                              p.status === 'active'
-                                ? 'bg-slate-900 text-amber-400 border-amber-500'
-                                : 'bg-blue-50 text-blue-900 border-blue-200'
-                            }`}
-                          >
-                            <span className="bg-amber-400 text-slate-950 font-black px-1.5 rounded text-[10px]">{p.order}</span>
-                            ممر {p.passNumber}
-                            <span className="font-mono text-[10px] opacity-75">{Number(p.tons).toFixed(0)}ط</span>
-                          </div>
-                          {i < ordered.length - 1 && <span className="text-slate-300 text-xs">←</span>}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
 
                 <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-6 gap-2">
                   {st.passes.map((p) => {
@@ -2377,7 +2398,7 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
         );
       })()}
 
-      {/* ===== نافذة تغيير الممر (مع المعاينة الذكية لحساب الكتل قبل التغيير) ===== */}
+      {/* ===== نافذة تغيير الممر ===== */}
       {resetModal.isOpen && resetStandObj && (() => {
         const enteredBillets = Math.max(0, Number(resetBillets) || 0);
         const addedTonsToOld = enteredBillets * billetWeight;
@@ -2404,9 +2425,7 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-black text-slate-800 flex items-center gap-1">
-                    <Layers className="w-4 h-4 text-blue-600" /> 1. اختر الممر الجديد المراد النقل إليه:
-                  </label>
+                  <label className="text-xs font-black text-slate-800">1. اختر الممر الجديد المراد النقل إليه:</label>
                   <div className="grid grid-cols-6 sm:grid-cols-8 gap-1.5 bg-slate-100 p-2 rounded-xl border border-slate-200 max-h-40 overflow-y-auto">
                     {resetStandObj.passes.map((p) => {
                       const sel = Number(resetTargetPass) === p.passNumber;
@@ -2448,7 +2467,7 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                     />
                   </div>
                   <div className="flex flex-col gap-1">
-                    <label className="text-[10px] font-bold text-slate-700">الوردية التي تم فيها التغيير:</label>
+                    <label className="text-[10px] font-bold text-slate-700">الوردية:</label>
                     <select
                       value={resetShiftInput}
                       onChange={(e) => setResetShiftInput(e.target.value)}
@@ -2476,14 +2495,13 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                   />
                   <div className="text-[11px] font-bold text-slate-700 mt-1.5 space-y-1">
                     <p>
-                      • إجمالي إغلاق الممر القديم (ممر {resetStandObj.activePass}):{' '}
+                      • إجمالي إغلاق الممر القديم:{' '}
                       <strong className="font-mono text-blue-700">
                         {resetStandObj.accumulatedTons.toFixed(1)} + {addedTonsToOld.toFixed(1)} = {previewOldFinalTons.toFixed(1)} طن
                       </strong>
                     </p>
                     <p>
                       • الممر الجديد (ممر {resetTargetPass}) سيبدأ من: <strong className="font-mono text-emerald-700">0 طن</strong>
-                      {enteredBillets > 0 && ` (وعند تقفيل الوردية سيُخصم ${enteredBillets} كتلة تلقائياً من إجمالي الوردية فلا تُحسب مرتين!)`}
                     </p>
                   </div>
                 </div>
@@ -2564,7 +2582,7 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                             </select>
                           </div>
                           <div>
-                            <label className="block text-slate-600 mb-0.5">كتل الممر القديم بالوردية:</label>
+                            <label className="block text-slate-600 mb-0.5">كتل الممر القديم:</label>
                             <input
                               type="number"
                               value={ed.billets}
@@ -2649,59 +2667,17 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
         </Overlay>
       )}
 
-      {/* إعدادات الشعار */}
-      {isSettingsOpen && (
-        <Overlay z={50}>
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden border border-slate-300">
-            <div className="bg-slate-800 p-3 flex justify-between items-center text-white">
-              <h3 className="font-bold text-sm flex items-center gap-2">
-                <Settings className="w-4 h-4" /> إعدادات شعار المصنع
-              </h3>
-              <button onClick={() => setIsSettingsOpen(false)} className="text-slate-400 hover:text-white">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="p-4 flex flex-col gap-4">
-              <div className="flex flex-col gap-2">
-                <label className="text-xs font-bold text-slate-700 flex items-center gap-1">
-                  <UploadCloud className="w-4 h-4 text-blue-600" /> رفع لوجو المصنع:
-                </label>
-                <input
-                  type="file"
-                  accept="image/png, image/jpeg, image/webp"
-                  onChange={handleLogoUpload}
-                  className="w-full border border-slate-300 rounded p-1.5 text-xs cursor-pointer"
-                />
-              </div>
-              {tempLogoUrl && (
-                <div className="bg-slate-100 p-3 rounded-lg border border-slate-200 flex flex-col items-center gap-2">
-                  <div className="bg-white p-2 rounded shadow-sm">
-                    <img src={tempLogoUrl} alt="Preview" className="h-16 object-contain" />
-                  </div>
-                </div>
-              )}
-              <button
-                onClick={handleSaveSettings}
-                className="w-full bg-blue-600 text-white font-bold py-2.5 rounded-lg hover:bg-blue-700 flex justify-center items-center gap-2 shadow-md"
-              >
-                <Save className="w-4 h-4" /> تطبيق الشعار
-              </button>
-            </div>
-          </div>
-        </Overlay>
-      )}
-
-      {/* نافذة ملف وسجل صيانة الموتور */}
+      {/* ===== نافذة ملف وسجل صيانة الموتور ===== */}
       {selectedMotorForLog && (
         <Overlay z={85}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden border border-slate-300 flex flex-col max-h-[90vh]">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden border border-slate-300 flex flex-col max-h-[92vh]">
             <div className="bg-slate-900 text-white p-4 flex justify-between items-center">
               <div>
-                <span className="text-[10px] bg-blue-600 px-2 py-0.5 rounded font-bold">
-                  {selectedMotorForLog.category === 'aux' ? 'موتور كهرباء ومعدات مساعدة' : 'موتور درفلة رئيسي'}
+                <span className="text-[10px] bg-blue-600 px-2 py-0.5 rounded font-bold font-mono">
+                  ID: {selectedMotorForLog.code}
                 </span>
-                <h3 className="font-black text-base mt-1">
-                  ملف صيانة ومتابعة موتور: {selectedMotorForLog.locationName} ({selectedMotorForLog.code})
+                <h3 className="font-black text-sm sm:text-base mt-1">
+                  سجل صيانة ومتابعة موتور: {selectedMotorForLog.locationName}
                 </h3>
               </div>
               <button onClick={() => setSelectedMotorForLog(null)} className="text-slate-400 hover:text-white">
@@ -2709,102 +2685,143 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
               </button>
             </div>
 
-            <div className="p-4 overflow-y-auto space-y-4 text-xs">
+            <div className="p-3.5 sm:p-4 overflow-y-auto space-y-4 text-xs">
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-slate-50 p-3 rounded-xl border border-slate-200 font-bold">
                 <div>
                   <span className="text-slate-400 block text-[10px]">القدرة والسرعة:</span>
                   <span className="font-mono text-slate-900">{selectedMotorForLog.kw} kW / {selectedMotorForLog.rpm} RPM</span>
                 </div>
                 <div>
+                  <span className="text-slate-400 block text-[10px]">حرارة الجسم / البلي:</span>
+                  <span className="font-mono text-amber-700">
+                    {selectedMotorForLog.bodyTemp || '50'}°C / {selectedMotorForLog.bearingTemp || '55'}°C
+                  </span>
+                </div>
+                <div>
                   <span className="text-slate-400 block text-[10px]">آخر قياس عزل Megger:</span>
-                  <span className="font-mono text-emerald-700">{selectedMotorForLog.megger || 'غير مسجل'}</span>
+                  <span className="font-mono text-emerald-700">{selectedMotorForLog.megger || '550 MΩ'}</span>
                 </div>
                 <div>
-                  <span className="text-slate-400 block text-[10px]">حرارة البلي Bearing:</span>
-                  <span className="font-mono text-amber-700">{selectedMotorForLog.bearingTemp || 'طبيعي'}</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block text-[10px]">الأمبير / الجيربوكس:</span>
-                  <span className="font-mono text-blue-700">{selectedMotorForLog.amps || selectedMotorForLog.gearRatio || '-'}</span>
+                  <span className="text-slate-400 block text-[10px]">آخر فني متابع:</span>
+                  <span className="text-blue-700">{selectedMotorForLog.lastTechName || '-'}</span>
                 </div>
               </div>
 
-              <form onSubmit={handleAddMotorMaintenanceLog} className="bg-blue-50/60 border border-blue-200 rounded-xl p-3 space-y-2.5">
-                <h4 className="font-black text-blue-950">تسجيل عملية صيانة أو قياس جديد للموتور:</h4>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <form onSubmit={handleAddMotorMaintenanceLog} className="bg-blue-50/60 border border-blue-200 rounded-xl p-3.5 space-y-2.5">
+                <h4 className="font-black text-blue-950">تسجيل صيانة أو إصلاح جديد للموتور:</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <div>
-                    <label className="font-bold text-slate-600 block mb-1">نوع الإجراء:</label>
+                    <label className="font-bold text-slate-700 block mb-1">نوع الصيانة:</label>
                     <select
                       value={motorMaintForm.type}
                       onChange={(e) => setMotorMaintForm({ ...motorMaintForm, type: e.target.value })}
-                      className="w-full border border-slate-300 rounded p-1.5 bg-white font-bold"
+                      className="w-full border border-slate-300 rounded-lg p-2 bg-white font-bold"
                     >
                       <option>فحص دوري وعزل</option>
                       <option>تشحيم وتغيير بلي</option>
-                      <option>تغيير شربون / فلاتر</option>
+                      <option>تغيير شربون / فلاتر تبريد</option>
                       <option>عمرة / لف موتور</option>
-                      <option>ضبط باراميتر درايف</option>
+                      <option>إصلاح عطل طارئ بالوردية</option>
                     </select>
                   </div>
                   <div>
-                    <label className="font-bold text-slate-600 block mb-1">قياس الميجر (MΩ):</label>
+                    <label className="font-bold text-slate-700 block mb-1">اسم الفني المنفذ للصيانة:</label>
                     <input
                       type="text"
-                      placeholder="مثلاً: 550 MΩ"
+                      placeholder="مثلاً: فني / محمد صابر"
+                      value={motorMaintForm.techName}
+                      onChange={(e) => setMotorMaintForm({ ...motorMaintForm, techName: e.target.value })}
+                      className="w-full border border-slate-300 rounded-lg p-2 bg-white font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">اسم الملاحظ / المهندس المشرف:</label>
+                    <input
+                      type="text"
+                      placeholder="مثلاً: م. محمود داوود / ريس مرزوق"
+                      value={motorMaintForm.supervisorName}
+                      onChange={(e) => setMotorMaintForm({ ...motorMaintForm, supervisorName: e.target.value })}
+                      className="w-full border border-slate-300 rounded-lg p-2 bg-white font-bold"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <div>
+                    <label className="font-bold text-slate-600 block mb-1">العزل Megger:</label>
+                    <input
+                      type="text"
+                      placeholder="550 MΩ"
                       value={motorMaintForm.megger}
                       onChange={(e) => setMotorMaintForm({ ...motorMaintForm, megger: e.target.value })}
-                      className="w-full border border-slate-300 rounded p-1.5 bg-white font-mono"
+                      className="w-full border border-slate-300 rounded-lg p-1.5 bg-white font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-bold text-slate-600 block mb-1">حرارة الجسم (°C):</label>
+                    <input
+                      type="number"
+                      placeholder="50"
+                      value={motorMaintForm.bodyTemp}
+                      onChange={(e) => setMotorMaintForm({ ...motorMaintForm, bodyTemp: e.target.value })}
+                      className="w-full border border-slate-300 rounded-lg p-1.5 bg-white font-mono"
                     />
                   </div>
                   <div>
                     <label className="font-bold text-slate-600 block mb-1">حرارة البلي (°C):</label>
                     <input
-                      type="text"
-                      placeholder="مثلاً: 58 °C"
+                      type="number"
+                      placeholder="58"
                       value={motorMaintForm.bearingTemp}
                       onChange={(e) => setMotorMaintForm({ ...motorMaintForm, bearingTemp: e.target.value })}
-                      className="w-full border border-slate-300 rounded p-1.5 bg-white font-mono"
+                      className="w-full border border-slate-300 rounded-lg p-1.5 bg-white font-mono"
                     />
                   </div>
                   <div>
-                    <label className="font-bold text-slate-600 block mb-1">قراءة الأمبير بالحمل:</label>
+                    <label className="font-bold text-slate-600 block mb-1">الأمبير (A):</label>
                     <input
                       type="text"
-                      placeholder="مثلاً: 420 A"
+                      placeholder="420"
                       value={motorMaintForm.ampsRead}
                       onChange={(e) => setMotorMaintForm({ ...motorMaintForm, ampsRead: e.target.value })}
-                      className="w-full border border-slate-300 rounded p-1.5 bg-white font-mono"
+                      className="w-full border border-slate-300 rounded-lg p-1.5 bg-white font-mono"
                     />
                   </div>
                 </div>
+
                 <input
                   type="text"
-                  placeholder="تفاصيل الصيانة أو الملاحظات الفنية..."
+                  placeholder="تفاصيل الصيانة أو قطع الغيار التي تم تغييرها..."
                   value={motorMaintForm.notes}
                   onChange={(e) => setMotorMaintForm({ ...motorMaintForm, notes: e.target.value })}
-                  className="w-full border border-slate-300 rounded p-2 bg-white"
+                  className="w-full border border-slate-300 rounded-lg p-2 bg-white"
                 />
-                <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-lg shadow">
-                  + حفظ في سجل صيانة الموتور
+                <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-xl shadow">
+                  + حفظ في سجل الموتور
                 </button>
               </form>
 
               <div className="space-y-2">
-                <h4 className="font-black text-slate-800">تاريخ الصيانة والقياسات السابقة ({(selectedMotorForLog.logs || []).length}):</h4>
+                <h4 className="font-black text-slate-800">أرشيف صيانات الموتور السابقة ({(selectedMotorForLog.logs || []).length}):</h4>
                 {(selectedMotorForLog.logs || []).length === 0 ? (
                   <p className="text-center py-6 text-slate-400 font-bold">لا توجد سجلات صيانة سابقة لهذا الموتور.</p>
                 ) : (
                   (selectedMotorForLog.logs || []).map((lg) => (
-                    <div key={lg.id} className="bg-slate-50 border border-slate-200 rounded-xl p-2.5 space-y-1">
-                      <div className="flex justify-between font-bold text-[11px]">
-                        <span className="text-blue-700">{lg.type} — بواسطة: {lg.by}</span>
-                        <span className="font-mono text-slate-500">{lg.date} ({lg.time})</span>
+                    <div key={lg.id} className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-1.5">
+                      <div className="flex flex-wrap justify-between items-center gap-1 font-bold text-[11px] border-b border-slate-200 pb-1">
+                        <span className="text-blue-700 font-black">{lg.type}</span>
+                        <span className="font-mono text-slate-500">
+                          {lg.date} — {lg.shift || ''} ({lg.time})
+                        </span>
                       </div>
                       <p className="text-slate-800 font-bold">{lg.notes}</p>
-                      <div className="flex gap-3 text-[10px] font-mono text-slate-600">
-                        {lg.megger && <span>العزل: {lg.megger}</span>}
-                        {lg.bearingTemp && <span>حرارة البلي: {lg.bearingTemp}</span>}
-                        {lg.ampsRead && <span>الأمبير: {lg.ampsRead}</span>}
+                      <div className="flex flex-wrap gap-3 text-[10px] font-bold text-slate-600 bg-white p-2 rounded-lg border border-slate-200">
+                        <span className="text-emerald-700">🔧 الفني: {lg.techName || lg.by}</span>
+                        {lg.supervisorName && lg.supervisorName !== '-' && (
+                          <span className="text-purple-700">👷 الملاحظ: {lg.supervisorName}</span>
+                        )}
+                        {lg.megger && <span className="font-mono">العزل: {lg.megger}</span>}
+                        {lg.bearingTemp && <span className="font-mono">حرارة البلي: {lg.bearingTemp}°C</span>}
                       </div>
                     </div>
                   ))
@@ -2815,57 +2832,55 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
         </Overlay>
       )}
 
-      {/* الشريط العلوي */}
-      <nav className="bg-slate-900 text-white p-2 rounded flex flex-col gap-2 flex-none shadow-sm select-none">
-        <div className="flex justify-between items-center relative h-10">
-          <div onClick={handleSecretAdminTrigger} className="flex items-center gap-2 z-10 cursor-pointer">
-            {customLogo && (
-              <div className="bg-white p-1 rounded shadow-sm flex shrink-0">
-                <img src={customLogo} alt="Logo" className="h-5 sm:h-7 w-auto max-w-[70px] sm:max-w-[120px] object-contain" />
+      {/* ===== الهيدر العلوي المتجاوب للموبايل ===== */}
+      <nav className="bg-slate-900 text-white p-2.5 rounded-2xl flex flex-col gap-2.5 shadow-md select-none">
+        <div className="flex justify-between items-center gap-2">
+          <div onClick={handleSecretAdminTrigger} className="flex items-center gap-2 cursor-pointer min-w-0">
+            {customLogo ? (
+              <div className="bg-white p-1 rounded-lg shadow-sm flex shrink-0">
+                <img src={customLogo} alt="Logo" className="h-6 w-auto max-w-[80px] object-contain" />
+              </div>
+            ) : (
+              <div className="bg-emerald-600 p-1.5 rounded-xl shrink-0">
+                <Building2 className="w-4 h-4 text-white" />
               </div>
             )}
-            <span className="font-bold text-xs sm:text-sm text-slate-100 truncate max-w-[140px] sm:max-w-none">
-              {factoryName}
-            </span>
+            <div className="truncate">
+              <span className="font-black text-xs sm:text-sm text-white block truncate">{factoryName}</span>
+              <span className="text-[10px] text-emerald-400 font-bold block">{roleLabel}</span>
+            </div>
           </div>
-          <div className="absolute left-1/2 -translate-x-1/2 z-0 hidden sm:block">
-            <LiveClock />
-          </div>
-          <div className="flex items-center gap-1.5 sm:gap-2 z-10">
+
+          <div className="flex items-center gap-1.5 shrink-0">
             <button
-              onClick={() => setWhatsappModalOpen(true)}
-              className="bg-green-600 hover:bg-green-500 text-white px-2 py-1 rounded text-[10px] font-bold flex items-center gap-1 shadow-sm"
-              title="ملخص الوردية للواتساب"
+              onClick={() => {
+                window.history.pushState({ modal: 'whatsapp' }, '');
+                setWhatsappModalOpen(true);
+              }}
+              className="bg-green-600 hover:bg-green-500 text-white px-2.5 py-1.5 rounded-xl text-[10px] font-bold flex items-center gap-1 shadow-sm"
             >
-              <Share2 className="w-3 h-3" />
+              <Share2 className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">ملخص واتساب</span>
             </button>
             {isManagerLike && (
               <button
                 onClick={handleCopyEmployeeDirectLink}
-                className="bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded text-[10px] font-bold flex items-center gap-1 shadow-sm"
-                title="نسخ رابط دخول الموظفين المباشر بدون كود المصنع"
+                className="bg-blue-600 hover:bg-blue-500 text-white px-2.5 py-1.5 rounded-xl text-[10px] font-bold flex items-center gap-1 shadow-sm"
+                title="نسخ رابط الموظفين"
               >
-                <Link2 className="w-3 h-3" />
+                <Link2 className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">رابط الموظفين</span>
               </button>
             )}
             {isManagerLike && (
               <button
-                onClick={() => setAddStandOpen(true)}
-                className="bg-emerald-600 hover:bg-emerald-500 text-white px-2 py-1 rounded text-[10px] font-bold flex items-center gap-1 shadow-sm"
+                onClick={() => {
+                  window.history.pushState({ modal: 'approvals' }, '');
+                  setApprovalsOpen(true);
+                }}
+                className="relative bg-amber-500 hover:bg-amber-400 text-slate-950 p-1.5 rounded-xl shadow-sm"
               >
-                <PlusCircle className="w-3 h-3" />
-                <span>الستاندات ({stands.length})</span>
-              </button>
-            )}
-            {isManagerLike && (
-              <button
-                onClick={() => setApprovalsOpen(true)}
-                className="relative bg-amber-500 hover:bg-amber-400 text-slate-950 p-1.5 rounded shadow-sm"
-                title="طلبات الموافقة"
-              >
-                <Inbox className="w-3.5 h-3.5" />
+                <Inbox className="w-4 h-4" />
                 {pendingCount > 0 && (
                   <span className="absolute -top-1.5 -left-1.5 bg-red-600 text-white text-[9px] font-black rounded-full min-w-[16px] h-4 px-1 flex items-center justify-center">
                     {pendingCount}
@@ -2873,158 +2888,121 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                 )}
               </button>
             )}
-            {(isManagerLike || isSuperAdmin) && (
-              <button onClick={openSettingsModal} className="bg-slate-700 p-1.5 rounded hover:bg-slate-600 shadow-sm" title="رفع شعار المصنع">
-                <Settings className="w-3.5 h-3.5 text-blue-300" />
-              </button>
-            )}
-            <span className="bg-slate-800 px-2 py-1 rounded text-[10px] font-bold text-blue-300 flex items-center gap-1 border border-slate-700">
-              <span className={`w-2 h-2 rounded-full ${auth ? 'bg-green-500 shadow-[0_0_5px_#22c55e]' : 'bg-slate-400'}`} />
-              {roleLabel}
-            </span>
-            <button onClick={handleLogout} className="text-red-400 hover:text-red-300 text-xs font-bold">
+            <button
+              onClick={handleLogout}
+              className="bg-red-500/20 text-red-300 border border-red-500/30 px-2.5 py-1.5 rounded-xl text-[10px] font-bold"
+            >
               خروج
             </button>
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-2 bg-slate-800 p-1.5 rounded-lg justify-between items-center z-10 relative">
-          <div className="flex gap-1 w-full sm:w-auto overflow-x-auto pb-0.5">
-            {[
-              ['dashboard', 'الممرات والتشغيل', TrendingUp],
-              ['motors', 'سجل وتقارير المواتير', Cpu],
-              ['downtime', 'أعطال الوردية', Wrench],
-              ['recipes', 'وصفات المقاسات', BookMarked],
-              ['rollshop', 'رادار الدرافيل', Disc],
-              ['emergency', 'طوارئ الكنترول', Siren],
-              ...(isManagerLike ? [['staff', 'إدارة الموظفين والأكواد', Users]] : []),
-              ['analytics', 'الإحصائيات', BarChart3],
-              ['archive', 'الأرشيف', Archive]
-            ].map(([k, label, Icon]) => (
-              <button
-                key={k}
-                onClick={() => setActiveTab(k)}
-                className={`px-2.5 py-1.5 text-[11px] font-bold rounded flex justify-center items-center gap-1 whitespace-nowrap transition-all shrink-0 ${
-                  activeTab === k
-                    ? k === 'emergency'
-                      ? 'bg-red-600 text-white shadow'
-                      : k === 'staff'
-                      ? 'bg-amber-500 text-slate-950 shadow'
-                      : 'bg-blue-600 text-white shadow'
-                    : 'text-slate-300 hover:bg-slate-700'
-                }`}
-              >
-                <Icon className="w-3.5 h-3.5" /> {label}
-              </button>
-            ))}
-          </div>
-          {activeTab === 'dashboard' && (
-            <div className="flex items-center gap-1.5 w-full sm:w-auto bg-slate-700 px-2 py-1 rounded border border-slate-600 shrink-0">
-              <span className="text-white text-[11px] font-bold whitespace-nowrap">المقاس:</span>
-              <select
-                value={selectedProductSize}
-                onChange={(e) => handleProductSizeChange(e.target.value)}
-                className="bg-white text-slate-900 text-[11px] font-bold px-2 py-0.5 rounded outline-none w-full sm:w-auto cursor-pointer"
-              >
-                {['10', '12', '14', '16', '18', '20', '22', '25', '32', 'خوصة 50×10', 'خوصة 40×10'].map((s) => (
-                  <option key={s} value={s}>
-                    {s} مم
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
+        {/* شريط التبويبات المنسق للموبايل */}
+        <div className="grid grid-cols-3 sm:flex items-center gap-1.5 bg-slate-950 p-1.5 rounded-xl border border-slate-800">
+          {[
+            ['dashboard', 'الممرات والتشغيل', TrendingUp],
+            ['motors', 'حالة وحرارة المواتير', Cpu],
+            ['downtime', 'أعطال الوردية', Wrench],
+            ['rollshop', 'ورشة الدرافيل', Disc],
+            ['recipes', 'وصفات المقاسات', BookMarked],
+            ...(isManagerLike ? [['staff', 'الموظفين والأكواد', Users]] : []),
+            ['archive', 'الأرشيف والتقارير', Archive]
+          ].map(([k, label, Icon]) => (
+            <button
+              key={k}
+              onClick={() => setActiveTab(k)}
+              className={`px-2 py-2 text-[11px] font-bold rounded-lg flex justify-center items-center gap-1 transition-all ${
+                activeTab === k
+                  ? 'bg-blue-600 text-white shadow'
+                  : 'text-slate-300 hover:bg-slate-800'
+              }`}
+            >
+              <Icon className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate">{label}</span>
+            </button>
+          ))}
         </div>
       </nav>
 
       {/* ===== 1. لوحة التشغيل والممرات ===== */}
       {activeTab === 'dashboard' && (
-        <div className="flex flex-col gap-2 flex-1 overflow-hidden p-1">
+        <div className="flex flex-col gap-2.5 flex-1">
           {isManagerLike && (
-            <div className="flex flex-col gap-1.5 flex-none bg-white p-2 rounded-lg border border-slate-300 shadow-sm">
+            <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm space-y-2.5">
               <div className="grid grid-cols-3 gap-2 text-center">
-                <div className="bg-green-100 p-1.5 border border-green-300 rounded-lg">
-                  <p className="text-[10px] font-bold text-green-800">أقل من 80%</p>
-                  <p className="font-black text-lg text-green-700">{stands.filter((s) => s.accumulatedTons / s.maxLimit < 0.8).length}</p>
+                <div className="bg-emerald-50 p-2 border border-emerald-200 rounded-xl">
+                  <p className="text-[10px] font-bold text-emerald-800">سليم (&lt;80%)</p>
+                  <p className="font-black text-lg text-emerald-700">{stands.filter((s) => s.accumulatedTons / s.maxLimit < 0.8).length}</p>
                 </div>
-                <div className="bg-yellow-100 p-1.5 border border-yellow-400 rounded-lg">
-                  <p className="text-[10px] font-bold text-yellow-800">إنذار (+80%)</p>
-                  <p className="font-black text-lg text-yellow-700">
+                <div className="bg-amber-50 p-2 border border-amber-300 rounded-xl">
+                  <p className="text-[10px] font-bold text-amber-800">إنذار (+80%)</p>
+                  <p className="font-black text-lg text-amber-700">
                     {stands.filter((s) => s.accumulatedTons / s.maxLimit >= 0.8 && s.accumulatedTons / s.maxLimit < 1).length}
                   </p>
                 </div>
-                <div className="bg-red-100 p-1.5 border border-red-500 rounded-lg">
+                <div className="bg-red-50 p-2 border border-red-300 rounded-xl">
                   <p className="text-[10px] font-bold text-red-800">خطر (+100%)</p>
                   <p className="font-black text-lg text-red-700">{stands.filter((s) => s.accumulatedTons / s.maxLimit >= 1).length}</p>
                 </div>
               </div>
-              <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-200 mt-1">
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <Sliders className="w-4 h-4 text-blue-600" />
-                  <span className="text-xs font-bold text-slate-700">وزن البليت (طن):</span>
+
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-slate-700">المقاس:</span>
+                  <select
+                    value={selectedProductSize}
+                    onChange={(e) => handleProductSizeChange(e.target.value)}
+                    className="bg-slate-100 border border-slate-300 text-slate-900 text-xs font-black px-2.5 py-1 rounded-lg"
+                  >
+                    {['10', '12', '14', '16', '18', '20', '22', '25', '32', 'خوصة 50×10', 'خوصة 40×10'].map((s) => (
+                      <option key={s} value={s}>
+                        {s} مم
+                      </option>
+                    ))}
+                  </select>
+                  <span className="text-xs font-bold text-slate-700 mr-1">وزن البليت:</span>
                   <input
                     type="number"
                     step="0.01"
                     value={billetWeight}
                     onChange={(e) => handleWeightChange(e.target.value)}
-                    className="w-16 p-1 border border-slate-300 rounded text-center font-mono font-bold text-xs bg-slate-50"
+                    className="w-16 p-1 border border-slate-300 rounded-lg text-center font-mono font-bold text-xs bg-slate-50"
                   />
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-1.5">
                   {exportButtons}
                   <button
                     onClick={() => setAddStandOpen(true)}
-                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-1.5 px-3 rounded text-[10px] flex items-center gap-1 shadow"
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-1.5 px-2.5 rounded-lg text-[10px] flex items-center gap-1 shadow"
                   >
-                    <PlusCircle className="w-3.5 h-3.5" /> + الستاندات
-                  </button>
-                  <button
-                    onClick={handleResetAllStands}
-                    className="bg-orange-500 hover:bg-orange-600 text-white font-bold py-1.5 px-3 rounded text-[10px] flex items-center gap-1 shadow"
-                  >
-                    <RefreshCw className="w-3 h-3" /> تصفير الكل
+                    <PlusCircle className="w-3.5 h-3.5" /> الستاندات ({stands.length})
                   </button>
                 </div>
               </div>
             </div>
           )}
 
-          <div className="bg-white p-2 rounded-lg shadow-sm flex flex-col flex-none border border-slate-300 gap-2">
-            <div className="bg-blue-50 border border-blue-200 text-blue-800 text-[10px] font-bold p-1.5 rounded flex justify-between items-center">
-              <button onClick={() => handleDateChange(-1)} className="px-3 py-1 bg-blue-200 hover:bg-blue-300 rounded text-blue-900">
-                يوم سابق
+          <div className="bg-white p-3 rounded-2xl shadow-sm border border-slate-200 space-y-2">
+            <div className="bg-blue-50 border border-blue-200 text-blue-900 text-xs font-bold p-2 rounded-xl flex justify-between items-center">
+              <button onClick={() => handleDateChange(-1)} className="px-2.5 py-1 bg-white border border-blue-200 rounded-lg text-[11px]">
+                السابق
               </button>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handleGoToToday}
-                  className="px-2 py-1 bg-green-500 hover:bg-green-600 rounded text-white shadow-sm text-[9px] font-bold flex gap-1 items-center"
-                >
-                  الآن <RotateCcw className="w-3 h-3" />
-                </button>
-                <div className="flex flex-col items-center">
-                  <span>
-                    تسجيل لـ: {currentProdDate.toLocaleDateString('ar-EG', { weekday: 'long' })} (الوزن: {billetWeight} طن)
-                  </span>
-                  <span className="font-mono text-[11px] text-blue-600">{currentDateStr}</span>
-                </div>
+              <div className="text-center">
+                <span className="block font-black">
+                  {currentProdDate.toLocaleDateString('ar-EG', { weekday: 'long' })} ({currentDateStr})
+                </span>
+                <span className="text-[10px] text-blue-700">مقاس {selectedProductSize} مم | البليت {billetWeight} طن</span>
               </div>
-              <button onClick={() => handleDateChange(1)} className="px-3 py-1 bg-blue-200 hover:bg-blue-300 rounded text-blue-900">
-                يوم تالي
+              <button onClick={() => handleDateChange(1)} className="px-2.5 py-1 bg-white border border-blue-200 rounded-lg text-[11px]">
+                التالي
               </button>
             </div>
 
-            <div className="flex flex-row gap-1 items-stretch w-full">
-              <input
-                type="number"
-                value={shiftBillets}
-                onChange={(e) => setShiftBillets(e.target.value)}
-                className="flex-1 min-w-0 p-2 border border-slate-400 rounded text-center text-sm font-bold bg-slate-50"
-                placeholder="إجمالي بليت الوردية"
-              />
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               <select
                 value={selectedShift}
                 onChange={(e) => setSelectedShift(e.target.value)}
-                className="flex-1 min-w-0 bg-slate-100 border border-slate-400 text-xs font-bold p-1 rounded cursor-pointer"
+                className="bg-slate-50 border border-slate-300 text-xs font-black p-2.5 rounded-xl"
               >
                 {availableShifts.map((s) => (
                   <option key={s} value={s}>
@@ -3032,24 +3010,29 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                   </option>
                 ))}
               </select>
+              <input
+                type="number"
+                value={shiftBillets}
+                onChange={(e) => setShiftBillets(e.target.value)}
+                className="p-2.5 border border-slate-300 rounded-xl text-center text-sm font-black bg-slate-50"
+                placeholder="أدخل إجمالي بليت الوردية..."
+              />
               <button
                 onClick={handleAddShiftProduction}
-                className="flex-1 min-w-0 bg-blue-600 hover:bg-blue-700 text-white font-bold p-1 rounded flex justify-center items-center gap-1 shadow-sm text-[11px] sm:text-sm"
+                className="bg-blue-600 hover:bg-blue-700 text-white font-black py-2.5 px-4 rounded-xl flex justify-center items-center gap-1.5 shadow text-xs sm:text-sm"
               >
-                <Save className="w-3.5 h-3.5" /> حفظ وإغلاق الوردية
+                <Save className="w-4 h-4" /> حفظ وإغلاق الوردية
               </button>
             </div>
           </div>
 
-          {/* شبكة الستاندات */}
-          <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 overflow-y-auto pr-1 pb-1 content-start">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5 pb-6">
             {stands.map((stand, idx) => {
               const percentage = Math.max(0, Math.min((stand.accumulatedTons / stand.maxLimit) * 100, 100));
               const status = getStandStatus(stand.accumulatedTons, stand.maxLimit);
               const usedCount = stand.passes ? stand.passes.filter((p) => p.status === 'used' || p.status === 'active').length : 1;
               const sp = pendingList.filter((r) => String(r.standId) === String(stand.id));
               const hasPending = sp.some((r) => r.status === 'pending');
-              const hasRejected = sp.some((r) => r.status === 'rejected');
               const shiftKey = `${currentDateStr}__${selectedShift}`;
               const hasCreditedInShift = stand.creditedShiftKey === shiftKey && stand.creditedShiftBillets > 0;
 
@@ -3057,102 +3040,68 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                 <div
                   key={stand.id}
                   onClick={() => openStandRollPage(idx)}
-                  className={`min-h-[160px] sm:min-h-[172px] rounded-xl flex flex-col justify-between border-2 cursor-pointer ${
-                    stand.isActive ? status.bg : 'bg-slate-300 opacity-60'
-                  } ${status.border} p-2 relative overflow-hidden shadow-sm hover:shadow-md transition-all`}
+                  className={`rounded-2xl flex flex-col justify-between border-2 cursor-pointer ${
+                    stand.isActive ? status.bg : 'bg-slate-200 opacity-60'
+                  } ${status.border} p-3 relative overflow-hidden shadow-sm hover:shadow-md transition-all`}
                 >
-                  <div className="absolute bottom-0 left-0 w-full h-1.5 bg-slate-300/50">
-                    <div className={`h-full ${status.bar}`} style={{ width: `${percentage}%`, transition: 'width 0.5s ease-in-out' }} />
+                  <div className="absolute bottom-0 left-0 w-full h-1.5 bg-slate-200">
+                    <div className={`h-full ${status.bar}`} style={{ width: `${percentage}%` }} />
                   </div>
 
                   <div className="flex justify-between items-start z-10">
-                    <div className="flex flex-col">
-                      <span className="font-black text-sm sm:text-base text-slate-900">{stand.name}</span>
-                      <span className="text-[9px] text-slate-500 font-bold">
-                        {[stand.type, stand.diameter && `قطر ${stand.diameter}`].filter(Boolean).join(' | ')}
+                    <div>
+                      <span className="font-black text-sm sm:text-base text-slate-900 block">{stand.name}</span>
+                      <span className="text-[10px] text-slate-500 font-bold">
+                        {[stand.type, stand.diameter && `Ø${stand.diameter}`].filter(Boolean).join(' • ')}
                       </span>
                     </div>
-                    <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                      <button
-                        onClick={() => setHistoryModal({ isOpen: true, standId: stand.id })}
-                        className="p-1 text-blue-600 bg-blue-100 hover:bg-blue-200 rounded"
-                        title="سجل الممر"
-                      >
-                        <History className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={(e) => handleToggleActive(idx, e)}
-                        className={`p-1 rounded ${stand.isActive ? 'text-green-600 bg-white/80 hover:bg-white' : 'text-slate-500 bg-black/10'}`}
-                      >
-                        <Power className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+                    <button
+                      onClick={(e) => handleToggleActive(idx, e)}
+                      className={`p-1.5 rounded-lg ${stand.isActive ? 'text-emerald-600 bg-emerald-50' : 'text-slate-400 bg-slate-200'}`}
+                    >
+                      <Power className="w-3.5 h-3.5" />
+                    </button>
                   </div>
 
-                  {(hasPending || hasRejected || hasCreditedInShift) && (
+                  {(hasPending || hasCreditedInShift) && (
                     <span
-                      className={`z-10 self-start text-[9px] font-black px-1.5 py-0.5 rounded flex items-center gap-1 ${
-                        hasPending
-                          ? 'bg-amber-400 text-slate-950'
-                          : hasRejected
-                          ? 'bg-red-600 text-white'
-                          : 'bg-emerald-600 text-white'
+                      className={`my-1 self-start text-[9px] font-black px-2 py-0.5 rounded-full ${
+                        hasPending ? 'bg-amber-400 text-slate-950' : 'bg-emerald-600 text-white'
                       }`}
                     >
-                      {hasPending ? (
-                        <>
-                          <Hourglass className="w-3 h-3" /> بانتظار المدير
-                        </>
-                      ) : hasRejected ? (
-                        <>
-                          <XCircle className="w-3 h-3" /> طلب مرفوض
-                        </>
-                      ) : (
-                        <>خُصم {stand.creditedShiftBillets}ب للسابق</>
-                      )}
+                      {hasPending ? 'بانتظار المدير' : `خُصم ${stand.creditedShiftBillets}ب للسابق`}
                     </span>
                   )}
 
-                  <div className="flex flex-col items-center justify-center flex-1 z-10 py-1">
-                    <span className={`font-mono font-black text-3xl sm:text-4xl leading-none tracking-tighter ${status.text}`}>
+                  <div className="flex flex-col items-center justify-center py-3 z-10">
+                    <span className={`font-mono font-black text-3xl leading-none ${status.text}`}>
                       {stand.accumulatedTons.toFixed(0)}
                     </span>
-                    <div className="flex items-center gap-1 mt-1.5">
-                      <span className="bg-slate-900 text-amber-400 text-[10px] font-black px-2 py-0.5 rounded shadow-sm">
-                        ممر {stand.activePass} / {stand.totalPasses}
+                    <span className="text-[10px] text-slate-400 font-bold mt-0.5">من {stand.maxLimit} طن</span>
+                    <div className="flex items-center gap-1 mt-2">
+                      <span className="bg-slate-900 text-amber-400 text-[10px] font-black px-2 py-0.5 rounded-md">
+                        ممر {stand.activePass}/{stand.totalPasses}
                       </span>
-                      <span className="text-[9px] font-bold text-slate-600 bg-white/80 px-1.5 py-0.5 rounded border border-slate-200">
+                      <span className="text-[10px] font-bold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded-md">
                         استُهلك {usedCount}
                       </span>
                     </div>
-                    <span className="text-[9px] font-bold opacity-75 mt-1 text-slate-600">الهدف: {stand.maxLimit} طن</span>
                   </div>
 
-                  {!isManagerLike ? (
-                    <div className="grid grid-cols-2 gap-1 z-10 mt-auto" onClick={(e) => e.stopPropagation()}>
-                      <button onClick={() => openStandRollPage(idx)} className="py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold rounded-md shadow">
-                        الممرات ({stand.totalPasses})
-                      </button>
-                      <button onClick={(e) => initiateResetStand(idx, null, e)} className="py-1.5 bg-slate-800 hover:bg-slate-900 text-white text-[10px] font-bold rounded-md shadow">
-                        طلب نقل ممر
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="mt-auto pt-1.5 border-t border-black/10 flex items-center justify-between gap-1 z-10 w-full" onClick={(e) => e.stopPropagation()}>
-                      <button onClick={(e) => initiateResetStand(idx, null, e)} className="bg-red-500 hover:bg-red-600 text-white text-[9px] sm:text-[10px] px-2 py-0.5 rounded font-bold shadow-sm shrink-0">
-                        تغيير ممر
-                      </button>
-                      <button onClick={() => openStandRollPage(idx)} className="bg-blue-600 hover:bg-blue-700 text-white text-[9px] px-1.5 py-0.5 rounded font-bold">
-                        الممرات
-                      </button>
-                      <input
-                        type="number"
-                        value={stand.maxLimit}
-                        onChange={(e) => handleLimitChange(idx, e.target.value)}
-                        className="w-12 text-[10px] text-center border border-slate-300 rounded font-mono font-bold bg-white p-0.5 shadow-inner"
-                      />
-                    </div>
-                  )}
+                  <div className="grid grid-cols-2 gap-1.5 pt-2 border-t border-slate-200/80 z-10" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      onClick={() => openStandRollPage(idx)}
+                      className="py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold rounded-lg shadow-sm"
+                    >
+                      الممرات
+                    </button>
+                    <button
+                      onClick={(e) => initiateResetStand(idx, null, e)}
+                      className="py-1.5 bg-slate-800 hover:bg-slate-900 text-white text-[10px] font-bold rounded-lg shadow-sm"
+                    >
+                      نقل ممر
+                    </button>
+                  </div>
                 </div>
               );
             })}
@@ -3160,16 +3109,416 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
         </div>
       )}
 
-      {/* ===== 2. منظومة المواتير وسجل الصيانة والتقارير (مواتير الدرفلة + الكهرباء المساعدة) ===== */}
+      {/* ===== 2. صفحة متابعة حالة وحرارة المواتير ===== */}
       {activeTab === 'motors' && (
-        <div className="flex-1 bg-white rounded-lg shadow border border-slate-300 p-3 sm:p-4 overflow-y-auto flex flex-col gap-4">
-          <div className="bg-slate-900 text-white p-3.5 rounded-xl flex flex-wrap justify-between items-center gap-3">
+        <div className="flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 p-3 sm:p-4 space-y-4">
+          <div className="bg-slate-900 text-white p-3.5 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
             <div>
               <h2 className="font-black text-sm sm:text-base flex items-center gap-2">
-                <Cpu className="w-5 h-5 text-emerald-400" /> منظومة متابعة وصيانة وتقارير المواتير (الدرفلة & الكهرباء)
+                <Cpu className="w-5 h-5 text-emerald-400" /> متابعة حالة وحرارة المواتير (الدرفلة & الكهرباء)
               </h2>
               <p className="text-[11px] text-slate-300 font-bold mt-0.5">
-                اضغط على أي موتور لفتح ملف الصيانة الخاص به وتسجيل قياس العزل (Megger) وحرارة البلي والأمبير
+                ابحث بـ ID الموتور، سجل حرارة الوردية، أو افتح سجل الصيانة باسم الفني والملاحظ
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-1.5 w-full sm:w-auto">
+              <button
+                onClick={() => setMotorSubView('cards')}
+                className={`flex-1 sm:flex-initial px-3 py-2 rounded-xl text-xs font-black flex items-center justify-center gap-1 ${
+                  motorSubView === 'cards' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-300'
+                }`}
+              >
+                <Cpu size={14} /> كروت المواتير ({motorsList.length})
+              </button>
+              <button
+                onClick={() => setMotorSubView('shift_temp')}
+                className={`flex-1 sm:flex-initial px-3 py-2 rounded-xl text-xs font-black flex items-center justify-center gap-1 ${
+                  motorSubView === 'shift_temp' ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-amber-400'
+                }`}
+              >
+                <Thermometer size={14} /> تسجيل حرارة الوردية
+              </button>
+              <button
+                onClick={() => setMotorSubView('add_new')}
+                className={`px-3 py-2 rounded-xl text-xs font-black flex items-center justify-center gap-1 ${
+                  motorSubView === 'add_new' ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-emerald-400'
+                }`}
+              >
+                <PlusCircle size={14} /> + موتور
+              </button>
+            </div>
+          </div>
+
+          {motorSubView === 'shift_temp' && (
+            <form onSubmit={handleSaveShiftTemperatures} className="space-y-4">
+              <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-3.5 space-y-3">
+                <div className="flex flex-wrap justify-between items-center gap-2 border-b border-amber-200 pb-2">
+                  <h3 className="font-black text-sm text-amber-950 flex items-center gap-1.5">
+                    <Thermometer className="w-5 h-5 text-amber-600" /> تسجيل تقرير حرارة المواتير والأمبير — {selectedShift} ({currentDateStr})
+                  </h3>
+                  {exportButtons}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">الوردية:</label>
+                    <select
+                      value={selectedShift}
+                      onChange={(e) => setSelectedShift(e.target.value)}
+                      className="w-full border border-amber-300 rounded-xl p-2 bg-white font-black"
+                    >
+                      {availableShifts.map((s) => (
+                        <option key={s} value={s}>
+                          {s}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">اسم فني الكهرباء القائم بالقياس:</label>
+                    <input
+                      type="text"
+                      placeholder="مثلاً: فني / بسام وليد"
+                      value={shiftTempTech}
+                      onChange={(e) => setShiftTempTech(e.target.value)}
+                      className="w-full border border-amber-300 rounded-xl p-2 bg-white font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">اسم الملاحظ / مهندس الوردية:</label>
+                    <input
+                      type="text"
+                      placeholder="مثلاً: م. أحمد الشيخ / ريس مرزوق"
+                      value={shiftTempSupervisor}
+                      onChange={(e) => setShiftTempSupervisor(e.target.value)}
+                      className="w-full border border-amber-300 rounded-xl p-2 bg-white font-bold"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                {motorsList.map((m) => {
+                  const inp = shiftTempInputs[m.id] || {};
+                  return (
+                    <div key={m.id} className="bg-slate-50 border border-slate-200 rounded-2xl p-3 space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="font-black text-xs text-slate-900">{m.locationName || `ستاند ${m.stand}`}</span>
+                        <span className="font-mono text-[11px] font-black bg-blue-100 text-blue-800 px-2 py-0.5 rounded">
+                          ID: {m.code}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 text-[11px]">
+                        <div>
+                          <label className="text-slate-500 font-bold block mb-0.5">حرارة الجسم °C</label>
+                          <input
+                            type="number"
+                            placeholder={m.bodyTemp || '50'}
+                            value={inp.bodyTemp ?? ''}
+                            onChange={(e) =>
+                              setShiftTempInputs({
+                                ...shiftTempInputs,
+                                [m.id]: { ...inp, bodyTemp: e.target.value }
+                              })
+                            }
+                            className="w-full border border-slate-300 rounded-lg p-1.5 text-center font-mono font-black bg-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-slate-500 font-bold block mb-0.5">حرارة البلي °C</label>
+                          <input
+                            type="number"
+                            placeholder={m.bearingTemp || '55'}
+                            value={inp.bearingTemp ?? ''}
+                            onChange={(e) =>
+                              setShiftTempInputs({
+                                ...shiftTempInputs,
+                                [m.id]: { ...inp, bearingTemp: e.target.value }
+                              })
+                            }
+                            className="w-full border border-amber-400 rounded-lg p-1.5 text-center font-mono font-black bg-amber-50/50"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-slate-500 font-bold block mb-0.5">الأمبير (A)</label>
+                          <input
+                            type="number"
+                            placeholder={m.amps || '400'}
+                            value={inp.amps ?? ''}
+                            onChange={(e) =>
+                              setShiftTempInputs({
+                                ...shiftTempInputs,
+                                [m.id]: { ...inp, amps: e.target.value }
+                              })
+                            }
+                            className="w-full border border-slate-300 rounded-lg p-1.5 text-center font-mono font-black bg-white"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <button
+                type="submit"
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-3 rounded-2xl shadow-md text-sm flex items-center justify-center gap-2"
+              >
+                <Save className="w-4 h-4" /> حفظ تقرير حرارة المواتير للوردية ({selectedShift})
+              </button>
+
+              {tempShiftLogs.length > 0 && (
+                <div className="pt-4 border-t border-slate-200 space-y-2.5">
+                  <h4 className="font-black text-xs text-slate-800">سجل تقارير حرارة المواتير للورديات السابقة ({tempShiftLogs.length}):</h4>
+                  <div className="space-y-2 max-h-72 overflow-y-auto">
+                    {tempShiftLogs.map((batch) => (
+                      <div key={batch.id} className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs space-y-2">
+                        <div className="flex flex-wrap justify-between items-center font-bold border-b border-slate-200 pb-1.5">
+                          <span className="text-blue-800 font-black">
+                            {batch.date} — {batch.shift} ({batch.time})
+                          </span>
+                          <span className="text-slate-600">
+                            🔧 الفني: {batch.recordedBy} | 👷 الملاحظ: {batch.supervisor}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                          {(batch.readings || []).map((r, i) => (
+                            <div key={i} className="bg-white p-2 rounded-lg border border-slate-200 font-mono text-[10px]">
+                              <span className="font-sans font-black text-slate-900 block">{r.locationName} ({r.motorCode})</span>
+                              <span className="text-amber-700 font-bold">جسم: {r.bodyTemp}°C | بلي: {r.bearingTemp}°C</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </form>
+          )}
+
+          {motorSubView === 'add_new' && (
+            <form onSubmit={handleAddMotor} className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 text-xs">
+              <h3 className="font-black text-sm text-slate-900 border-b border-slate-200 pb-2">
+                إضافة موتور جديد لقاعدة بيانات المصنع
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">القسم:</label>
+                  <select
+                    value={newMotor.category}
+                    onChange={(e) => setNewMotor({ ...newMotor, category: e.target.value })}
+                    className="w-full border border-slate-300 rounded-xl p-2.5 bg-white font-bold"
+                  >
+                    <option value="rolling">موتور درفلة رئيسي</option>
+                    <option value="aux">موتور كهرباء ومعدات مساعدة</option>
+                  </select>
+                </div>
+
+                {newMotor.category === 'rolling' ? (
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">الستاند:</label>
+                    <select
+                      value={newMotor.stand}
+                      onChange={(e) => setNewMotor({ ...newMotor, stand: e.target.value, locationName: `ستاند ${e.target.value}` })}
+                      className="w-full border border-slate-300 rounded-xl p-2.5 bg-white font-bold"
+                    >
+                      {stands.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">اسم المعدة المساعدة:</label>
+                    <input
+                      type="text"
+                      placeholder="مقص طائر / طلمبة مياه / بنش رول"
+                      value={newMotor.locationName}
+                      onChange={(e) => setNewMotor({ ...newMotor, locationName: e.target.value })}
+                      className="w-full border border-slate-300 rounded-xl p-2.5 bg-white font-bold"
+                    />
+                  </div>
+                )}
+
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">كود / ID الموتور (للبحث السريع):</label>
+                  <input
+                    type="text"
+                    placeholder="مثال: MTR-ST1 أو M-105"
+                    value={newMotor.code}
+                    onChange={(e) => setNewMotor({ ...newMotor, code: e.target.value })}
+                    className="w-full border border-slate-300 rounded-xl p-2.5 bg-white font-mono font-bold uppercase"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">الماركة / الدرايف:</label>
+                  <input
+                    type="text"
+                    placeholder="Siemens / ABB / Parker"
+                    value={newMotor.brand}
+                    onChange={(e) => setNewMotor({ ...newMotor, brand: e.target.value })}
+                    className="w-full border border-slate-300 rounded-xl p-2.5 bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">القدرة (kW):</label>
+                  <input
+                    type="number"
+                    placeholder="400"
+                    value={newMotor.kw}
+                    onChange={(e) => setNewMotor({ ...newMotor, kw: e.target.value })}
+                    className="w-full border border-slate-300 rounded-xl p-2.5 bg-white font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">السرعة (RPM):</label>
+                  <input
+                    type="number"
+                    placeholder="1500"
+                    value={newMotor.rpm}
+                    onChange={(e) => setNewMotor({ ...newMotor, rpm: e.target.value })}
+                    className="w-full border border-slate-300 rounded-xl p-2.5 bg-white font-mono"
+                  />
+                </div>
+              </div>
+              <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-3 rounded-xl shadow">
+                حفظ الموتور الجديد
+              </button>
+            </form>
+          )}
+
+          {motorSubView === 'cards' && (
+            <div className="space-y-3">
+              <div className="flex flex-col sm:flex-row gap-2 justify-between">
+                <div className="relative flex-1">
+                  <Search className="w-4 h-4 text-slate-400 absolute right-3 top-3" />
+                  <input
+                    type="text"
+                    value={motorSearchId}
+                    onChange={(e) => setMotorSearchId(e.target.value)}
+                    placeholder="ابحث بـ ID الموتور (مثلاً MTR-ST1) أو رقم الستاند..."
+                    className="w-full bg-slate-50 border-2 border-slate-200 focus:border-blue-600 focus:bg-white rounded-xl pr-9 pl-3 py-2 text-xs font-bold outline-none"
+                  />
+                </div>
+                <div className="flex gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 text-[11px] font-bold">
+                  {[
+                    ['all', 'الكل'],
+                    ['rolling', 'مواتير الدرفلة'],
+                    ['aux', 'كهرباء مساعدة']
+                  ].map(([id, label]) => (
+                    <button
+                      key={id}
+                      onClick={() => setMotorCategoryFilter(id)}
+                      className={`px-3 py-1.5 rounded-lg transition-all ${
+                        motorCategoryFilter === id ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {filteredMotors.map((m) => {
+                  const bearingHot = Number(m.bearingTemp) >= 75;
+                  return (
+                    <div
+                      key={m.id}
+                      className={`rounded-2xl border-2 p-4 flex flex-col justify-between gap-3 shadow-sm transition-all ${
+                        bearingHot ? 'bg-red-50/60 border-red-400' : 'bg-slate-50/70 border-slate-200 hover:border-blue-400'
+                      }`}
+                    >
+                      <div>
+                        <div className="flex justify-between items-start gap-2">
+                          <div>
+                            <span
+                              className={`text-[10px] font-bold px-2 py-0.5 rounded-full inline-block mb-1 ${
+                                m.category === 'aux' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'
+                              }`}
+                            >
+                              {m.category === 'aux' ? 'كهرباء مساعدة' : 'درفلة رئيسي'}
+                            </span>
+                            <h3 className="font-black text-base text-slate-900">
+                              {m.locationName || `ستاند ${m.stand}`}
+                            </h3>
+                          </div>
+                          <span className="font-mono font-black text-xs bg-slate-900 text-amber-400 px-2.5 py-1 rounded-lg">
+                            ID: {m.code}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2 bg-white p-3 rounded-xl border border-slate-200 mt-2.5 text-xs font-bold">
+                          <div>
+                            <span className="text-slate-400 text-[10px] block">القدرة / السرعة:</span>
+                            <span className="font-mono text-slate-900">
+                              {m.kw} kW • {m.rpm} RPM
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 text-[10px] block">الأمبير المسحوب:</span>
+                            <span className="font-mono text-blue-700">{m.amps || '-'} A</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 text-[10px] block">حرارة الجسم / البلي:</span>
+                            <span className={`font-mono font-black ${bearingHot ? 'text-red-600' : 'text-amber-700'}`}>
+                              {m.bodyTemp || '50'}°C / {m.bearingTemp || '55'}°C
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 text-[10px] block">العزل (Megger):</span>
+                            <span className="font-mono text-emerald-700">{m.megger || '550 MΩ'}</span>
+                          </div>
+                        </div>
+
+                        {m.lastTechName && (
+                          <p className="text-[11px] font-bold text-slate-500 mt-2">
+                            👷 آخر متابعة/صيانة بواسطة: <strong className="text-slate-800">{m.lastTechName}</strong>
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2 pt-2 border-t border-slate-200">
+                        <button
+                          onClick={() => {
+                            window.history.pushState({ modal: 'motor' }, '');
+                            setSelectedMotorForLog(m);
+                          }}
+                          className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-sm"
+                        >
+                          <Wrench className="w-3.5 h-3.5" /> سجل الصيانة ({(m.logs || []).length})
+                        </button>
+                        {isManagerLike && (
+                          <button
+                            onClick={() => handleDeleteMotor(m.id)}
+                            className="bg-red-50 hover:bg-red-100 text-red-600 p-2 rounded-xl border border-red-200"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ===== 3. صفحة أعطال وتوقفات الوردية المطورة ===== */}
+      {activeTab === 'downtime' && (
+        <div className="flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 p-3 sm:p-4 space-y-4">
+          <div className="bg-slate-900 text-white p-3.5 rounded-2xl flex flex-wrap justify-between items-center gap-3">
+            <div>
+              <h2 className="font-black text-sm sm:text-base flex items-center gap-2">
+                <Wrench className="w-5 h-5 text-amber-400" /> سجل أعطال وتوقفات الورديات المطور
+              </h2>
+              <p className="text-[11px] text-slate-300 font-bold mt-0.5">
+                {currentProdDate.toLocaleDateString('ar-EG', { weekday: 'long' })} ({currentDateStr}) — {selectedShift}
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -3177,483 +3526,295 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
             </div>
           </div>
 
-          {/* فلاتر أقسام المواتير */}
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-bold">
-              {[
-                ['all', `كل المواتير (${motorsList.length})`],
-                ['rolling', `مواتير الدرفلة الرئيسية (${motorsList.filter((m) => m.category !== 'aux').length})`],
-                ['aux', `مواتير الكهرباء والمعدات المساعدة (${motorsList.filter((m) => m.category === 'aux').length})`]
-              ].map(([id, label]) => (
-                <button
-                  key={id}
-                  onClick={() => setMotorCategoryFilter(id)}
-                  className={`px-3 py-1.5 rounded-lg transition-all ${
-                    motorCategoryFilter === id ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+            <div className="bg-red-50 border border-red-200 p-2.5 rounded-xl">
+              <span className="text-[10px] font-bold text-red-700 block">توقفات الوردية الحالية</span>
+              <span className="font-mono font-black text-xl text-red-800">{currentShiftDownMins} دقيقة</span>
+            </div>
+            <div className="bg-amber-50 border border-amber-200 p-2.5 rounded-xl">
+              <span className="text-[10px] font-bold text-amber-800 block">أعطال الوردية الحالية</span>
+              <span className="font-mono font-black text-xl text-amber-900">{currentShiftDowntimes.length} عطل</span>
+            </div>
+            <div className="bg-blue-50 border border-blue-200 p-2.5 rounded-xl">
+              <span className="text-[10px] font-bold text-blue-800 block">إجمالي التوقفات الكلي</span>
+              <span className="font-mono font-black text-xl text-blue-900">
+                {downtimesList.reduce((a, d) => a + (Number(d.durationMins) || 0), 0)} دقيقة
+              </span>
+            </div>
+            <div className="bg-emerald-50 border border-emerald-200 p-2.5 rounded-xl">
+              <span className="text-[10px] font-bold text-emerald-800 block">كفاءة تشغيل الوردية</span>
+              <span className="font-mono font-black text-xl text-emerald-900">
+                {Math.max(0, Math.round(((480 - currentShiftDownMins) / 480) * 100))}%
+              </span>
             </div>
           </div>
 
-          {/* فورم إضافة موتور جديد */}
-          <form
-            onSubmit={handleAddMotor}
-            className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5 items-end text-xs"
-          >
-            <div>
-              <label className="font-bold text-slate-700 block mb-1">القسم:</label>
-              <select
-                value={newMotor.category}
-                onChange={(e) => setNewMotor({ ...newMotor, category: e.target.value })}
-                className="w-full border border-slate-300 rounded-lg p-2 bg-white font-bold"
-              >
-                <option value="rolling">موتور درفلة رئيسي</option>
-                <option value="aux">موتور كهرباء مساعد</option>
-              </select>
-            </div>
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+            <form onSubmit={handleAddDowntime} className="lg:col-span-5 bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 h-fit">
+              <h3 className="font-black text-sm text-slate-900 border-b border-slate-200 pb-2">
+                + تسجيل عطل أو توقف في ({selectedShift})
+              </h3>
+              <div className="grid grid-cols-2 gap-2.5 text-xs">
+                <div>
+                  <label className="font-bold text-slate-600 block mb-1">تصنيف التوقف:</label>
+                  <select
+                    value={downForm.category}
+                    onChange={(e) => setDownForm({ ...downForm, category: e.target.value })}
+                    className="w-full border border-slate-300 rounded-xl p-2 bg-white font-bold"
+                  >
+                    <option>كهرباء وكنترول</option>
+                    <option>ميكانيكا ودرافيل</option>
+                    <option>تشغيل وكعبلة (Cobble)</option>
+                    <option>تغيير ممر / ضبط خلوص</option>
+                    <option>هيدروليك ومياه تبريد</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="font-bold text-slate-600 block mb-1">الستاند / المعدة:</label>
+                  <select
+                    value={downForm.standName}
+                    onChange={(e) => setDownForm({ ...downForm, standName: e.target.value })}
+                    className="w-full border border-slate-300 rounded-xl p-2 bg-white font-bold"
+                  >
+                    <option value="عام / الخط بالكامل">عام / الخط بالكامل</option>
+                    {stands.map((s) => (
+                      <option key={s.id} value={s.name}>
+                        {s.name}
+                      </option>
+                    ))}
+                    <option value="المقص الطائر / اللوابر">المقص الطائر / اللوابر</option>
+                    <option value="الأبرون وسرير التبريد">الأبرون وسرير التبريد</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="font-bold text-slate-600 block mb-1">مدة التوقف (دقيقة):</label>
+                  <input
+                    type="number"
+                    placeholder="مثلاً: 15"
+                    value={downForm.durationMins}
+                    onChange={(e) => setDownForm({ ...downForm, durationMins: e.target.value })}
+                    className="w-full border border-slate-300 rounded-xl p-2 font-mono font-bold bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-600 block mb-1">اسم الفني / الملاحظ المعالج:</label>
+                  <input
+                    type="text"
+                    placeholder="مثلاً: م. بسام / ريس رضا"
+                    value={downForm.techName}
+                    onChange={(e) => setDownForm({ ...downForm, techName: e.target.value })}
+                    className="w-full border border-slate-300 rounded-xl p-2 bg-white font-bold"
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="font-bold text-slate-600 block mb-1">سبب التوقف / وصف العطل:</label>
+                  <input
+                    type="text"
+                    placeholder="مثال: فصل درايف ستاند 4 Overcurrent أو كعبلة..."
+                    value={downForm.reason}
+                    onChange={(e) => setDownForm({ ...downForm, reason: e.target.value })}
+                    className="w-full border border-slate-300 rounded-xl p-2 bg-white"
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="font-bold text-slate-600 block mb-1">الإجراء المتخذ والحل:</label>
+                  <input
+                    type="text"
+                    placeholder="مثال: تغيير دليل الدخول وضبط السرعة..."
+                    value={downForm.actionTaken}
+                    onChange={(e) => setDownForm({ ...downForm, actionTaken: e.target.value })}
+                    className="w-full border border-slate-300 rounded-xl p-2 bg-white"
+                  />
+                </div>
+              </div>
+              <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-2.5 rounded-xl text-xs shadow">
+                حفظ التوقف في سجل الوردية
+              </button>
+            </form>
 
-            {newMotor.category === 'rolling' ? (
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">الستاند:</label>
+            <div className="lg:col-span-7 space-y-3">
+              <div className="flex flex-col sm:flex-row gap-2">
+                <div className="relative flex-1">
+                  <Search className="w-4 h-4 text-slate-400 absolute right-3 top-2.5" />
+                  <input
+                    type="text"
+                    value={downSearchQuery}
+                    onChange={(e) => setDownSearchQuery(e.target.value)}
+                    placeholder="ابحث في الأعطال بالسبب أو الستاند أو اسم الفني..."
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl pr-9 pl-3 py-2 text-xs font-bold outline-none"
+                  />
+                </div>
                 <select
-                  value={newMotor.stand}
-                  onChange={(e) => setNewMotor({ ...newMotor, stand: e.target.value, locationName: `ستاند ${e.target.value}` })}
-                  className="w-full border border-slate-300 rounded-lg p-2 bg-white font-bold"
+                  value={downFilterCat}
+                  onChange={(e) => setDownFilterCat(e.target.value)}
+                  className="bg-slate-100 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold"
+                >
+                  <option value="الكل">كل التصنيفات</option>
+                  <option value="كهرباء وكنترول">كهرباء وكنترول</option>
+                  <option value="ميكانيكا ودرافيل">ميكانيكا ودرافيل</option>
+                  <option value="تشغيل وكعبلة (Cobble)">تشغيل وكعبلة</option>
+                  <option value="تغيير ممر / ضبط خلوص">تغيير ممر / خلوص</option>
+                  <option value="هيدروليك ومياه تبريد">هيدروليك وتبريد</option>
+                </select>
+              </div>
+
+              <div className="space-y-2.5 max-h-[420px] overflow-y-auto pr-1">
+                {filteredDowntimes.length === 0 ? (
+                  <p className="text-center py-8 text-xs text-slate-400 font-bold">لا توجد أعطال مسجلة تطابق البحث.</p>
+                ) : (
+                  filteredDowntimes.map((d) => (
+                    <div key={d.id} className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-1.5 text-xs shadow-sm">
+                      <div className="flex flex-wrap justify-between items-center gap-1 border-b border-slate-200 pb-1.5">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="bg-red-100 text-red-800 font-black px-2 py-0.5 rounded-lg">{d.durationMins} دقيقة</span>
+                          <span className="bg-blue-100 text-blue-800 font-bold px-2 py-0.5 rounded-lg">{d.category}</span>
+                          <span className="font-black text-slate-900">{d.standName}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-mono text-slate-500">
+                            {d.date} | {d.shift}
+                          </span>
+                          {isManagerLike && (
+                            <button onClick={() => handleDeleteDowntime(d.id)} className="text-red-500 hover:text-red-700">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      <p className="font-black text-slate-900">السبب: {d.reason}</p>
+                      {d.actionTaken && <p className="text-emerald-700 font-bold">✅ الحل والإجراء: {d.actionTaken}</p>}
+                      <p className="text-[11px] text-slate-500 font-bold">
+                        👷 الفني / الملاحظ: <strong className="text-slate-800">{d.techName || d.by}</strong>
+                      </p>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== 4. رادار طواقم الدرافيل وورشة الخراطة ===== */}
+      {activeTab === 'rollshop' && (
+        <div className="flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 p-3 sm:p-4 space-y-4">
+          <div className="bg-slate-900 text-white p-3.5 rounded-2xl flex flex-wrap justify-between items-center gap-3">
+            <div>
+              <h2 className="font-black text-sm sm:text-base flex items-center gap-2">
+                <Disc className="w-5 h-5 text-emerald-400" /> رادار طواقم الدرافيل وورشة الخراطة (Roll Shop)
+              </h2>
+              <p className="text-[11px] text-slate-300 font-bold mt-0.5">
+                إضافة وتعديل وحذف الدرافيل، ومتابعة الرصيد المتبقي من القطر قبل التكهين
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                setEditingRollId(null);
+                setNewRollItem({
+                  code: '',
+                  standName: 'ستاند 1',
+                  material: 'SG Iron / HSS',
+                  maxDia: 400,
+                  currentDia: 390,
+                  minScrapDia: 340,
+                  status: 'جاهز بالورشة (جديد)'
+                });
+                setRollFormOpen(!rollFormOpen);
+              }}
+              className="bg-emerald-600 hover:bg-emerald-500 text-white font-black px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow"
+            >
+              <PlusCircle size={15} /> {rollFormOpen ? 'إغلاق النموذج' : '+ إضافة درفيل جديد'}
+            </button>
+          </div>
+
+          {rollFormOpen && (
+            <form
+              onSubmit={handleSaveRollShopItem}
+              className="bg-blue-50/60 border-2 border-blue-300 rounded-2xl p-4 grid grid-cols-2 sm:grid-cols-4 gap-3 items-end text-xs"
+            >
+              <div className="col-span-2 sm:col-span-4 font-black text-sm text-blue-950 border-b border-blue-200 pb-1.5">
+                {editingRollId ? '✏️ تعديل بيانات الدرفيل' : '➕ إضافة درفيل جديد للورشة'}
+              </div>
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">كود / سيريال الطقم:</label>
+                <input
+                  type="text"
+                  placeholder="RL-205-A"
+                  value={newRollItem.code}
+                  onChange={(e) => setNewRollItem({ ...newRollItem, code: e.target.value })}
+                  className="w-full border border-slate-300 rounded-xl p-2 bg-white font-mono font-bold uppercase"
+                />
+              </div>
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">مخصص لـ:</label>
+                <select
+                  value={newRollItem.standName}
+                  onChange={(e) => setNewRollItem({ ...newRollItem, standName: e.target.value })}
+                  className="w-full border border-slate-300 rounded-xl p-2 bg-white font-bold"
                 >
                   {stands.map((s) => (
-                    <option key={s.id} value={s.id}>
+                    <option key={s.id} value={s.name}>
                       {s.name}
                     </option>
                   ))}
                 </select>
               </div>
-            ) : (
               <div>
-                <label className="font-bold text-slate-700 block mb-1">اسم المعدة المساعدة:</label>
+                <label className="font-bold text-slate-700 block mb-1">خامة الدرفيل:</label>
                 <input
                   type="text"
-                  placeholder="مقص طائر / طلمبة / بنش رول"
-                  value={newMotor.locationName}
-                  onChange={(e) => setNewMotor({ ...newMotor, locationName: e.target.value })}
-                  className="w-full border border-slate-300 rounded-lg p-2 bg-white font-bold"
+                  value={newRollItem.material}
+                  onChange={(e) => setNewRollItem({ ...newRollItem, material: e.target.value })}
+                  className="w-full border border-slate-300 rounded-xl p-2 bg-white"
                 />
-              </div>
-            )}
-
-            <div>
-              <label className="font-bold text-slate-700 block mb-1">كود / سيريال الموتور:</label>
-              <input
-                type="text"
-                placeholder="M-101"
-                value={newMotor.code}
-                onChange={(e) => setNewMotor({ ...newMotor, code: e.target.value })}
-                className="w-full border border-slate-300 rounded-lg p-2 bg-white font-mono"
-              />
-            </div>
-            <div>
-              <label className="font-bold text-slate-700 block mb-1">الدرايف / الماركة:</label>
-              <input
-                type="text"
-                placeholder="Siemens / ABB"
-                value={newMotor.brand}
-                onChange={(e) => setNewMotor({ ...newMotor, brand: e.target.value })}
-                className="w-full border border-slate-300 rounded-lg p-2 bg-white"
-              />
-            </div>
-            <div>
-              <label className="font-bold text-slate-700 block mb-1">القدرة (kW):</label>
-              <input
-                type="number"
-                placeholder="600"
-                value={newMotor.kw}
-                onChange={(e) => setNewMotor({ ...newMotor, kw: e.target.value })}
-                className="w-full border border-slate-300 rounded-lg p-2 bg-white font-mono"
-              />
-            </div>
-            <div>
-              <label className="font-bold text-slate-700 block mb-1">السرعة (RPM):</label>
-              <input
-                type="number"
-                placeholder="1500"
-                value={newMotor.rpm}
-                onChange={(e) => setNewMotor({ ...newMotor, rpm: e.target.value })}
-                className="w-full border border-slate-300 rounded-lg p-2 bg-white font-mono"
-              />
-            </div>
-            <div>
-              <label className="font-bold text-slate-700 block mb-1">الأمبير الاسمي:</label>
-              <input
-                type="text"
-                placeholder="950 A"
-                value={newMotor.amps}
-                onChange={(e) => setNewMotor({ ...newMotor, amps: e.target.value })}
-                className="w-full border border-slate-300 rounded-lg p-2 bg-white font-mono"
-              />
-            </div>
-            <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-lg shadow">
-              + إضافة الموتور
-            </button>
-          </form>
-
-          {/* بطاقات وجدول المواتير التفاعلي */}
-          <div className="border border-slate-200 rounded-xl overflow-x-auto">
-            <table className="w-full text-right text-xs min-w-[750px]">
-              <thead className="bg-slate-900 text-white">
-                <tr>
-                  <th className="p-3">القسم</th>
-                  <th className="p-3">الموقع / الستاند</th>
-                  <th className="p-3">كود الموتور</th>
-                  <th className="p-3">القدرة & RPM</th>
-                  <th className="p-3">الأمبير</th>
-                  <th className="p-3">العزل (Megger)</th>
-                  <th className="p-3">حرارة البلي</th>
-                  <th className="p-3">سجل الصيانة</th>
-                  {isManagerLike && <th className="p-3">حذف</th>}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200 font-mono">
-                {motorsList
-                  .filter((m) =>
-                    motorCategoryFilter === 'all'
-                      ? true
-                      : motorCategoryFilter === 'aux'
-                      ? m.category === 'aux'
-                      : m.category !== 'aux'
-                  )
-                  .map((m) => (
-                    <tr key={m.id} className="hover:bg-blue-50/50">
-                      <td className="p-3 font-sans">
-                        <span
-                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                            m.category === 'aux' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'
-                          }`}
-                        >
-                          {m.category === 'aux' ? 'كهرباء مساعدة' : 'درفلة رئيسي'}
-                        </span>
-                      </td>
-                      <td className="p-3 font-sans font-black text-slate-900">{m.locationName || `ستاند ${m.stand}`}</td>
-                      <td className="p-3 font-bold text-blue-700">{m.code}</td>
-                      <td className="p-3 font-bold text-emerald-700">
-                        {m.kw} kW / {m.rpm} RPM
-                      </td>
-                      <td className="p-3">{m.amps || '-'}</td>
-                      <td className="p-3 text-emerald-700 font-bold">{m.megger || '500 MΩ'}</td>
-                      <td className="p-3 text-amber-700 font-bold">{m.bearingTemp || '55 °C'}</td>
-                      <td className="p-3 font-sans">
-                        <button
-                          onClick={() => setSelectedMotorForLog(m)}
-                          className="bg-slate-900 hover:bg-slate-800 text-amber-400 px-3 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1"
-                        >
-                          <Wrench className="w-3 h-3" /> متابعة وصيانة ({(m.logs || []).length})
-                        </button>
-                      </td>
-                      {isManagerLike && (
-                        <td className="p-3">
-                          <button onClick={() => handleDeleteMotor(m.id)} className="text-red-500 hover:text-red-700">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </td>
-                      )}
-                    </tr>
-                  ))}
-                {motorsList.length === 0 && (
-                  <tr>
-                    <td colSpan="9" className="p-8 text-center font-sans font-bold text-slate-400">
-                      لم يتم تسجيل أي مواتير بعد. أضف مواتير الدرفلة ومواتير الكهرباء المساعدة لمتابعتها واستخراج تقاريرها.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* ===== 3. إدارة الموظفين والأكواد والرابط المباشر (خاص بالمدير فقط) ===== */}
-      {activeTab === 'staff' && isManagerLike && (
-        <div className="flex-1 bg-white rounded-lg shadow border border-slate-300 p-4 overflow-y-auto flex flex-col gap-4">
-          <div className="bg-slate-900 text-white p-4 rounded-xl flex flex-wrap justify-between items-center gap-3">
-            <div>
-              <h2 className="font-black text-base flex items-center gap-2">
-                <Users className="w-5 h-5 text-amber-400" /> إدارة الموظفين، أكواد الدخول، ورابط المصنع المباشر
-              </h2>
-              <p className="text-xs text-slate-300 font-bold mt-0.5">
-                أضف كوداً خاصاً لكل فني أو مهندس ليدخل به مباشرة بدون معرفة كود المدير أو كود المصنع
-              </p>
-            </div>
-            <button
-              onClick={handleCopyEmployeeDirectLink}
-              className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow"
-            >
-              <Link2 className="w-4 h-4" /> نسخ رابط دخول الموظفين المباشر
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-            {/* إضافة موظف جديد */}
-            <form onSubmit={handleAddStaffMember} className="lg:col-span-5 bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3 h-fit text-xs">
-              <h3 className="font-black text-sm text-slate-800 border-b border-slate-200 pb-2">
-                + إضافة موظف / فني جديد بكود خاص
-              </h3>
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">اسم الموظف / المهندس:</label>
-                <input
-                  type="text"
-                  placeholder="مثلاً: م. أحمد طارق"
-                  value={newStaffForm.name}
-                  onChange={(e) => setNewStaffForm({ ...newStaffForm, name: e.target.value })}
-                  className="w-full border border-slate-300 rounded-lg p-2 bg-white font-bold"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">كود الدخول الشخصي (PIN):</label>
-                  <input
-                    type="text"
-                    placeholder="مثلاً: 5544"
-                    value={newStaffForm.pin}
-                    onChange={(e) => setNewStaffForm({ ...newStaffForm, pin: e.target.value })}
-                    className="w-full border border-slate-300 rounded-lg p-2 bg-white font-mono font-bold text-center"
-                  />
-                </div>
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">الصلاحية:</label>
-                  <select
-                    value={newStaffForm.role}
-                    onChange={(e) => setNewStaffForm({ ...newStaffForm, role: e.target.value })}
-                    className="w-full border border-slate-300 rounded-lg p-2 bg-white font-bold"
-                  >
-                    <option value="tech">فني / مهندس وردية (بدون صلاحيات المدير)</option>
-                    <option value="manager">مدير / مشرف عام</option>
-                  </select>
-                </div>
               </div>
               <div>
-                <label className="font-bold text-slate-700 block mb-1">المسمى الوظيفي:</label>
-                <input
-                  type="text"
-                  placeholder="مشغل كنترول / فني درافيل / صيانة كهرباء"
-                  value={newStaffForm.jobTitle}
-                  onChange={(e) => setNewStaffForm({ ...newStaffForm, jobTitle: e.target.value })}
-                  className="w-full border border-slate-300 rounded-lg p-2 bg-white"
-                />
-              </div>
-              <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-2.5 rounded-lg shadow">
-                حفظ وتفعيل كود الموظف
-              </button>
-
-              {/* تغيير الباسورد العام للمدير */}
-              <div className="pt-4 border-t border-slate-200 space-y-2">
-                <h4 className="font-black text-slate-800">تعديل كود المدير الرئيسي وكود الفني العام:</h4>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="text-[11px] font-bold text-emerald-700 block mb-1">كود مدير المصنع:</label>
-                    <input
-                      type="text"
-                      value={adminState.managerCode}
-                      onChange={(e) => setAdminState({ ...adminState, managerCode: e.target.value })}
-                      className="w-full border border-slate-300 rounded p-2 font-mono font-black text-center bg-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[11px] font-bold text-blue-700 block mb-1">كود الفني العام:</label>
-                    <input
-                      type="text"
-                      value={adminState.techCode}
-                      onChange={(e) => setAdminState({ ...adminState, techCode: e.target.value })}
-                      className="w-full border border-slate-300 rounded p-2 font-mono font-black text-center bg-white"
-                    />
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleSaveAdminSettings(adminState)}
-                  className="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-2 rounded-lg"
+                <label className="font-bold text-slate-700 block mb-1">الحالة:</label>
+                <select
+                  value={newRollItem.status}
+                  onChange={(e) => setNewRollItem({ ...newRollItem, status: e.target.value })}
+                  className="w-full border border-slate-300 rounded-xl p-2 bg-white font-bold"
                 >
-                  حفظ تعديل الأكواد الرئيسية
-                </button>
+                  <option>بالخدمة على الخط</option>
+                  <option>جاهز بالورشة (احتياطي)</option>
+                  <option>في المخرطة حالياً</option>
+                  <option>تكهين (خردة)</option>
+                </select>
               </div>
-            </form>
-
-            {/* قائمة الموظفين */}
-            <div className="lg:col-span-7 space-y-2.5">
-              <h3 className="font-black text-sm text-slate-800">قائمة الموظفين المسجلين بالمصنع ({staffList.length}):</h3>
-              <div className="space-y-2">
-                {staffList.map((emp) => (
-                  <div
-                    key={emp.id}
-                    className={`p-3.5 rounded-xl border flex flex-wrap justify-between items-center gap-2 text-xs ${
-                      emp.active ? 'bg-white border-slate-200' : 'bg-red-50/60 border-red-200 opacity-75'
-                    }`}
-                  >
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-black text-sm text-slate-900">{emp.name}</span>
-                        <span
-                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                            emp.role === 'manager' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'
-                          }`}
-                        >
-                          {emp.role === 'manager' ? 'صلاحية مدير' : 'صلاحية موظف/فني'}
-                        </span>
-                        <span
-                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                            emp.active ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
-                          }`}
-                        >
-                          {emp.active ? 'نشط' : 'موقوف'}
-                        </span>
-                      </div>
-                      <p className="text-slate-500 font-bold mt-1">
-                        {emp.jobTitle} — كود الدخول: <strong className="font-mono text-blue-700 text-sm">{emp.pin}</strong>
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        onClick={() => handleToggleStaffActive(emp.id)}
-                        className={`px-3 py-1.5 rounded-lg font-bold ${
-                          emp.active ? 'bg-amber-100 text-amber-900 hover:bg-amber-200' : 'bg-emerald-600 text-white'
-                        }`}
-                      >
-                        {emp.active ? 'إيقاف مؤقت' : 'تفعيل'}
-                      </button>
-                      <button
-                        onClick={() => handleDeleteStaff(emp.id)}
-                        className="bg-red-50 hover:bg-red-100 text-red-600 p-1.5 rounded-lg border border-red-200"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ===== 4. كتالوج وصفات الإنتاج الجاهزة ===== */}
-      {activeTab === 'recipes' && (
-        <div className="flex-1 bg-white rounded-lg shadow border border-slate-300 p-3 sm:p-4 overflow-y-auto flex flex-col gap-4">
-          <div className="bg-slate-900 text-white p-3.5 rounded-xl flex flex-wrap justify-between items-center gap-3">
-            <div>
-              <h2 className="font-black text-sm sm:text-base flex items-center gap-2">
-                <BookMarked className="w-5 h-5 text-blue-400" /> كتالوج وصفات الإنتاج الجاهزة (Product Recipes)
-              </h2>
-            </div>
-            <span className="bg-blue-600 text-white px-3 py-1 rounded-lg text-xs font-black">
-              المقاس الشغال حالياً: {selectedProductSize}
-            </span>
-          </div>
-
-          {isManagerLike && (
-            <form
-              onSubmit={handleAddRecipe}
-              className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-2.5 items-end text-xs"
-            >
-              <div className="col-span-2">
-                <label className="font-bold text-slate-700 block mb-1">اسم الوصفة:</label>
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">القطر الأصلي (مم):</label>
                 <input
-                  type="text"
-                  placeholder="مثلاً: تسليح 18 مم سرعة عالية"
-                  value={newRecipe.name}
-                  onChange={(e) => setNewRecipe({ ...newRecipe, name: e.target.value })}
-                  className="w-full border border-slate-300 rounded-lg p-2 bg-white font-bold"
+                  type="number"
+                  value={newRollItem.maxDia}
+                  onChange={(e) => setNewRollItem({ ...newRollItem, maxDia: e.target.value })}
+                  className="w-full border border-slate-300 rounded-xl p-2 bg-white font-mono"
                 />
               </div>
               <div>
-                <label className="font-bold text-slate-700 block mb-1">المقاس:</label>
+                <label className="font-bold text-slate-700 block mb-1">القطر الحالي (مم):</label>
                 <input
-                  type="text"
-                  value={newRecipe.productSize}
-                  onChange={(e) => setNewRecipe({ ...newRecipe, productSize: e.target.value })}
-                  className="w-full border border-slate-300 rounded-lg p-2 bg-white font-mono"
+                  type="number"
+                  value={newRollItem.currentDia}
+                  onChange={(e) => setNewRollItem({ ...newRollItem, currentDia: e.target.value })}
+                  className="w-full border border-slate-300 rounded-xl p-2 bg-white font-mono"
                 />
               </div>
               <div>
-                <label className="font-bold text-slate-700 block mb-1">سرعة الفنش (m/s):</label>
+                <label className="font-bold text-slate-700 block mb-1">حد التكهين Scrap (مم):</label>
                 <input
-                  type="text"
-                  value={newRecipe.finishSpeed}
-                  onChange={(e) => setNewRecipe({ ...newRecipe, finishSpeed: e.target.value })}
-                  className="w-full border border-slate-300 rounded-lg p-2 bg-white font-mono"
+                  type="number"
+                  value={newRollItem.minScrapDia}
+                  onChange={(e) => setNewRollItem({ ...newRollItem, minScrapDia: e.target.value })}
+                  className="w-full border border-slate-300 rounded-xl p-2 bg-white font-mono"
                 />
               </div>
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">ضغط مياه QTB:</label>
-                <input
-                  type="text"
-                  value={newRecipe.qtbPressure}
-                  onChange={(e) => setNewRecipe({ ...newRecipe, qtbPressure: e.target.value })}
-                  className="w-full border border-slate-300 rounded-lg p-2 bg-white font-mono"
-                />
-              </div>
-              <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-lg shadow">
-                + حفظ الوصفة
+              <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-black py-2.5 px-3 rounded-xl shadow">
+                {editingRollId ? 'حفظ التعديلات' : '+ حفظ الدرفيل'}
               </button>
             </form>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {recipesList.map((rec) => (
-              <div key={rec.id} className="bg-slate-50 border-2 border-slate-200 hover:border-blue-400 rounded-2xl p-4 flex flex-col justify-between gap-3 shadow-sm">
-                <div>
-                  <div className="flex justify-between items-start gap-2 mb-2">
-                    <h3 className="font-black text-base text-slate-900">{rec.name}</h3>
-                    <span className="bg-blue-600 text-white text-xs font-black px-2.5 py-0.5 rounded-lg shrink-0">
-                      مقاس {rec.productSize}
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs bg-white p-3 rounded-xl border border-slate-200 font-bold">
-                    <div>
-                      <span className="text-slate-400 block text-[10px]">سرعة الفنش:</span>
-                      <span className="font-mono text-blue-700">{rec.finishSpeed}</span>
-                    </div>
-                    <div>
-                      <span className="text-slate-400 block text-[10px]">ضغط وتدفق QTB:</span>
-                      <span className="font-mono text-emerald-700">{rec.qtbPressure}</span>
-                    </div>
-                    <div>
-                      <span className="text-slate-400 block text-[10px]">حرارة البيليت:</span>
-                      <span className="font-mono text-amber-700">{rec.furnaceTemp}</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex justify-between items-center gap-2 pt-2 border-t border-slate-200">
-                  <button
-                    onClick={() => handleApplyRecipe(rec)}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-xl text-xs shadow flex items-center justify-center gap-1.5"
-                  >
-                    <CheckCircle className="w-4 h-4" /> تطبيق الوصفة على الخط الآن
-                  </button>
-                  {isManagerLike && (
-                    <button
-                      onClick={() => handleDeleteRecipe(rec.id)}
-                      className="bg-red-50 hover:bg-red-100 text-red-600 p-2 rounded-xl border border-red-200"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ===== 5. رادار طواقم الدرافيل والمخرطة ===== */}
-      {activeTab === 'rollshop' && (
-        <div className="flex-1 bg-white rounded-lg shadow border border-slate-300 p-3 sm:p-4 overflow-y-auto flex flex-col gap-4">
-          <div className="bg-slate-900 text-white p-3.5 rounded-xl flex flex-wrap justify-between items-center gap-3">
-            <h2 className="font-black text-sm sm:text-base flex items-center gap-2">
-              <Disc className="w-5 h-5 text-emerald-400" /> رادار طواقم الدرافيل وورشة الخراطة (Roll Shop)
-            </h2>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {rollShopList.map((roll) => {
               const totalUsableMm = Math.max(1, roll.maxDia - roll.minScrapDia);
               const remainingMm = Math.max(0, roll.currentDia - roll.minScrapDia);
@@ -3686,33 +3847,49 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
 
                     <div className="bg-white rounded-xl border border-slate-200 p-3 mt-3 space-y-1.5 text-xs font-bold">
                       <div className="flex justify-between">
-                        <span className="text-slate-500">القطر الحالي / حد التكهين:</span>
+                        <span className="text-slate-500">القطر الحالي / التكهين:</span>
                         <span className="font-mono font-black text-slate-900">
                           {roll.currentDia} مم / {roll.minScrapDia} مم
                         </span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-slate-500">الرصيد المتبقي للخراطة:</span>
+                        <span className="text-slate-500">المتبقي للخراطة:</span>
                         <span className={`font-mono font-black ${remainingMm <= 6 ? 'text-red-600' : 'text-emerald-700'}`}>
                           {remainingMm} مم متاح ({lifePct}%)
                         </span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-slate-500">عدد مرات الخراطة:</span>
-                        <span className="font-mono text-blue-700">{roll.redressCount} مرات</span>
+                        <span className="text-slate-500">مرات الخراطة:</span>
+                        <span className="font-mono text-blue-700">{roll.redressCount} مرات (آخرها: {roll.lastRedressDate})</span>
                       </div>
                     </div>
                   </div>
 
-                  <button
-                    onClick={() => handleRecordRedressing(roll)}
-                    disabled={isScrap}
-                    className={`w-full py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow ${
-                      isScrap ? 'bg-slate-300 text-slate-500 cursor-not-allowed' : 'bg-slate-900 hover:bg-slate-800 text-amber-400'
-                    }`}
-                  >
-                    <Wrench className="w-3.5 h-3.5" /> تسجيل خراطة جديدة (خصم مم)
-                  </button>
+                  <div className="flex items-center gap-1.5 pt-2 border-t border-slate-200">
+                    <button
+                      onClick={() => handleRecordRedressing(roll)}
+                      disabled={isScrap}
+                      className={`flex-1 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1 shadow ${
+                        isScrap ? 'bg-slate-300 text-slate-500' : 'bg-slate-900 hover:bg-slate-800 text-amber-400'
+                      }`}
+                    >
+                      <Wrench className="w-3.5 h-3.5" /> تسجيل خراطة
+                    </button>
+                    <button
+                      onClick={() => handleStartEditRollItem(roll)}
+                      className="bg-blue-50 hover:bg-blue-100 text-blue-700 p-2 rounded-xl border border-blue-200"
+                      title="تعديل الدرفيل"
+                    >
+                      <Edit3 className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteRollShopItem(roll.id)}
+                      className="bg-red-50 hover:bg-red-100 text-red-600 p-2 rounded-xl border border-red-200"
+                      title="حذف الدرفيل"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               );
             })}
@@ -3720,123 +3897,97 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
         </div>
       )}
 
-      {/* ===== 6. أعطال ويوميات الوردية ===== */}
-      {activeTab === 'downtime' && (
-        <div className="flex-1 bg-white rounded-lg shadow border border-slate-300 p-3 sm:p-4 overflow-y-auto flex flex-col gap-4">
-          <div className="bg-slate-900 text-white p-3 rounded-xl flex flex-wrap justify-between items-center gap-3">
-            <div>
-              <h2 className="font-black text-sm sm:text-base flex items-center gap-2">
-                <Wrench className="w-5 h-5 text-amber-400" /> إدارة يوميات التشغيل وأعطال وتوقفات الورديات
-              </h2>
-              <p className="text-[11px] text-slate-300 font-bold mt-0.5">
-                اليوم: {currentProdDate.toLocaleDateString('ar-EG', { weekday: 'long' })} ({currentDateStr}) — {selectedShift}
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {exportButtons}
-            </div>
+      {/* ===== 5. كتالوج وصفات الإنتاج الجاهزة ===== */}
+      {activeTab === 'recipes' && (
+        <div className="flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 p-3 sm:p-4 space-y-4">
+          <div className="bg-slate-900 text-white p-3.5 rounded-2xl flex flex-wrap justify-between items-center gap-3">
+            <h2 className="font-black text-sm sm:text-base flex items-center gap-2">
+              <BookMarked className="w-5 h-5 text-blue-400" /> كتالوج وصفات المقاسات الجاهزة (Product Recipes)
+            </h2>
+            <span className="bg-blue-600 text-white px-3 py-1 rounded-lg text-xs font-black">
+              المقاس الشغال: {selectedProductSize}
+            </span>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-            <form onSubmit={handleAddDowntime} className="lg:col-span-5 bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3 h-fit">
-              <h3 className="font-black text-sm text-slate-800 border-b border-slate-200 pb-2">
-                تسجيل عطل أو توقف في ({selectedShift})
-              </h3>
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div>
-                  <label className="font-bold text-slate-600 block mb-1">تصنيف التوقف:</label>
-                  <select
-                    value={downForm.category}
-                    onChange={(e) => setDownForm({ ...downForm, category: e.target.value })}
-                    className="w-full border border-slate-300 rounded-lg p-2 bg-white font-bold"
-                  >
-                    <option>كهرباء وكنترول</option>
-                    <option>ميكانيكا ودرافيل</option>
-                    <option>تشغيل وكعبلة (Cobble)</option>
-                    <option>تغيير ممر / ضبط خلوص</option>
-                    <option>هيدروليك ومياه تبريد</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="font-bold text-slate-600 block mb-1">الستاند / المعدة:</label>
-                  <select
-                    value={downForm.standName}
-                    onChange={(e) => setDownForm({ ...downForm, standName: e.target.value })}
-                    className="w-full border border-slate-300 rounded-lg p-2 bg-white font-bold"
-                  >
-                    <option value="عام / الخط بالكامل">عام / الخط بالكامل</option>
-                    {stands.map((s) => (
-                      <option key={s.id} value={s.name}>
-                        {s.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="col-span-2">
-                  <label className="font-bold text-slate-600 block mb-1">مدة التوقف (بالدقائق):</label>
-                  <input
-                    type="number"
-                    placeholder="مثلاً: 20 دقيقة"
-                    value={downForm.durationMins}
-                    onChange={(e) => setDownForm({ ...downForm, durationMins: e.target.value })}
-                    className="w-full border border-slate-300 rounded-lg p-2 font-mono font-bold bg-white"
-                  />
-                </div>
-                <div className="col-span-2">
-                  <label className="font-bold text-slate-600 block mb-1">سبب التوقف / وصف العطل:</label>
-                  <input
-                    type="text"
-                    placeholder="مثال: فصل درايف ستاند 4..."
-                    value={downForm.reason}
-                    onChange={(e) => setDownForm({ ...downForm, reason: e.target.value })}
-                    className="w-full border border-slate-300 rounded-lg p-2 bg-white"
-                  />
-                </div>
+          {isManagerLike && (
+            <form
+              onSubmit={handleAddRecipe}
+              className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 grid grid-cols-2 sm:grid-cols-5 gap-2.5 items-end text-xs"
+            >
+              <div className="col-span-2">
+                <label className="font-bold text-slate-700 block mb-1">اسم الوصفة:</label>
+                <input
+                  type="text"
+                  placeholder="مثلاً: تسليح 18 مم سرعة عالية"
+                  value={newRecipe.name}
+                  onChange={(e) => setNewRecipe({ ...newRecipe, name: e.target.value })}
+                  className="w-full border border-slate-300 rounded-xl p-2 bg-white font-bold"
+                />
               </div>
-              <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg text-xs shadow">
-                حفظ التوقف في سجل الوردية
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">المقاس:</label>
+                <input
+                  type="text"
+                  value={newRecipe.productSize}
+                  onChange={(e) => setNewRecipe({ ...newRecipe, productSize: e.target.value })}
+                  className="w-full border border-slate-300 rounded-xl p-2 bg-white font-mono"
+                />
+              </div>
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">سرعة الفنش (m/s):</label>
+                <input
+                  type="text"
+                  value={newRecipe.finishSpeed}
+                  onChange={(e) => setNewRecipe({ ...newRecipe, finishSpeed: e.target.value })}
+                  className="w-full border border-slate-300 rounded-xl p-2 bg-white font-mono"
+                />
+              </div>
+              <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-3 rounded-xl shadow">
+                + حفظ الوصفة
               </button>
             </form>
+          )}
 
-            <div className="lg:col-span-7 space-y-2 max-h-96 overflow-y-auto">
-              {downtimesList.map((d) => (
-                <div key={d.id} className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex flex-col gap-1 text-xs">
-                  <div className="flex justify-between items-center">
-                    <span className="font-black text-red-700">{d.durationMins} دقيقة — {d.standName} ({d.category})</span>
-                    <span className="text-[10px] font-mono text-slate-500">{d.date} | {d.shift}</span>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {recipesList.map((rec) => (
+              <div key={rec.id} className="bg-slate-50 border-2 border-slate-200 hover:border-blue-400 rounded-2xl p-4 flex flex-col justify-between gap-3 shadow-sm">
+                <div>
+                  <div className="flex justify-between items-start gap-2 mb-2">
+                    <h3 className="font-black text-base text-slate-900">{rec.name}</h3>
+                    <span className="bg-blue-600 text-white text-xs font-black px-2.5 py-0.5 rounded-lg shrink-0">
+                      مقاس {rec.productSize}
+                    </span>
                   </div>
-                  <p className="font-bold text-slate-800">{d.reason}</p>
+                  <div className="grid grid-cols-3 gap-2 text-xs bg-white p-3 rounded-xl border border-slate-200 font-bold">
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">سرعة الفنش:</span>
+                      <span className="font-mono text-blue-700">{rec.finishSpeed}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">ضغط QTB:</span>
+                      <span className="font-mono text-emerald-700">{rec.qtbPressure}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">حرارة الفرن:</span>
+                      <span className="font-mono text-amber-700">{rec.furnaceTemp}</span>
+                    </div>
+                  </div>
                 </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ===== 7. طوارئ الكنترول SOP ===== */}
-      {activeTab === 'emergency' && (
-        <div className="flex-1 bg-white rounded-lg shadow border border-slate-300 p-3 sm:p-4 overflow-y-auto flex flex-col gap-4">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            {EMERGENCY_SOPS.map((sop) => (
-              <div key={sop.id} className={`rounded-2xl border-2 p-4 space-y-3 ${sop.color}`}>
-                <h3 className="font-black text-sm text-slate-900">{sop.title}</h3>
-                <div className="space-y-2">
-                  {sop.steps.map((stepText, idx) => {
-                    const key = `${sop.id}-${idx}`;
-                    const isDone = !!checkedSopSteps[key];
-                    return (
-                      <label
-                        key={key}
-                        onClick={() => setCheckedSopSteps((prev) => ({ ...prev, [key]: !prev[key] }))}
-                        className={`flex items-start gap-2.5 p-2.5 rounded-xl border cursor-pointer transition-all text-xs font-bold ${
-                          isDone ? 'bg-emerald-100 border-emerald-400 line-through opacity-75' : 'bg-white border-slate-200'
-                        }`}
-                      >
-                        <input type="checkbox" checked={isDone} readOnly className="mt-1 accent-emerald-600" />
-                        <span>{stepText}</span>
-                      </label>
-                    );
-                  })}
+                <div className="flex justify-between items-center gap-2 pt-2 border-t border-slate-200">
+                  <button
+                    onClick={() => handleApplyRecipe(rec)}
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-xl text-xs shadow flex items-center justify-center gap-1.5"
+                  >
+                    <CheckCircle className="w-4 h-4" /> تفعيل الوصفة على الخط
+                  </button>
+                  {isManagerLike && (
+                    <button
+                      onClick={() => handleDeleteRecipe(rec.id)}
+                      className="bg-red-50 hover:bg-red-100 text-red-600 p-2 rounded-xl border border-red-200"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
@@ -3844,50 +3995,122 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
         </div>
       )}
 
-      {/* ===== 8. الإحصائيات ===== */}
-      {activeTab === 'analytics' && (
-        <div className="flex-1 bg-white rounded-lg shadow border border-slate-300 p-3 overflow-y-auto flex flex-col gap-4">
-          <div className="flex items-center justify-between border-b pb-2 flex-wrap gap-2">
-            <h2 className="font-black text-sm text-slate-800">لوحة الإحصائيات وتحليل الإنتاجية</h2>
-            {exportButtons}
+      {/* ===== 6. إدارة الموظفين والأكواد (للمدير) ===== */}
+      {activeTab === 'staff' && isManagerLike && (
+        <div className="flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 p-4 space-y-4">
+          <div className="bg-slate-900 text-white p-4 rounded-2xl flex flex-wrap justify-between items-center gap-3">
+            <div>
+              <h2 className="font-black text-base flex items-center gap-2">
+                <Users className="w-5 h-5 text-amber-400" /> إدارة الموظفين، الأكواد، ورابط الدخول المباشر
+              </h2>
+            </div>
+            <button
+              onClick={handleCopyEmployeeDirectLink}
+              className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow"
+            >
+              <Link2 className="w-4 h-4" /> نسخ رابط دخول الموظفين المباشر
+            </button>
           </div>
-          <div className="grid grid-cols-3 gap-2">
-            <div className="bg-blue-50 p-2.5 rounded-lg border border-blue-200 text-center">
-              <p className="text-[10px] font-bold text-blue-800">إجمالي الأطنان</p>
-              <p className="font-mono font-black text-lg text-blue-900">
-                {aggregatedLogs.reduce((a, c) => a + c.tons, 0).toFixed(1)} طن
-              </p>
-            </div>
-            <div className="bg-green-50 p-2.5 rounded-lg border border-green-200 text-center">
-              <p className="text-[10px] font-bold text-green-800">إجمالي البليت</p>
-              <p className="font-mono font-black text-lg text-green-900">
-                {aggregatedLogs.reduce((a, c) => a + c.billets, 0)} بليت
-              </p>
-            </div>
-            <div className="bg-purple-50 p-2.5 rounded-lg border border-purple-200 text-center">
-              <p className="text-[10px] font-bold text-purple-800">الورديات المسجلة</p>
-              <p className="font-mono font-black text-lg text-purple-900">{aggregatedLogs.length}</p>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+            <form onSubmit={handleAddStaffMember} className="lg:col-span-5 bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 h-fit text-xs">
+              <h3 className="font-black text-sm text-slate-800 border-b border-slate-200 pb-2">
+                + إضافة موظف / فني جديد بكود خاص
+              </h3>
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">اسم الموظف / المهندس:</label>
+                <input
+                  type="text"
+                  placeholder="مثلاً: م. أحمد طارق"
+                  value={newStaffForm.name}
+                  onChange={(e) => setNewStaffForm({ ...newStaffForm, name: e.target.value })}
+                  className="w-full border border-slate-300 rounded-xl p-2 bg-white font-bold"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">كود الدخول الشخصي (PIN):</label>
+                  <input
+                    type="text"
+                    placeholder="5544"
+                    value={newStaffForm.pin}
+                    onChange={(e) => setNewStaffForm({ ...newStaffForm, pin: e.target.value })}
+                    className="w-full border border-slate-300 rounded-xl p-2 bg-white font-mono font-bold text-center"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">الصلاحية:</label>
+                  <select
+                    value={newStaffForm.role}
+                    onChange={(e) => setNewStaffForm({ ...newStaffForm, role: e.target.value })}
+                    className="w-full border border-slate-300 rounded-xl p-2 bg-white font-bold"
+                  >
+                    <option value="tech">فني / مهندس وردية</option>
+                    <option value="manager">مدير / مشرف عام</option>
+                  </select>
+                </div>
+              </div>
+              <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-2.5 rounded-xl shadow">
+                حفظ وتفعيل كود الموظف
+              </button>
+            </form>
+
+            <div className="lg:col-span-7 space-y-2.5">
+              {staffList.map((emp) => (
+                <div
+                  key={emp.id}
+                  className={`p-3.5 rounded-2xl border flex flex-wrap justify-between items-center gap-2 text-xs ${
+                    emp.active ? 'bg-white border-slate-200' : 'bg-red-50/60 border-red-200 opacity-75'
+                  }`}
+                >
+                  <div>
+                    <span className="font-black text-sm text-slate-900">{emp.name}</span>
+                    <p className="text-slate-500 font-bold mt-1">
+                      كود الدخول: <strong className="font-mono text-blue-700 text-sm">{emp.pin}</strong>
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => handleToggleStaffActive(emp.id)}
+                      className={`px-3 py-1.5 rounded-xl font-bold ${
+                        emp.active ? 'bg-amber-100 text-amber-900' : 'bg-emerald-600 text-white'
+                      }`}
+                    >
+                      {emp.active ? 'إيقاف' : 'تفعيل'}
+                    </button>
+                    <button
+                      onClick={() => handleDeleteStaff(emp.id)}
+                      className="bg-red-50 text-red-600 p-1.5 rounded-xl border border-red-200"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
       )}
 
-      {/* ===== 9. الأرشيف ===== */}
+      {/* ===== 7. الأرشيف والتقارير ===== */}
       {activeTab === 'archive' && (
-        <div className="flex-1 bg-slate-100 rounded-lg shadow border border-slate-300 p-2 overflow-y-auto">
-          <div className="flex justify-end mb-2">{exportButtons}</div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 pb-4">
+        <div className="flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 p-3 sm:p-4 space-y-4">
+          <div className="flex flex-wrap justify-between items-center gap-2 border-b border-slate-100 pb-3">
+            <h2 className="font-black text-sm sm:text-base text-slate-900">أرشيف الورديات والتقارير الشاملة</h2>
+            {exportButtons}
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5">
             {sortedDates.map((date) => {
               const day = groupedArchive[date];
               return (
-                <div key={date} className="bg-white border border-slate-200 rounded-lg shadow-sm flex flex-col overflow-hidden">
-                  <div className="bg-slate-800 text-white p-2 flex justify-between items-center text-xs font-bold">
+                <div key={date} className="bg-slate-50 border border-slate-200 rounded-2xl overflow-hidden">
+                  <div className="bg-slate-900 text-white p-2.5 flex justify-between items-center text-xs font-bold">
                     <span>يوم {day.dayName}</span>
-                    <span className="font-mono text-[10px]">{date}</span>
+                    <span className="font-mono text-[10px] text-amber-400">{date}</span>
                   </div>
-                  <div className="p-2 space-y-1.5 text-[10px]">
+                  <div className="p-2.5 space-y-1.5 text-xs">
                     {day.shiftsList.map((log, i) => (
-                      <div key={i} className="flex justify-between items-center p-1.5 bg-slate-50 rounded border border-slate-100 font-bold">
+                      <div key={i} className="flex justify-between items-center p-2 bg-white rounded-xl border border-slate-200 font-bold">
                         <span>{log.shift} ({log.by || 'فني'})</span>
                         <span className="font-mono text-emerald-700">{log.billets} ب | {log.tons.toFixed(1)} ط</span>
                       </div>

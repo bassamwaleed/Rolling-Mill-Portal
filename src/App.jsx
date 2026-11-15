@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Calculator, Building2, Zap, Key, X, PlusCircle,
-  Lock, ArrowLeft, ShieldCheck, CheckCircle2
+  Lock, ArrowLeft, ShieldCheck, CheckCircle2, Sparkles, Layers
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
@@ -46,19 +46,37 @@ const DEFAULT_FACTORIES = [
     managerCode: '2222',
     adminCode: '9999',
     status: 'active',
-    createdAt: '2026-11-14'
+    createdAt: '14/11/2026'
   }
 ];
 
 /* ======================================================
-   2. البوابة الرئيسية (Clean Light UI - Mobile First)
+   2. البوابة الرئيسية والموزع الذكي بالروابط (App Router)
    ====================================================== */
 export default function App() {
-  const [appMode, setAppMode] = useState('select'); // 'select' | 'public' | 'factory_gate' | 'factory_inside'
+  // قراءة الوضع المبدئي من الرابط لدعم تحديث الصفحة وزر الرجوع
+  const getInitialRoute = () => {
+    const params = new URLSearchParams(window.location.search);
+    const modeParam = params.get('mode');
+    const fParam = params.get('f');
+    if (fParam) return 'factory_inside';
+    if (modeParam === 'public') return 'public';
+    if (modeParam === 'factory_gate') return 'factory_gate';
+    return 'select';
+  };
+
+  const [appMode, setAppModeState] = useState(getInitialRoute); // 'select' | 'public' | 'factory_gate' | 'factory_inside'
   const [userAuth, setUserAuth] = useState(null);
 
   const [factoriesList, setFactoriesList] = useState(DEFAULT_FACTORIES);
-  const [activeFactory, setActiveFactory] = useState(null);
+  const [activeFactory, setActiveFactory] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    const fParam = params.get('f');
+    if (fParam) {
+      return DEFAULT_FACTORIES.find((x) => x.id === fParam || x.code === fParam) || DEFAULT_FACTORIES[0];
+    }
+    return null;
+  });
 
   const [factoryCodeInput, setFactoryCodeInput] = useState('');
   const [gateError, setGateError] = useState('');
@@ -75,6 +93,65 @@ export default function App() {
     managerCode: '2222'
   });
 
+  // دالة التنقل الذكية التي تحدث الرابط في المتصفح وتدعم زر الرجوع في الموبايل
+  const navigateToMode = (nextMode, factoryObj = null) => {
+    setAppModeState(nextMode);
+    if (factoryObj) {
+      setActiveFactory(factoryObj);
+    } else if (nextMode === 'select' || nextMode === 'public' || nextMode === 'factory_gate') {
+      setActiveFactory(null);
+    }
+
+    const params = new URLSearchParams();
+    if (nextMode === 'public') {
+      params.set('mode', 'public');
+      params.set('tab', 'calculators');
+    } else if (nextMode === 'factory_gate') {
+      params.set('mode', 'factory_gate');
+    } else if (nextMode === 'factory_inside' && (factoryObj || activeFactory)) {
+      const targetF = factoryObj || activeFactory;
+      params.set('mode', 'factory');
+      params.set('f', targetF.id);
+      params.set('tab', 'dashboard');
+    }
+
+    const queryStr = params.toString();
+    const newUrl = queryStr ? `?${queryStr}` : window.location.pathname;
+    window.history.pushState({ mode: nextMode, factoryId: factoryObj?.id || null }, '', newUrl);
+  };
+
+  // الاستماع لزر الرجوع في المتصفح أو الموبايل (popstate)
+  useEffect(() => {
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const modeParam = params.get('mode');
+      const fParam = params.get('f');
+
+      if ((modeParam === 'factory' || fParam) && fParam) {
+        const found = factoriesList.find((x) => x.id === fParam || x.code === fParam);
+        if (found && found.status === 'active') {
+          setActiveFactory(found);
+          setAppModeState('factory_inside');
+          return;
+        }
+      }
+      if (modeParam === 'public') {
+        setAppModeState('public');
+        return;
+      }
+      if (modeParam === 'factory_gate') {
+        setAppModeState('factory_gate');
+        return;
+      }
+      setActiveFactory(null);
+      setAppModeState('select');
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [factoriesList]);
+
+  // الاتصال بـ Firebase وجلب قائمة المصانع المسجلة سحابياً
   useEffect(() => {
     if (!auth) return;
     signInAnonymously(auth).catch((e) => console.error(e));
@@ -94,6 +171,19 @@ export default function App() {
     });
     return () => unsub();
   }, [userAuth]);
+
+  // التحقق من الرابط المباشر للموظفين (?f=...) فور تحميل قائمة المصانع من السحابة
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const directFactoryId = params.get('f');
+    if (directFactoryId && factoriesList.length > 0) {
+      const found = factoriesList.find((x) => x.id === directFactoryId || x.code === directFactoryId);
+      if (found && found.status === 'active') {
+        setActiveFactory(found);
+        setAppModeState('factory_inside');
+      }
+    }
+  }, [factoriesList]);
 
   const saveFactoriesToCloud = async (updatedList) => {
     setFactoriesList(updatedList);
@@ -159,41 +249,39 @@ export default function App() {
       setGateError('عفواً، اشتراك هذا المصنع موقوف مؤقتاً.');
       return;
     }
-    setActiveFactory(found);
     setFactoryCodeInput('');
     setGateError('');
-    setAppMode('factory_inside');
+    navigateToMode('factory_inside', found);
   };
 
+  /* ---------- 1. بوابة المهندسين والحسابات العامة ---------- */
   if (appMode === 'public') {
-    return <PublicPortal onBack={() => setAppMode('select')} />;
+    return <PublicPortal onBack={() => navigateToMode('select')} />;
   }
 
+  /* ---------- 2. داخل نظام المصنع المعزول سحابياً ---------- */
   if (appMode === 'factory_inside' && activeFactory) {
     return (
       <FactoryPortal
-        onBack={() => {
-          setActiveFactory(null);
-          setAppMode('select');
-        }}
+        onBack={() => navigateToMode('select')}
         factoryConfig={activeFactory}
         factoriesList={[]}
       />
     );
   }
 
-  // شاشة إدخال كود المصنع باللون الأبيض النظيف
+  /* ---------- 3. شاشة إدخال كود تفعيل المصنع ---------- */
   if (appMode === 'factory_gate') {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4 font-sans text-slate-900" dir="rtl">
         <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 max-w-md w-full text-center shadow-xl space-y-5">
-          <div className="w-14 h-14 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center justify-center mx-auto">
-            <Lock className="w-7 h-7 text-emerald-600" />
+          <div className="w-16 h-16 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl flex items-center justify-center mx-auto shadow-md shadow-emerald-500/20">
+            <Lock className="w-8 h-8 text-white" />
           </div>
           <div>
             <h2 className="text-xl sm:text-2xl font-black text-slate-900">بوابة دخول المصانع</h2>
-            <p className="text-xs text-slate-500 font-bold mt-1">
-              أدخل كود المصنع الخاص بكم لفتح قاعدة البيانات المستقلة
+            <p className="text-xs text-slate-500 font-bold mt-1 leading-relaxed">
+              أدخل كود المصنع الخاص بكم لفتح قاعدة البيانات السحابية المستقلة
             </p>
           </div>
 
@@ -207,7 +295,7 @@ export default function App() {
                 setGateError('');
               }}
               placeholder="مثال: GIOSHY-2026"
-              className="w-full bg-slate-50 border border-slate-300 focus:border-emerald-600 focus:bg-white rounded-2xl p-3.5 text-center font-mono text-base sm:text-lg text-slate-900 uppercase tracking-wider outline-none transition-all"
+              className="w-full bg-slate-50 border-2 border-slate-300 focus:border-emerald-600 focus:bg-white rounded-2xl p-3.5 text-center font-mono text-base sm:text-lg font-black text-slate-900 uppercase tracking-wider outline-none transition-all"
             />
             {gateError && (
               <p className="text-xs font-bold text-red-600 bg-red-50 border border-red-200 p-2.5 rounded-xl">
@@ -226,118 +314,127 @@ export default function App() {
             onClick={() => {
               setGateError('');
               setFactoryCodeInput('');
-              setAppMode('select');
+              navigateToMode('select');
             }}
-            className="text-xs font-bold text-slate-500 hover:text-slate-900 pt-1 block mx-auto"
+            className="text-xs font-bold text-slate-500 hover:text-slate-900 pt-1 flex items-center justify-center gap-1 mx-auto"
           >
-            الرجوع للصفحة الرئيسية
+            <ArrowLeft size={14} className="rotate-180" /> الرجوع للصفحة الرئيسية
           </button>
         </div>
       </div>
     );
   }
 
+  /* ---------- 4. الشاشة الرئيسية الاحترافية (Clean Professional Light UI) ---------- */
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col justify-between p-4 sm:p-6 font-sans" dir="rtl">
-      {/* شريط علوي بسيط وأنيق للموبايل */}
-      <header className="max-w-3xl w-full mx-auto pt-2 sm:pt-6 flex items-center justify-between">
+      {/* الهيدر العلوي */}
+      <header className="max-w-4xl w-full mx-auto pt-2 sm:pt-4 flex items-center justify-between">
         <div
           onClick={handleTitleClick}
           title="اضغط 5 مرات لفتح لوحة المصمم"
           className="flex items-center gap-2.5 cursor-pointer select-none group"
         >
-          <div className="bg-blue-600 p-2 rounded-xl shadow-md shadow-blue-600/20 group-active:scale-95 transition-transform">
-            <Zap className="w-5 h-5 text-white" />
+          <div className="bg-gradient-to-br from-blue-600 to-indigo-600 p-2.5 rounded-2xl shadow-md shadow-blue-600/25 group-active:scale-95 transition-transform">
+            <Zap className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
           </div>
           <div>
-            <h1 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight leading-none">
+            <h1 className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight leading-none">
               Steel<span className="text-blue-600">Portal</span>
             </h1>
-            <span className="text-[10px] font-bold text-slate-500">منصة صناعة الحديد والدرفلة</span>
+            <span className="text-[10px] sm:text-xs font-bold text-slate-500">
+              المنصة الرقمية لهندسة الدرفلة وإدارة المصانع
+            </span>
           </div>
         </div>
 
-        <span className="bg-blue-50 text-blue-700 border border-blue-200 text-[11px] font-bold px-3 py-1 rounded-full">
-          الإصدار الهندسي 2026
+        <span className="bg-white text-blue-700 border border-blue-200 shadow-sm text-[11px] font-black px-3 py-1.5 rounded-full flex items-center gap-1.5">
+          <Sparkles className="w-3.5 h-3.5 text-amber-500" /> إصدار 2026
         </span>
       </header>
 
-      {/* منطقة المنتصف: بطاقات اختيار نظيفة ومرتبة جداً للموبايل */}
-      <main className="max-w-3xl w-full mx-auto my-auto py-6 space-y-5">
-        <div className="text-center sm:text-right space-y-1 px-1">
-          <h2 className="text-xl sm:text-3xl font-black text-slate-900">
-            اختر البوابة المناسبة لعملك
+      {/* منطقة المنتصف: بطاقات البوابات الاحترافية */}
+      <main className="max-w-4xl w-full mx-auto my-auto py-6 space-y-6">
+        <div className="text-center space-y-1.5 px-2">
+          <h2 className="text-2xl sm:text-4xl font-black text-slate-900 tracking-tight">
+            بوابة صناعة الحديد والدرفلة الذكية
           </h2>
-          <p className="text-xs sm:text-sm text-slate-500 font-bold">
-            حاسبات وقوانين هندسية مفتوحة للجميع، أو نظام إدارة خاص لكل مصنع
+          <p className="text-xs sm:text-sm text-slate-500 font-bold max-w-xl mx-auto">
+            أدوات هندسية وحاسبات باس ديزاين ومعمل جودة مجانية للمهندسين، أو نظام سحابي متكامل لإدارة تشغيل المصانع
           </p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
           {/* البطاقة الأولى: بوابة المهندسين والفنيين */}
           <div
-            onClick={() => setAppMode('public')}
-            className="group bg-white border-2 border-slate-200 hover:border-blue-600 rounded-3xl p-5 sm:p-6 cursor-pointer transition-all shadow-sm hover:shadow-xl flex flex-col justify-between gap-4"
+            onClick={() => navigateToMode('public')}
+            className="group bg-white border-2 border-slate-200/90 hover:border-blue-600 rounded-3xl p-5 sm:p-7 cursor-pointer transition-all shadow-sm hover:shadow-xl hover:-translate-y-1 flex flex-col justify-between gap-5"
           >
-            <div className="flex sm:flex-col items-start gap-3.5">
-              <div className="w-12 h-12 sm:w-14 sm:h-14 bg-blue-50 border border-blue-100 rounded-2xl flex items-center justify-center shrink-0 group-hover:bg-blue-600 group-hover:text-white text-blue-600 transition-colors">
-                <Calculator className="w-6 h-6 sm:w-7 sm:h-7" />
-              </div>
-              <div className="space-y-1">
-                <span className="inline-block text-[10px] font-extrabold bg-blue-50 text-blue-700 px-2.5 py-0.5 rounded-full">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="w-14 h-14 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-blue-600/25 group-hover:scale-105 transition-transform">
+                  <Calculator className="w-7 h-7" strokeWidth={2.2} />
+                </div>
+                <span className="text-[11px] font-black bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1 rounded-full">
                   مفتوح مجاناً للجميع
                 </span>
-                <h3 className="text-lg sm:text-xl font-black text-slate-900">
+              </div>
+
+              <div className="space-y-1.5">
+                <h3 className="text-lg sm:text-2xl font-black text-slate-900">
                   بوابة المهندسين والحسابات
                 </h3>
-                <p className="text-xs text-slate-600 leading-relaxed font-medium">
-                  قوانين السرعات، قطعيات المقص الطائر والبارد، وزن المتر الطولي المخصص، حسابات الكابلات والكهرباء، والمجتمع الفني.
+                <p className="text-xs sm:text-sm text-slate-600 leading-relaxed font-bold">
+                  تصميم الممرات (بيضاوي ← مبروم)، حاسبة المقص الطائر وأسياخ العميل، معمل الجودة والشد، حسابات الكابلات والكهرباء، والشات الفني السحابي.
                 </p>
               </div>
             </div>
 
-            <div className="w-full bg-blue-600 group-hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-xl text-xs sm:text-sm flex items-center justify-between shadow-sm transition-colors">
-              <span>دخول بوابة الحسابات والمجتمع</span>
-              <ArrowLeft className="w-4 h-4" />
+            <div className="w-full bg-blue-600 group-hover:bg-blue-700 text-white font-black py-3.5 px-4 rounded-2xl text-xs sm:text-sm flex items-center justify-between shadow-md shadow-blue-600/15 transition-colors">
+              <span>فتح الحاسبات والمجتمع الفني</span>
+              <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
             </div>
           </div>
 
-          {/* البطاقة الثانية: بوابة المصانع SaaS */}
+          {/* البطاقة الثانية: نظام إدارة المصانع SaaS */}
           <div
-            onClick={() => setAppMode('factory_gate')}
-            className="group bg-white border-2 border-slate-200 hover:border-emerald-600 rounded-3xl p-5 sm:p-6 cursor-pointer transition-all shadow-sm hover:shadow-xl flex flex-col justify-between gap-4"
+            onClick={() => navigateToMode('factory_gate')}
+            className="group bg-white border-2 border-slate-200/90 hover:border-emerald-600 rounded-3xl p-5 sm:p-7 cursor-pointer transition-all shadow-sm hover:shadow-xl hover:-translate-y-1 flex flex-col justify-between gap-5"
           >
-            <div className="flex sm:flex-col items-start gap-3.5">
-              <div className="w-12 h-12 sm:w-14 sm:h-14 bg-emerald-50 border border-emerald-100 rounded-2xl flex items-center justify-center shrink-0 group-hover:bg-emerald-600 group-hover:text-white text-emerald-600 transition-colors">
-                <Building2 className="w-6 h-6 sm:w-7 sm:h-7" />
-              </div>
-              <div className="space-y-1">
-                <span className="inline-block text-[10px] font-extrabold bg-emerald-50 text-emerald-700 px-2.5 py-0.5 rounded-full">
-                  خاص بالمصانع المشتركة
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="w-14 h-14 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-emerald-600/25 group-hover:scale-105 transition-transform">
+                  <Building2 className="w-7 h-7" strokeWidth={2.2} />
+                </div>
+                <span className="text-[11px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-1 rounded-full">
+                  نظام المصانع (SaaS)
                 </span>
-                <h3 className="text-lg sm:text-xl font-black text-slate-900">
-                  نظام إدارة المصانع (SaaS)
+              </div>
+
+              <div className="space-y-1.5">
+                <h3 className="text-lg sm:text-2xl font-black text-slate-900">
+                  منظومة تشغيل وإدارة المصانع
                 </h3>
-                <p className="text-xs text-slate-600 leading-relaxed font-medium">
-                  قاعدة بيانات مستقلة لكل مصنع لمتابعة أعمار الممرات والدرافيل، توقفات الورديات، وصفات المقاسات، وسجل المواتير.
+                <p className="text-xs sm:text-sm text-slate-600 leading-relaxed font-bold">
+                  قاعدة بيانات سحابية معزولة لكل مصنع لمتابعة أعمار الممرات والدرافيل، حرارة وصيانة المواتير، أعطال الورديات، واستخراج تقارير Excel و PDF.
                 </p>
               </div>
             </div>
 
-            <div className="w-full bg-slate-900 group-hover:bg-emerald-600 text-white font-bold py-3 px-4 rounded-xl text-xs sm:text-sm flex items-center justify-between shadow-sm transition-colors">
+            <div className="w-full bg-slate-900 group-hover:bg-emerald-600 text-white font-black py-3.5 px-4 rounded-2xl text-xs sm:text-sm flex items-center justify-between shadow-md transition-colors">
               <span>الدخول بكود المصنع</span>
-              <ArrowLeft className="w-4 h-4" />
+              <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
             </div>
           </div>
         </div>
       </main>
 
       {/* الفوتر */}
-      <footer className="max-w-3xl w-full mx-auto text-center py-3 border-t border-slate-200/80 text-[11px] text-slate-500 font-bold">
+      <footer className="max-w-4xl w-full mx-auto text-center py-3 border-t border-slate-200/80 text-[11px] text-slate-500 font-bold">
         تصميم وتطوير <span className="text-blue-600 font-black">م. بسام وليد (Controlexa)</span> © 2026
       </footer>
 
-      {/* نافذة المصمم السرية (تفتح بعد 5 ضغطات على اللوجو) */}
+      {/* نافذة المصمم السرية لإدارة المصانع */}
       {showCreatorModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white border border-slate-200 rounded-3xl max-w-xl w-full p-5 sm:p-6 space-y-4 text-slate-900 shadow-2xl max-h-[90vh] overflow-y-auto">
@@ -381,14 +478,14 @@ export default function App() {
                       placeholder="اسم المصنع (مثلاً: حديد العبور)"
                       value={newFactory.name}
                       onChange={(e) => setNewFactory({ ...newFactory, name: e.target.value })}
-                      className="bg-white border border-slate-300 rounded-xl p-2.5 text-xs text-slate-900"
+                      className="bg-white border border-slate-300 rounded-xl p-2.5 text-xs text-slate-900 font-bold"
                     />
                     <input
                       type="text"
                       placeholder="كود دخول المصنع (مثلاً: OBOUR-2026)"
                       value={newFactory.code}
                       onChange={(e) => setNewFactory({ ...newFactory, code: e.target.value })}
-                      className="bg-white border border-slate-300 rounded-xl p-2.5 text-xs text-slate-900 font-mono uppercase"
+                      className="bg-white border border-slate-300 rounded-xl p-2.5 text-xs text-slate-900 font-mono font-bold uppercase"
                     />
                     <input
                       type="text"
@@ -425,13 +522,12 @@ export default function App() {
                       <div className="flex gap-1.5">
                         <button
                           onClick={() => {
-                            setActiveFactory(f);
                             setShowCreatorModal(false);
-                            setAppMode('factory_inside');
+                            navigateToMode('factory_inside', f);
                           }}
                           className="bg-blue-600 text-white px-3 py-1.5 rounded-lg font-bold"
                         >
-                          دخول
+                          دخول مباشر
                         </button>
                         <button
                           onClick={() => toggleFactoryStatus(f.code)}

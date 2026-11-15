@@ -5,8 +5,12 @@ import {
   Cpu, Wrench, PlusCircle, ThumbsUp, Flame, Scissors, BookOpen,
   ChevronDown, ChevronUp, Sliders, Search, Award, Sparkles,
   Check, ArrowLeft, Home, ShieldAlert, Cable, BatteryCharging,
-  Radio, Square, Percent, Info, Trash2, Scale, Droplets, Compass, Wifi, WifiOff
+  Radio, Square, Percent, Info, Trash2, Scale, Droplets, Compass,
+  Wifi, WifiOff, Share2, Send
 } from 'lucide-react';
+import { signInAnonymously, onAuthStateChanged } from 'firebase/auth';
+import { doc, setDoc, onSnapshot } from 'firebase/firestore';
+import { auth, db } from './App';
 
 /* ======================================================
    1. البيانات القياسية والجداول (ISO 6935-2 / ES 262)
@@ -55,8 +59,6 @@ const INITIAL_POSTS = [
       'طريقة عملية من غرفة التحكم الرئيسية (HMI): لو فرضنا إن أمبير قائم (2) كان 1500 أمبير أول ما المعدن دخل فيه، ولما رأس البيليت دخلت في قائم (3) لاحظت إن أمبير قائم (2) نزل فجأة لـ 1200 أمبير.. ده معناه وجود شد (Tension) بين القائمين ولازم نهدي سرعة قائم 3 أو نرفع سرعة قائم 1 و 2. العكس لو الأمبير زاد لـ 1700 أمبير فده معناه انضغاط (Compression) وبداية تكوين لوب!',
     likes: 34,
     fires: 18,
-    liked: false,
-    fired: false,
     solved: true,
     comments: [
       {
@@ -89,8 +91,6 @@ const INITIAL_POSTS = [
       'بعد خروج السيخ من صندوق التبريد (Quenching Box) عند حرارة حوالي 700 درجة، القلب الداخلي الساخن بيعمل مراجعة ذاتية للسطح (Self-Tempering) عشان يكون طبقة Tempered Martensite الصلبة. لو الأسياخ اتنقلت فوق بعضها كمجموعة هيحصل انتقال حرارة بالتوصيل بينهم وتبوظ عملية الـ Tempcore وتقل رتبة وإجهاد الحديد!',
     likes: 49,
     fires: 27,
-    liked: false,
-    fired: false,
     solved: true,
     comments: [
       {
@@ -155,14 +155,50 @@ const toCelsius = (v, u) => (u === '°F' ? ((v - 32) * 5) / 9 : u === 'K' ? v - 
 const fromCelsius = (c, u) => (u === '°F' ? (c * 9) / 5 + 32 : u === 'K' ? c + 273.15 : c);
 
 /* ======================================================
-   2. عناصر واجهة مساعدة + دالة حساب أبعاد الكاليبر (B × H أو Ø D)
+   2. عناصر واجهة مساعدة + ألوان الأيقونات الاحترافية لكل قسم
    ====================================================== */
 const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 const fmt = (n, d = 2) => (Number.isFinite(Number(n)) ? Number(n).toFixed(d) : '—');
 const inputCls =
   'w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-slate-900 font-mono text-sm font-bold focus:border-blue-600 focus:bg-white outline-none transition-colors';
 
-// دالة هندسية تحول (مساحة الممر + شكل الممر) إلى أبعاد فعلية بالمم (عرض × ارتفاع أو قطر) ومعامل الممر (Groove Factor)
+// تنسيق ألوان الأيقونات الاحترافي حسب التخصص الهندسي
+const getGroupTheme = (group, isSpecial) => {
+  if (isSpecial) {
+    return {
+      iconBox: 'bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/25',
+      badge: 'bg-blue-50 text-blue-700 border-blue-200',
+      borderHover: 'hover:border-blue-500'
+    };
+  }
+  switch (group) {
+    case 'معمل الجودة والاختبارات':
+      return {
+        iconBox: 'bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-500/20',
+        badge: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+        borderHover: 'hover:border-emerald-500'
+      };
+    case 'قوى وكهرباء':
+      return {
+        iconBox: 'bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-md shadow-amber-500/20',
+        badge: 'bg-amber-50 text-amber-800 border-amber-200',
+        borderHover: 'hover:border-amber-500'
+      };
+    case 'أتمتة وفنش':
+      return {
+        iconBox: 'bg-gradient-to-br from-purple-600 to-fuchsia-600 text-white shadow-md shadow-purple-500/20',
+        badge: 'bg-purple-50 text-purple-700 border-purple-200',
+        borderHover: 'hover:border-purple-500'
+      };
+    default:
+      return {
+        iconBox: 'bg-gradient-to-br from-sky-500 to-blue-600 text-white shadow-md shadow-sky-500/20',
+        badge: 'bg-sky-50 text-sky-700 border-sky-200',
+        borderHover: 'hover:border-sky-500'
+      };
+  }
+};
+
 const computeGrooveGeometry = (areaMm2, shapeType, gapMm = 3.0) => {
   const A = Math.max(1, num(areaMm2));
   if (shapeType.includes('مبروم') || shapeType.includes('دائري')) {
@@ -177,7 +213,6 @@ const computeGrooveGeometry = (areaMm2, shapeType, gapMm = 3.0) => {
     };
   }
   if (shapeType.includes('بيضاوي قائد')) {
-    // Leader Oval: نسبة العرض للارتفاع ~ 1.85 ، والمساحة = 2/3 * B * H
     const ratio = 1.85;
     const h = Math.sqrt((1.5 * A) / ratio);
     const b = ratio * h;
@@ -191,7 +226,6 @@ const computeGrooveGeometry = (areaMm2, shapeType, gapMm = 3.0) => {
     };
   }
   if (shapeType.includes('بيضاوي')) {
-    // Oval Pass: نسبة العرض للارتفاع ~ 2.25 ، والمساحة = 2/3 * B * H
     const ratio = 2.25;
     const h = Math.sqrt((1.5 * A) / ratio);
     const b = ratio * h;
@@ -205,7 +239,6 @@ const computeGrooveGeometry = (areaMm2, shapeType, gapMm = 3.0) => {
     };
   }
   if (shapeType.includes('صندوقي')) {
-    // Box Pass: نسبة العرض للارتفاع ~ 1.15
     const ratio = 1.15;
     const h = Math.sqrt(A / ratio);
     const b = ratio * h;
@@ -218,7 +251,6 @@ const computeGrooveGeometry = (areaMm2, shapeType, gapMm = 3.0) => {
       maxSafeRed: 38
     };
   }
-  // مربع أو معين (Square / Diamond)
   const side = Math.sqrt(A);
   const diag = side * 1.414;
   const gf = Math.max(2.5, side * 0.85 - gapMm);
@@ -818,7 +850,7 @@ const BarsAndProductivityModal = ({ onBack }) => {
 };
 
 /* ======================================================
-   5. حاسبة الباس ديزاين الهندسية (بيضاوي ← مبروم في المتوسط والفنش + أبعاد الكاليبر B×H + اختيار شكل الممر)
+   5. حاسبة الباس ديزاين الهندسية (بيضاوي ← مبروم في المتوسط والفنش + أبعاد الكاليبر B×H + محاكي الأقطار)
    ====================================================== */
 const GROOVE_SHAPES_LIST = [
   'صندوقي (Box)',
@@ -855,7 +887,6 @@ const RealisticPassDesignModal = ({ onBack }) => {
   const [interStands, setInterStands] = useState(4);
   const [finishStands, setFinishStands] = useState(4);
 
-  // إمكانية تخصيص شكل الممر لأي قائم في الجدول التلقائي
   const [shapeOverrides, setShapeOverrides] = useState({});
 
   const [flatW, setFlatW] = useState(50);
@@ -909,7 +940,6 @@ const RealisticPassDesignModal = ({ onBack }) => {
           ? 'متوسط (Interm.)'
           : 'تشطيب (Finishing)';
 
-      // التسلسل القياسي: التخشين (صندوقي/مربع ثم بيضاوي/مربع)، والمتوسط والفنش (بيضاوي ← مبروم بالتناوب حتى النهائي)
       let defaultShape = 'بيضاوي (Oval)';
       if (standNum <= 2) {
         defaultShape = standNum % 2 === 1 ? 'صندوقي (Box)' : 'مربع (Square)';
@@ -920,7 +950,6 @@ const RealisticPassDesignModal = ({ onBack }) => {
       } else if (standNum === N - 1) {
         defaultShape = 'بيضاوي قائد (Leader Oval)';
       } else {
-        // في المنطقة المتوسطة والفنش: تناوب عكسي من النهاية لضمان أن ما قبل البيضاوي القائد يكون مبروم، وقبله بيضاوي وهكذا (بيضاوي ← مبروم)
         const stepsFromEnd = N - standNum;
         defaultShape = stepsFromEnd % 2 === 1 ? 'بيضاوي (Oval)' : 'مبروم (Round)';
       }
@@ -1561,7 +1590,7 @@ const UnitConverterModal = ({ onBack }) => {
 };
 
 /* ======================================================
-   7. موسوعة كل القوانين والأدوات الموحدة (شاملة قسم معمل الجودة والاختبارات الجديد)
+   7. موسوعة كل القوانين والأدوات الموحدة
    ====================================================== */
 const ALL_CALCULATORS = [
   {
@@ -1601,7 +1630,6 @@ const ALL_CALCULATORS = [
     isSpecial: true
   },
 
-  // --- قسم معمل الجودة والاختبارات (Quality Control & Lab Tests) ---
   {
     id: 'q_meter_weight',
     title: 'وزن المتر الطولي (جرام ومتر)',
@@ -1713,7 +1741,6 @@ const ALL_CALCULATORS = [
       const curF = Math.max(10, num(v.curFlow));
       const curT = num(v.curTemp);
       const diffMpa = tarY - curY;
-      // لرفع الإجهاد نزود المياه ونخفض حرارة الخروج، ولخفض الإجهاد نقلل المياه
       const flowChangePct = (diffMpa / 22) * 4.5;
       const newFlow = Math.max(0, curF * (1 + flowChangePct / 100));
       const targetTemp = curT - diffMpa / 2.2;
@@ -1773,8 +1800,6 @@ const ALL_CALCULATORS = [
       };
     }
   },
-
-  // --- باقي الحاسبات الهندسية ---
   {
     id: 'c_billet_yield_scrap',
     title: 'يلد الهالك في الكتلة كلها',
@@ -2200,47 +2225,50 @@ const ALL_CALCULATORS = [
   }
 ];
 
-const UnifiedCalculatorsView = () => {
+const UnifiedCalculatorsView = ({ activeCalcId, onSelectCalc }) => {
   const [selectedGroup, setSelectedGroup] = useState('الكل');
-  const [activeCalcId, setActiveCalcId] = useState(null);
   const [vals, setVals] = useState({});
 
   const groups = ['الكل', 'معمل الجودة والاختبارات', 'باس ديزاين وإنتاجية', 'درفلة وسرعات', 'قوى وكهرباء', 'أتمتة وفنش'];
 
   const openCalculator = (c) => {
-    if (c.isSpecial) {
-      setActiveCalcId(c.id);
-      return;
+    if (!c.isSpecial && c.inputs) {
+      const defaults = {};
+      c.inputs.forEach((inp) => {
+        defaults[inp.k] = inp.def !== undefined ? inp.def : 1;
+      });
+      setVals(defaults);
     }
-    const defaults = {};
-    c.inputs.forEach((inp) => {
-      defaults[inp.k] = inp.def !== undefined ? inp.def : 1;
-    });
-    setVals(defaults);
-    setActiveCalcId(c.id);
+    onSelectCalc(c.id);
   };
 
   if (activeCalcId === 'special_groove_areas') {
-    return <GrooveAndCrossSectionModal onBack={() => setActiveCalcId(null)} />;
+    return <GrooveAndCrossSectionModal onBack={() => onSelectCalc(null)} />;
   }
   if (activeCalcId === 'special_pass_design') {
-    return <RealisticPassDesignModal onBack={() => setActiveCalcId(null)} />;
+    return <RealisticPassDesignModal onBack={() => onSelectCalc(null)} />;
   }
   if (activeCalcId === 'special_bars_yield') {
-    return <BarsAndProductivityModal onBack={() => setActiveCalcId(null)} />;
+    return <BarsAndProductivityModal onBack={() => onSelectCalc(null)} />;
   }
   if (activeCalcId === 'special_unit_converter') {
-    return <UnitConverterModal onBack={() => setActiveCalcId(null)} />;
+    return <UnitConverterModal onBack={() => onSelectCalc(null)} />;
   }
 
   if (activeCalcId) {
     const c = ALL_CALCULATORS.find((x) => x.id === activeCalcId);
-    const { results, steps } = c.calc(vals);
+    if (!c) return null;
+    const currentVals = Object.keys(vals).length
+      ? vals
+      : Object.fromEntries((c.inputs || []).map((inp) => [inp.k, inp.def ?? 1]));
+    const { results, steps } = c.calc(currentVals);
+    const theme = getGroupTheme(c.group, false);
+
     return (
       <div className="space-y-4">
         <button
           onClick={() => {
-            setActiveCalcId(null);
+            onSelectCalc(null);
             setVals({});
           }}
           className="bg-white hover:bg-slate-100 text-slate-800 border border-slate-200 px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm"
@@ -2250,8 +2278,8 @@ const UnifiedCalculatorsView = () => {
 
         <div className="bg-white p-4 sm:p-6 rounded-3xl border border-slate-200 max-w-2xl mx-auto shadow-lg">
           <div className="flex items-center gap-3 mb-3 border-b border-slate-100 pb-3.5">
-            <div className="bg-blue-50 p-2.5 rounded-xl border border-blue-200 shrink-0">
-              <c.icon className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
+            <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 ${theme.iconBox}`}>
+              <c.icon className="w-5 h-5 sm:w-6 sm:h-6" />
             </div>
             <div>
               <span className="text-[11px] text-blue-600 font-bold">{c.group}</span>
@@ -2272,8 +2300,8 @@ const UnifiedCalculatorsView = () => {
                 <input
                   type="number"
                   step="any"
-                  value={vals[inp.k] ?? ''}
-                  onChange={(e) => setVals({ ...vals, [inp.k]: e.target.value })}
+                  value={currentVals[inp.k] ?? ''}
+                  onChange={(e) => setVals({ ...currentVals, [inp.k]: e.target.value })}
                   className={inputCls}
                 />
               </div>
@@ -2316,151 +2344,209 @@ const UnifiedCalculatorsView = () => {
         ))}
       </div>
 
+      {/* شبكة البطاقات الاحترافية (2×2 على الموبايل) بأيقونات ملونة عالية الوضوح */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-3.5">
-        {visibleCalcs.map((c) => (
-          <button
-            key={c.id}
-            onClick={() => openCalculator(c)}
-            className={`text-right p-3.5 sm:p-4 rounded-2xl border transition-all flex flex-col justify-between group hover:-translate-y-0.5 shadow-sm hover:shadow-md ${
-              c.isSpecial
-                ? 'bg-gradient-to-b from-blue-50/70 to-white border-blue-300 hover:border-blue-500'
-                : c.group === 'معمل الجودة والاختبارات'
-                ? 'bg-gradient-to-b from-emerald-50/50 to-white border-emerald-300 hover:border-emerald-500'
-                : 'bg-white border-slate-200 hover:border-blue-400'
-            }`}
-          >
-            <div>
-              <div className="flex items-center justify-between gap-1 mb-2.5">
-                <div
-                  className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-105 ${
-                    c.isSpecial
-                      ? 'bg-blue-600 text-white shadow-sm'
-                      : c.group === 'معمل الجودة والاختبارات'
-                      ? 'bg-emerald-600 text-white shadow-sm'
-                      : 'bg-blue-50 border border-blue-100 text-blue-600'
-                  }`}
-                >
-                  <c.icon className="w-5 h-5" />
+        {visibleCalcs.map((c) => {
+          const theme = getGroupTheme(c.group, c.isSpecial);
+          return (
+            <button
+              key={c.id}
+              onClick={() => openCalculator(c)}
+              className={`text-right p-3.5 sm:p-4 rounded-2xl border bg-white border-slate-200/90 ${theme.borderHover} transition-all flex flex-col justify-between group hover:-translate-y-1 shadow-sm hover:shadow-md`}
+            >
+              <div>
+                <div className="flex items-center justify-between gap-1 mb-3">
+                  <div
+                    className={`w-10 h-10 sm:w-11 sm:h-11 rounded-2xl flex items-center justify-center shrink-0 transition-transform duration-200 group-hover:scale-105 ${theme.iconBox}`}
+                  >
+                    <c.icon className="w-5 h-5" strokeWidth={2.2} />
+                  </div>
+                  <span className={`text-[9px] border px-2 py-0.5 rounded-full font-black ${theme.badge}`}>
+                    {c.isSpecial ? 'شامل' : c.group === 'معمل الجودة والاختبارات' ? 'جودة' : c.group.split(' ')[0]}
+                  </span>
                 </div>
-                {c.isSpecial ? (
-                  <span className="text-[9px] bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded-full font-black">
-                    شامل
-                  </span>
-                ) : c.group === 'معمل الجودة والاختبارات' ? (
-                  <span className="text-[9px] bg-emerald-100 text-emerald-900 border border-emerald-300 px-2 py-0.5 rounded-full font-black">
-                    جودة
-                  </span>
-                ) : null}
+
+                <h3 className="text-xs sm:text-sm font-black text-slate-900 leading-snug">{c.title}</h3>
+                <p className="text-[10px] sm:text-[11px] text-slate-500 font-bold mt-1 line-clamp-2 leading-relaxed">
+                  {c.desc}
+                </p>
               </div>
 
-              <h3 className="text-xs sm:text-sm font-black text-slate-900 leading-snug">{c.title}</h3>
-              <p className="text-[10px] sm:text-[11px] text-slate-500 font-bold mt-1 line-clamp-2 leading-relaxed">
-                {c.desc}
-              </p>
-            </div>
-
-            <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px] font-bold text-blue-600">
-              <span>{c.shortTag || 'فتح الأداة'}</span>
-              <ArrowLeft size={12} />
-            </div>
-          </button>
-        ))}
+              <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px] font-bold text-blue-600">
+                <span className="truncate">{c.shortTag || 'فتح الأداة'}</span>
+                <ArrowLeft size={12} className="shrink-0 group-hover:-translate-x-0.5 transition-transform" />
+              </div>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
 };
 
 /* ======================================================
-   8. مجتمع المهندسين وموسوعة الأعطال
+   8. مجتمع المهندسين والشات التفاعلي المربوط بـ Firebase Firestore لحظياً
    ====================================================== */
 const CommunityProView = () => {
   const [subMode, setSubMode] = useState('feed');
   const [posts, setPosts] = useState(INITIAL_POSTS);
-  const [faults] = useState(INITIAL_FAULTS);
+  const [faults, setFaults] = useState(INITIAL_FAULTS);
+  const [userAuth, setUserAuth] = useState(null);
+  const [isSynced, setIsSynced] = useState(false);
+
   const [categoryFilter, setCategoryFilter] = useState('الكل');
   const [searchQuery, setSearchQuery] = useState('');
   const [showNewPostForm, setShowNewPostForm] = useState(false);
 
-  const [newPostAuthor, setNewPostAuthor] = useState('');
-  const [newPostRole, setNewPostRole] = useState('مهندس / فني درفلة');
+  // حفظ اسم وتخصص المهندس في المتصفح لسهولة النشر والتعليق
+  const [newPostAuthor, setNewPostAuthor] = useState(() => localStorage.getItem('sp_author_name') || '');
+  const [newPostRole, setNewPostRole] = useState(() => localStorage.getItem('sp_author_role') || 'مهندس / فني درفلة');
   const [newPostCategory, setNewPostCategory] = useState('غرف التحكم والـ VFD');
   const [newPostTitle, setNewPostTitle] = useState('');
   const [newPostContent, setNewPostContent] = useState('');
+
   const [commentInputs, setCommentInputs] = useState({});
-  const [commentAuthor, setCommentAuthor] = useState('');
+  const [commentAuthor, setCommentAuthor] = useState(() => localStorage.getItem('sp_author_name') || '');
+
+  //تخزين التفاعلات المحلية للمستخدم الحالي
+  const [myReactions, setMyReactions] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('sp_my_reactions') || '{}');
+    } catch {
+      return {};
+    }
+  });
+
+  // الاتصال السحابي بـ Firebase Firestore لمزامنة البوستات والتعليقات لكل الزوار لحظياً
+  useEffect(() => {
+    if (!auth) return;
+    signInAnonymously(auth).catch((e) => console.error(e));
+    const unsub = onAuthStateChanged(auth, setUserAuth);
+    return () => unsub();
+  }, []);
+
+  useEffect(() => {
+    if (!userAuth || !db) return;
+    const commRef = doc(db, 'public_community', 'main_feed');
+    const unsub = onSnapshot(commRef, (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        if (Array.isArray(data.posts) && data.posts.length > 0) {
+          setPosts(data.posts);
+        } else {
+          setDoc(commRef, { posts: INITIAL_POSTS, faults: INITIAL_FAULTS }, { merge: true });
+        }
+        if (Array.isArray(data.faults) && data.faults.length > 0) {
+          setFaults(data.faults);
+        }
+        setIsSynced(true);
+      } else {
+        setDoc(commRef, { posts: INITIAL_POSTS, faults: INITIAL_FAULTS });
+        setIsSynced(true);
+      }
+    });
+    return () => unsub();
+  }, [userAuth]);
+
+  const saveCommunityToCloud = async (updatedPosts) => {
+    setPosts(updatedPosts);
+    if (userAuth && db) {
+      try {
+        await setDoc(doc(db, 'public_community', 'main_feed'), { posts: updatedPosts }, { merge: true });
+      } catch (err) {
+        console.error('Community sync error:', err);
+      }
+    }
+  };
 
   const categories = ['الكل', 'غرف التحكم والـ VFD', 'باس ديزاين ودرافيل', 'أعطال وصيانة'];
 
-  const handleCreatePost = (e) => {
+  const handleCreatePost = async (e) => {
     e.preventDefault();
     if (!newPostTitle.trim() || !newPostContent.trim()) return;
+    const authorName = newPostAuthor.trim() || 'مهندس / فني بالدرفلة';
+    localStorage.setItem('sp_author_name', authorName);
+    localStorage.setItem('sp_author_role', newPostRole);
+    setCommentAuthor(authorName);
+
     const postObj = {
-      id: Date.now().toString(),
-      author: newPostAuthor.trim() || 'مهندس / فني بالدرفلة',
+      id: `post_${Date.now()}`,
+      author: authorName,
       role: newPostRole,
-      badge: 'عضو فاعل',
-      time: 'الآن',
+      badge: 'عضو المنصة',
+      time: new Date().toLocaleDateString('ar-EG', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }),
       category: newPostCategory,
       title: newPostTitle.trim(),
       content: newPostContent.trim(),
       likes: 1,
       fires: 0,
-      liked: false,
-      fired: false,
       solved: false,
       comments: []
     };
-    setPosts([postObj, ...posts]);
+
+    const updated = [postObj, ...posts];
+    await saveCommunityToCloud(updated);
     setNewPostTitle('');
     setNewPostContent('');
     setShowNewPostForm(false);
   };
 
-  const handleReaction = (postId, type) => {
-    setPosts((prev) =>
-      prev.map((p) => {
-        if (p.id !== postId) return p;
-        if (type === 'like') return { ...p, liked: !p.liked, likes: p.liked ? p.likes - 1 : p.likes + 1 };
-        return { ...p, fired: !p.fired, fires: p.fired ? p.fires - 1 : p.fires + 1 };
-      })
-    );
+  const handleReaction = async (postId, type) => {
+    const key = `${postId}_${type}`;
+    const alreadyDone = !!myReactions[key];
+    const nextReactions = { ...myReactions, [key]: !alreadyDone };
+    setMyReactions(nextReactions);
+    localStorage.setItem('sp_my_reactions', JSON.stringify(nextReactions));
+
+    const updated = posts.map((p) => {
+      if (p.id !== postId) return p;
+      if (type === 'like') {
+        return { ...p, likes: Math.max(0, (p.likes || 0) + (alreadyDone ? -1 : 1)) };
+      }
+      return { ...p, fires: Math.max(0, (p.fires || 0) + (alreadyDone ? -1 : 1)) };
+    });
+    await saveCommunityToCloud(updated);
   };
 
-  const handleAddComment = (postId) => {
+  const handleAddComment = async (postId) => {
     const text = commentInputs[postId];
     if (!text || !text.trim()) return;
+    const cAuthor = commentAuthor.trim() || newPostAuthor.trim() || 'مهندس بالمنصة';
+    localStorage.setItem('sp_author_name', cAuthor);
+
     const newComment = {
-      id: Date.now().toString(),
-      user: commentAuthor.trim() || 'عضو بالمنصة',
+      id: `c_${Date.now()}`,
+      user: cAuthor,
       role: 'فني / مهندس',
       text: text.trim(),
-      time: 'الآن',
+      time: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }),
       isBest: false
     };
-    setPosts((prev) => prev.map((p) => (p.id === postId ? { ...p, comments: [...p.comments, newComment] } : p)));
+
+    const updated = posts.map((p) => (p.id === postId ? { ...p, comments: [...(p.comments || []), newComment] } : p));
     setCommentInputs({ ...commentInputs, [postId]: '' });
+    await saveCommunityToCloud(updated);
   };
 
-  const toggleBestComment = (postId, commentId) => {
-    setPosts((prev) =>
-      prev.map((p) =>
-        p.id === postId
-          ? {
-              ...p,
-              solved: true,
-              comments: p.comments.map((c) => (c.id === commentId ? { ...c, isBest: !c.isBest } : c))
-            }
-          : p
-      )
+  const toggleBestComment = async (postId, commentId) => {
+    const updated = posts.map((p) =>
+      p.id === postId
+        ? {
+            ...p,
+            solved: true,
+            comments: (p.comments || []).map((c) => (c.id === commentId ? { ...c, isBest: !c.isBest } : c))
+          }
+        : p
     );
+    await saveCommunityToCloud(updated);
   };
 
   const visiblePosts = posts.filter((p) => {
     const matchCat = categoryFilter === 'الكل' || p.category === categoryFilter;
     const matchSearch =
       !searchQuery.trim() ||
-      p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.content.toLowerCase().includes(searchQuery.toLowerCase());
+      (p.title && p.title.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (p.content && p.content.toLowerCase().includes(searchQuery.toLowerCase()));
     return matchCat && matchSearch;
   });
 
@@ -2473,23 +2559,31 @@ const CommunityProView = () => {
   return (
     <div className="space-y-4">
       <div className="bg-white border border-slate-200 p-3.5 rounded-2xl shadow-sm flex flex-wrap justify-between items-center gap-3">
-        <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200">
-          <button
-            onClick={() => setSubMode('feed')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
-              subMode === 'feed' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <MessageCircle size={14} /> المنشورات والنقاشات
-          </button>
-          <button
-            onClick={() => setSubMode('faults')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
-              subMode === 'faults' ? 'bg-amber-500 text-slate-950 shadow-sm' : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <Wrench size={14} /> موسوعة العيوب والأعطال
-          </button>
+        <div className="flex items-center gap-2">
+          <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200">
+            <button
+              onClick={() => setSubMode('feed')}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
+                subMode === 'feed' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <MessageCircle size={14} /> النقاشات والشات الفني
+            </button>
+            <button
+              onClick={() => setSubMode('faults')}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
+                subMode === 'faults' ? 'bg-amber-500 text-slate-950 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Wrench size={14} /> موسوعة الأعطال
+            </button>
+          </div>
+
+          {isSynced && (
+            <span className="hidden md:inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" /> متصل سحابياً
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-2 flex-1 sm:flex-initial justify-end">
@@ -2508,7 +2602,7 @@ const CommunityProView = () => {
               onClick={() => setShowNewPostForm(!showNewPostForm)}
               className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 shrink-0 shadow-sm"
             >
-              <PlusCircle size={14} /> إضافة منشور
+              <PlusCircle size={14} /> سؤال أو منشور جديد
             </button>
           )}
         </div>
@@ -2536,7 +2630,7 @@ const CommunityProView = () => {
             {showNewPostForm && (
               <form onSubmit={handleCreatePost} className="bg-white border-2 border-blue-400 rounded-2xl p-4 space-y-3 shadow-lg">
                 <h3 className="text-sm font-black text-slate-900 flex items-center gap-1.5">
-                  <Sparkles size={15} className="text-blue-600" /> مشاركة معلومة فنية أو سؤال للزملاء
+                  <Sparkles size={15} className="text-blue-600" /> مشاركة معلومة فنية أو سؤال للزملاء (يظهر للجميع فوراً)
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                   <input
@@ -2581,127 +2675,135 @@ const CommunityProView = () => {
                     إلغاء
                   </button>
                   <button type="submit" className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold">
-                    نشر الآن
+                    نشر في المجتمع السحابي
                   </button>
                 </div>
               </form>
             )}
 
-            {visiblePosts.map((post) => (
-              <div key={post.id} className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-3.5 shadow-sm">
-                <div className="flex justify-between items-start gap-2">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white font-black text-base shrink-0">
-                      {post.author.charAt(0)}
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <h4 className="font-black text-slate-900 text-sm">{post.author}</h4>
-                        <span className="text-[10px] bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full font-bold">
-                          {post.badge}
-                        </span>
+            {visiblePosts.map((post) => {
+              const isLiked = !!myReactions[`${post.id}_like`];
+              const isFired = !!myReactions[`${post.id}_fire`];
+              return (
+                <div key={post.id} className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-3.5 shadow-sm">
+                  <div className="flex justify-between items-start gap-2">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-white font-black text-base shrink-0 shadow-sm">
+                        {post.author ? post.author.charAt(0) : 'م'}
                       </div>
-                      <p className="text-[11px] text-slate-500 font-bold">
-                        {post.role} • {post.time}
-                      </p>
+                      <div>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <h4 className="font-black text-slate-900 text-sm">{post.author}</h4>
+                          <span className="text-[10px] bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full font-bold">
+                            {post.badge}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 font-bold">
+                          {post.role} • {post.time}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      {post.solved && (
+                        <span className="text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
+                          <Check size={11} /> محلول
+                        </span>
+                      )}
+                      <span className="text-[10px] bg-slate-100 text-slate-700 font-bold px-2.5 py-0.5 rounded-full">
+                        {post.category}
+                      </span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    {post.solved && (
-                      <span className="text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
-                        <Check size={11} /> محلول
-                      </span>
-                    )}
-                    <span className="text-[10px] bg-slate-100 text-slate-700 font-bold px-2.5 py-0.5 rounded-full">
-                      {post.category}
-                    </span>
+
+                  <div>
+                    <h3 className="text-sm sm:text-base font-black text-blue-800 mb-1.5">{post.title}</h3>
+                    <p className="text-xs sm:text-sm text-slate-700 font-medium leading-relaxed whitespace-pre-line">
+                      {post.content}
+                    </p>
                   </div>
-                </div>
 
-                <div>
-                  <h3 className="text-sm sm:text-base font-black text-blue-800 mb-1.5">{post.title}</h3>
-                  <p className="text-xs sm:text-sm text-slate-700 font-medium leading-relaxed whitespace-pre-line">
-                    {post.content}
-                  </p>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2 pt-2.5 border-t border-slate-100 text-xs">
-                  <button
-                    onClick={() => handleReaction(post.id, 'like')}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold transition-colors ${
-                      post.liked ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                    }`}
-                  >
-                    <ThumbsUp size={13} /> مفيد ({post.likes})
-                  </button>
-                  <button
-                    onClick={() => handleReaction(post.id, 'fire')}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold transition-colors ${
-                      post.fired ? 'bg-amber-500 text-slate-950' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                    }`}
-                  >
-                    <Flame size={13} /> معلومة ذهبية ({post.fires})
-                  </button>
-                  <span className="text-slate-500 font-bold mr-auto flex items-center gap-1">
-                    <MessageCircle size={13} /> {post.comments.length} تعليقات
-                  </span>
-                </div>
-
-                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2.5">
-                  {post.comments.map((c) => (
-                    <div
-                      key={c.id}
-                      className={`p-2.5 rounded-xl border ${
-                        c.isBest ? 'bg-emerald-50 border-emerald-300' : 'bg-white border-slate-200'
+                  <div className="flex flex-wrap items-center gap-2 pt-2.5 border-t border-slate-100 text-xs">
+                    <button
+                      onClick={() => handleReaction(post.id, 'like')}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold transition-colors ${
+                        isLiked ? 'bg-blue-600 text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                       }`}
                     >
-                      <div className="flex justify-between items-center mb-1">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-xs font-black text-slate-900">{c.user}</span>
-                          {c.isBest && (
-                            <span className="text-[9px] bg-emerald-600 text-white px-1.5 py-0.5 rounded font-bold">
-                              ✓ أفضل إجابة فنية
-                            </span>
-                          )}
-                        </div>
-                        <button
-                          onClick={() => toggleBestComment(post.id, c.id)}
-                          className="text-[10px] text-slate-400 hover:text-emerald-600 font-bold"
-                        >
-                          {c.time}
-                        </button>
-                      </div>
-                      <p className="text-xs text-slate-700 font-medium leading-relaxed">{c.text}</p>
-                    </div>
-                  ))}
+                      <ThumbsUp size={13} /> مفيد ({post.likes || 0})
+                    </button>
+                    <button
+                      onClick={() => handleReaction(post.id, 'fire')}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold transition-colors ${
+                        isFired ? 'bg-amber-500 text-slate-950 shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      }`}
+                    >
+                      <Flame size={13} /> معلومة ذهبية ({post.fires || 0})
+                    </button>
+                    <span className="text-slate-500 font-bold mr-auto flex items-center gap-1">
+                      <MessageCircle size={13} /> {(post.comments || []).length} تعليقات
+                    </span>
+                  </div>
 
-                  <div className="flex flex-col sm:flex-row gap-1.5 pt-1">
-                    <input
-                      type="text"
-                      placeholder="اسمك..."
-                      value={commentAuthor}
-                      onChange={(e) => setCommentAuthor(e.target.value)}
-                      className="sm:w-32 bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 outline-none"
-                    />
-                    <div className="flex flex-1 gap-1.5">
+                  <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2.5">
+                    {(post.comments || []).map((c) => (
+                      <div
+                        key={c.id}
+                        className={`p-2.5 rounded-xl border ${
+                          c.isBest ? 'bg-emerald-50 border-emerald-300' : 'bg-white border-slate-200'
+                        }`}
+                      >
+                        <div className="flex justify-between items-center mb-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-black text-slate-900">{c.user}</span>
+                            {c.isBest && (
+                              <span className="text-[9px] bg-emerald-600 text-white px-1.5 py-0.5 rounded font-bold">
+                                ✓ أفضل إجابة فنية
+                              </span>
+                            )}
+                          </div>
+                          <button
+                            onClick={() => toggleBestComment(post.id, c.id)}
+                            className="text-[10px] text-slate-400 hover:text-emerald-600 font-bold"
+                            title="اضغط لتمييزها كأفضل إجابة"
+                          >
+                            {c.time} • تمييز الإجابة
+                          </button>
+                        </div>
+                        <p className="text-xs text-slate-700 font-medium leading-relaxed">{c.text}</p>
+                      </div>
+                    ))}
+
+                    <div className="flex flex-col sm:flex-row gap-1.5 pt-1">
                       <input
                         type="text"
-                        placeholder="أضف تعليقك أو خبرتك الفنية..."
-                        value={commentInputs[post.id] || ''}
-                        onChange={(e) => setCommentInputs({ ...commentInputs, [post.id]: e.target.value })}
-                        className="flex-1 bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 outline-none"
+                        placeholder="اسمك..."
+                        value={commentAuthor}
+                        onChange={(e) => setCommentAuthor(e.target.value)}
+                        className="sm:w-36 bg-white border border-slate-300 rounded-xl px-2.5 py-2 text-xs font-bold text-slate-900 outline-none focus:border-blue-500"
                       />
-                      <button
-                        onClick={() => handleAddComment(post.id)}
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-lg text-xs font-bold shrink-0"
-                      >
-                        تعليق
-                      </button>
+                      <div className="flex flex-1 gap-1.5">
+                        <input
+                          type="text"
+                          placeholder="اكتب تعليقك أو ردك الفني..."
+                          value={commentInputs[post.id] || ''}
+                          onChange={(e) => setCommentInputs({ ...commentInputs, [post.id]: e.target.value })}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleAddComment(post.id);
+                          }}
+                          className="flex-1 bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 outline-none focus:border-blue-500"
+                        />
+                        <button
+                          onClick={() => handleAddComment(post.id)}
+                          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1 shrink-0 shadow-sm"
+                        >
+                          <Send size={13} /> إرسال
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           <div className="lg:col-span-4 space-y-4">
@@ -2760,11 +2862,51 @@ const CommunityProView = () => {
 };
 
 /* ======================================================
-   9. المكون الرئيسي لبوابة المهندسين (شامل مؤشر العمل بدون إنترنت Offline Ready)
+   9. المكون الرئيسي لبوابة المهندسين (مع دعم الروابط وزر الرجوع في الموبايل)
    ====================================================== */
 export default function PublicPortal({ onBack }) {
-  const [activeTab, setActiveTab] = useState('calculators');
+  const getInitialParams = () => {
+    const params = new URLSearchParams(window.location.search);
+    return {
+      tab: params.get('tab') || 'calculators',
+      calc: params.get('calc') || null
+    };
+  };
+
+  const [activeTab, setActiveTabState] = useState(() => getInitialParams().tab);
+  const [activeCalcId, setActiveCalcIdState] = useState(() => getInitialParams().calc);
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
+
+  // تحديث الرابط عند فتح أي تبويب أو حاسبة لدعم زر الرجوع في الموبايل
+  const updateUrlNavigation = (newTab, newCalcId) => {
+    setActiveTabState(newTab);
+    setActiveCalcIdState(newCalcId);
+    const params = new URLSearchParams(window.location.search);
+    params.set('mode', 'public');
+    params.set('tab', newTab);
+    if (newCalcId) {
+      params.set('calc', newCalcId);
+    } else {
+      params.delete('calc');
+    }
+    window.history.pushState({ mode: 'public', tab: newTab, calc: newCalcId }, '', `?${params.toString()}`);
+  };
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const mode = params.get('mode');
+      if (mode !== 'public' && onBack) {
+        onBack();
+        return;
+      }
+      setActiveTabState(params.get('tab') || 'calculators');
+      setActiveCalcIdState(params.get('calc') || null);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [onBack]);
 
   useEffect(() => {
     const goOnline = () => setIsOnline(true);
@@ -2788,7 +2930,7 @@ export default function PublicPortal({ onBack }) {
         <div className="max-w-6xl mx-auto px-3 py-2.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="bg-blue-600 p-1.5 sm:p-2 rounded-xl shadow-sm">
+              <div className="bg-gradient-to-br from-blue-600 to-indigo-600 p-2 rounded-xl shadow-sm">
                 <Calculator className="text-white w-4 h-4 sm:w-5 sm:h-5" />
               </div>
               <div>
@@ -2804,11 +2946,11 @@ export default function PublicPortal({ onBack }) {
                     }`}
                   >
                     {isOnline ? <Wifi size={10} /> : <WifiOff size={10} />}
-                    {isOnline ? 'يعمل أوفلاين وأونلاين' : 'وضع العمل بدون إنترنت'}
+                    {isOnline ? 'متصل سحابياً' : 'وضع أوفلاين'}
                   </span>
                 </div>
                 <p className="text-[10px] text-slate-500 font-bold hidden sm:block">
-                  قوانين الدرفلة، الممرات (بيضاوي-مبروم)، معمل الجودة، والكهرباء
+                  قوانين الدرفلة، الممرات (بيضاوي-مبروم)، معمل الجودة، والشات السحابي
                 </p>
               </div>
             </div>
@@ -2826,7 +2968,7 @@ export default function PublicPortal({ onBack }) {
               {tabs.map((t) => (
                 <button
                   key={t.id}
-                  onClick={() => setActiveTab(t.id)}
+                  onClick={() => updateUrlNavigation(t.id, null)}
                   className={`px-3 sm:px-4 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
                     activeTab === t.id ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
                   }`}
@@ -2848,7 +2990,12 @@ export default function PublicPortal({ onBack }) {
       </header>
 
       <main className="max-w-6xl mx-auto px-3 py-4 pb-12">
-        {activeTab === 'calculators' && <UnifiedCalculatorsView />}
+        {activeTab === 'calculators' && (
+          <UnifiedCalculatorsView
+            activeCalcId={activeCalcId}
+            onSelectCalc={(calcId) => updateUrlNavigation('calculators', calcId)}
+          />
+        )}
         {activeTab === 'community' && <CommunityProView />}
       </main>
     </div>
