@@ -4,6 +4,7 @@ import {
   Lock, ArrowLeft, Sparkles, Trash2
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
+import { getAnalytics } from 'firebase/analytics';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, doc, setDoc, onSnapshot } from 'firebase/firestore';
 
@@ -11,31 +12,31 @@ import PublicPortal from './PublicPortal';
 import FactoryPortal from './FactoryPortal';
 
 /* ======================================================
-   1. إعدادات قاعدة البيانات المشتركة (Firebase)
+   1. إعدادات قاعدة البيانات (rolling-mill-portal فقط)
    ====================================================== */
 const firebaseConfig = {
-  apiKey: "AIzaSyDrSPpzOlaC1CYRURzLWeI9crZwF5jV_QY",
-  authDomain: "rolling-mill-tracker.firebaseapp.com",
-  databaseURL: "https://rolling-mill-tracker-default-rtdb.firebaseio.com",
-  projectId: "rolling-mill-tracker",
-  storageBucket: "rolling-mill-tracker.firebasestorage.app",
-  messagingSenderId: "528405881772",
-  appId: "1:528405881772:web:30498fd387894331fb9009",
-  measurementId: "G-3XR8MT7T3S"
+  apiKey: "AIzaSyB5TIvcOxd7_2EVuKauuA3lGJ4Sj9W0fXQ",
+  authDomain: "rolling-mill-portal.firebaseapp.com",
+  projectId: "rolling-mill-portal",
+  storageBucket: "rolling-mill-portal.firebasestorage.app",
+  messagingSenderId: "81722940977",
+  appId: "1:81722940977:web:a94769c8d4e4ca34bf7f10",
+  measurementId: "G-NHP82KMVC9"
 };
 
-let app, auth, db;
+let app, analytics, auth, db;
 try {
-  if (Object.keys(firebaseConfig).length > 0) {
-    app = initializeApp(firebaseConfig);
-    auth = getAuth(app);
-    db = getFirestore(app);
+  app = initializeApp(firebaseConfig);
+  auth = getAuth(app);
+  db = getFirestore(app);
+  if (typeof window !== 'undefined') {
+    analytics = getAnalytics(app);
   }
 } catch (error) {
   console.error("Firebase init error:", error);
 }
 
-export { auth, db };
+export { auth, db, analytics };
 
 const DEFAULT_FACTORIES = [
   {
@@ -54,7 +55,6 @@ const DEFAULT_FACTORIES = [
    2. البوابة الرئيسية والموزع الذكي بالروابط (App Router)
    ====================================================== */
 export default function App() {
-  // قراءة الوضع المبدئي من الرابط لدعم تحديث الصفحة وزر الرجوع في الموبايل
   const getInitialRoute = () => {
     const params = new URLSearchParams(window.location.search);
     const modeParam = params.get('mode');
@@ -272,11 +272,11 @@ export default function App() {
     return <PublicPortal onBack={() => navigateToMode('select')} />;
   }
 
-  /* ---------- 2. داخل نظام المصنع المعزول سحابياً (بمفتاح key مستقل لكل مصنع) ---------- */
+  /* ---------- 2. داخل نظام المصنع المعزول سحابياً ---------- */
   if (appMode === 'factory_inside' && activeFactory) {
     return (
       <FactoryPortal
-        key={activeFactory.id} // يفصل الذاكرة والبيانات تماماً بين كل مصنع وآخر
+        key={activeFactory.id}
         onBack={() => navigateToMode('select')}
         factoryConfig={activeFactory}
         factoriesList={[]}
@@ -284,7 +284,7 @@ export default function App() {
     );
   }
 
-  /* ---------- 3. شاشة إدخال كود تفعيل المصنع (مضبوطة للموبايل واللابتوب) ---------- */
+  /* ---------- 3. شاشة إدخال كود تفعيل المصنع ---------- */
   if (appMode === 'factory_gate') {
     return (
       <div className="min-h-dvh bg-slate-50 flex flex-col items-center justify-center p-3.5 sm:p-6 font-sans text-slate-900" dir="rtl">
@@ -339,10 +339,9 @@ export default function App() {
     );
   }
 
-  /* ---------- 4. الشاشة الرئيسية (مضبوطة للموبايل واللابتوب) ---------- */
+  /* ---------- 4. الشاشة الرئيسية ---------- */
   return (
     <div className="min-h-dvh bg-slate-50 text-slate-900 flex flex-col justify-between px-3.5 py-3 sm:p-6 font-sans" dir="rtl">
-      {/* الهيدر العلوي المدمج للموبايل */}
       <header className="max-w-4xl w-full mx-auto pt-1 sm:pt-4 flex items-center justify-between">
         <div
           onClick={handleTitleClick}
@@ -367,7 +366,6 @@ export default function App() {
         </span>
       </header>
 
-      {/* منطقة المنتصف */}
       <main className="max-w-4xl w-full mx-auto my-auto py-3 sm:py-6 space-y-3.5 sm:space-y-6">
         <div className="text-center space-y-1 px-1">
           <h2 className="text-lg sm:text-4xl font-black text-slate-900 tracking-tight">
@@ -379,7 +377,6 @@ export default function App() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-6">
-          {/* البطاقة الأولى: بوابة المهندسين والفنيين */}
           <div
             onClick={() => navigateToMode('public')}
             className="group bg-white border-2 border-slate-200/90 hover:border-blue-600 rounded-2xl sm:rounded-3xl p-4 sm:p-7 cursor-pointer transition-all shadow-sm hover:shadow-xl sm:hover:-translate-y-1 flex flex-col justify-between gap-3.5 sm:gap-5"
@@ -420,7 +417,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* البطاقة الثانية: نظام إدارة المصانع SaaS */}
           <div
             onClick={() => navigateToMode('factory_gate')}
             className="group bg-white border-2 border-slate-200/90 hover:border-emerald-600 rounded-2xl sm:rounded-3xl p-4 sm:p-7 cursor-pointer transition-all shadow-sm hover:shadow-xl sm:hover:-translate-y-1 flex flex-col justify-between gap-3.5 sm:gap-5"
@@ -463,12 +459,10 @@ export default function App() {
         </div>
       </main>
 
-      {/* الفوتر */}
       <footer className="max-w-4xl w-full mx-auto text-center py-2 sm:py-3 border-t border-slate-200/80 text-[10px] sm:text-[11px] text-slate-500 font-bold">
         تصميم وتطوير <span className="text-blue-600 font-black">م. بسام وليد (Controlexa)</span> © 2026
       </footer>
 
-      {/* نافذة المصمم السرية لإدارة المصانع */}
       {showCreatorModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4">
           <div className="bg-white border border-slate-200 rounded-2xl sm:rounded-3xl max-w-xl w-full p-4 sm:p-6 space-y-4 text-slate-900 shadow-2xl max-h-[90vh] overflow-y-auto">
