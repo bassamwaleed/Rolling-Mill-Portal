@@ -3,38 +3,12 @@ import {
   Calculator, Building2, Zap, Key, X, PlusCircle,
   Lock, ArrowLeft, Sparkles, Trash2
 } from 'lucide-react';
-import { initializeApp } from 'firebase/app';
-import { getAnalytics } from 'firebase/analytics';
-import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, doc, setDoc, onSnapshot } from 'firebase/firestore';
+import { signInAnonymously, onAuthStateChanged } from 'firebase/auth';
+import { doc, setDoc, onSnapshot } from 'firebase/firestore';
 
+import { auth, db, analytics } from './firebase';
 import PublicPortal from './PublicPortal';
 import FactoryPortal from './FactoryPortal';
-
-/* ======================================================
-   1. إعدادات قاعدة البيانات (rolling-mill-portal فقط)
-   ====================================================== */
-const firebaseConfig = {
-  apiKey: "AIzaSyB5TIvcOxd7_2EVuKauuA3lGJ4Sj9W0fXQ",
-  authDomain: "rolling-mill-portal.firebaseapp.com",
-  projectId: "rolling-mill-portal",
-  storageBucket: "rolling-mill-portal.firebasestorage.app",
-  messagingSenderId: "81722940977",
-  appId: "1:81722940977:web:a94769c8d4e4ca34bf7f10",
-  measurementId: "G-NHP82KMVC9"
-};
-
-let app, analytics, auth, db;
-try {
-  app = initializeApp(firebaseConfig);
-  auth = getAuth(app);
-  db = getFirestore(app);
-  if (typeof window !== 'undefined') {
-    analytics = getAnalytics(app);
-  }
-} catch (error) {
-  console.error("Firebase init error:", error);
-}
 
 export { auth, db, analytics };
 
@@ -52,7 +26,7 @@ const DEFAULT_FACTORIES = [
 ];
 
 /* ======================================================
-   2. البوابة الرئيسية والموزع الذكي بالروابط (App Router)
+   البوابة الرئيسية والموزع الذكي بالروابط (App Router)
    ====================================================== */
 export default function App() {
   const getInitialRoute = () => {
@@ -112,7 +86,7 @@ export default function App() {
       const targetF = factoryObj || activeFactory;
       params.set('mode', 'factory');
       params.set('f', targetF.id);
-      params.set('tab', 'dashboard');
+      params.set('tab', 'rolling');
     }
 
     const queryStr = params.toString();
