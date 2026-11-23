@@ -2764,10 +2764,11 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                       className="w-full border border-slate-300 rounded-lg p-2 bg-white font-bold"
                     >
                       <option>فحص دوري وعزل</option>
-                      <option>تشحيم وتغيير بلي</option>
-                      <option>تغيير شربون / فلاتر تبريد</option>
+                      <option>تشحيم  </option>
+                      <option>تغيير شربون /  </option>
                       <option>عمرة / لف موتور</option>
                       <option>إصلاح عطل طارئ بالوردية</option>
+                             <option> تغيير فلاتر  </option>
                     </select>
                   </div>
                   <div>
@@ -2784,7 +2785,7 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                     <label className="font-bold text-slate-700 block mb-1">اسم الملاحظ المشرف:</label>
                     <input
                       type="text"
-                      placeholder="مثلاً: م. محمود داوود / ريس مرزوق"
+                      placeholder=" / "
                       value={motorMaintForm.supervisorName}
                       onChange={(e) => setMotorMaintForm({ ...motorMaintForm, supervisorName: e.target.value })}
                       className="w-full border border-slate-300 rounded-lg p-2 bg-white font-bold"
