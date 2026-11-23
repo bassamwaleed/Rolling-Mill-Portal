@@ -387,8 +387,9 @@ const buildReportHTML = ({ factoryName, stands, archive, changes, downtimes, mot
           batch.shift,
           r.motorCode,
           r.locationName,
-          `${r.bodyTemp || '-'} °C`,
-          `${r.bearingTemp || '-'} °C`,
+          r.bodyTemp1 !== undefined ? `${r.bodyTemp1 || '-'} / ${r.bodyTemp2 || '-'} °C` : `${r.bodyTemp || '-'} °C`,
+          r.frontBearingTemp !== undefined ? `${r.frontBearingTemp || '-'} °C` : r.bearingTemp ? `${r.bearingTemp} °C` : '-',
+          r.rearBearingTemp !== undefined ? `${r.rearBearingTemp || '-'} °C` : '-',
           `${r.amps || '-'} A`,
           batch.recordedBy || '-',
           batch.supervisor || '-'
@@ -421,7 +422,7 @@ const buildReportHTML = ({ factoryName, stands, archive, changes, downtimes, mot
 <table>${th(['التاريخ', 'الوردية', 'التصنيف', 'الستاند/المعدة', 'مدة التوقف', 'سبب العطل/التوقف', 'الإجراء المتخذ', 'الفني/الملاحظ'])}${downRows}
 <tr class="tot"><td colspan="4">إجمالي وقت التوقفات</td><td>${sumDownMins} دقيقة</td><td colspan="3"></td></tr></table>
 <h2>4. سجل حرارة المواتير والأمبير للورديات</h2>
-<table>${th(['التاريخ', 'الوردية', 'كود الموتور (ID)', 'الموقع/الستاند', 'حرارة الجسم', 'حرارة البلي', 'الأمبير', 'الفني القائم بالقياس', 'الملاحظ/المشرف'])}${tempLogsRows}</table>
+<table>${th(['التاريخ', 'الوردية', 'كود الموتور (ID)', 'الموقع/الستاند', 'حرارة الجسم (قراءة 1 / 2)', 'البلي الأمامي', 'البلي الخلفي', 'الأمبير', 'الفني القائم بالقياس', 'الملاحظ/المشرف'])}${tempLogsRows}</table>
 <h2>5. سجل بيانات وصيانة المواتير</h2>
 <table>${th(['القسم', 'الموقع/الستاند', 'كود الموتور (ID)', 'الماركة', 'القدرة', 'RPM', 'الأمبير', 'حرارة الجسم', 'حرارة البلي', 'العزل Megger', 'آخر فني صيانة', 'عدد الصيانات'])}${motorRows}</table>
 <h2>6. سجل تغيير الممرات والدرافيل</h2>
@@ -616,6 +617,7 @@ export default function FactoryPortal({ onBack, factoryConfig }) {
   const [motorCategoryFilter, setMotorCategoryFilter] = useState('all');
   const [motorSearchId, setMotorSearchId] = useState('');
   const [selectedMotorForLog, setSelectedMotorForLog] = useState(null);
+  const [motorLogView, setMotorLogView] = useState('maint'); // 'maint' = سجل الصيانة | 'temps' = سجل الحرارة
   const [motorMaintForm, setMotorMaintForm] = useState({
     type: 'فحص دوري وعزل',
     techName: '',
@@ -692,6 +694,8 @@ export default function FactoryPortal({ onBack, factoryConfig }) {
   const loggedEmployee = loggedEmployeeId ? staffList.find((emp) => emp.id === loggedEmployeeId) : null;
   const allowedTabs = loggedEmployeeId ? (loggedEmployee ? accessFor(loggedEmployee) : []) : null;
   const canAccessTab = (tab) => !allowedTabs || allowedTabs.includes(tab);
+  // الملاحظ: حسابه يُسجَّل كملاحظ تلقائياً ويكتب معه أسماء الفنيين، وغيره يُسجَّل كفني ويكتب معه اسم الملاحظ
+  const isSupervisorLogin = !!loggedEmployee && loggedEmployee.role === 'supervisor';
 
   // تثبيت علامة الرابط المباشر في العنوان حتى لا يعود زر الرجوع بعد تحديث الصفحة
   useEffect(() => {
@@ -1138,7 +1142,7 @@ export default function FactoryPortal({ onBack, factoryConfig }) {
       return;
     }
     const foundEmp = staffList.find((emp) => emp.pin === code && emp.active);
-    if (foundEmp && (foundEmp.role === role || foundEmp.role === 'manager')) {
+    if (foundEmp && (foundEmp.role === role || (foundEmp.role === 'supervisor' && role === 'tech') || foundEmp.role === 'manager')) {
       const access = accessFor(foundEmp);
       if (access && access.length === 0) {
         setLoginPrompt((p) => ({ ...p, error: 'لم يتم منح هذا الحساب صلاحية دخول أي قسم.' }));
@@ -1147,7 +1151,7 @@ export default function FactoryPortal({ onBack, factoryConfig }) {
       setIsSuperAdmin(false);
       setLoggedEmployeeName(foundEmp.name);
       setLoggedEmployeeId(foundEmp.id);
-      setCurrentUser(foundEmp.role);
+      setCurrentUser(foundEmp.role === 'supervisor' ? 'tech' : foundEmp.role);
       setActiveTab(firstTabOf(access));
       closeLogin();
       return;
@@ -1671,17 +1675,48 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
     showAlert('تم الحفظ', `تم إضافة الموتور (${m.code}) بنجاح.`);
   };
 
+  // قراءات الحرارة في الوردية لكل موتور: الجسم مرتين + البلي الأمامي مرة + البلي الخلفي مرة
+  const TEMP_KEYS = ['bodyTemp1', 'bodyTemp2', 'frontBearingTemp', 'rearBearingTemp'];
+  const isFilled = (v) => v !== undefined && v !== '';
+  const maxOfTemps = (...vals) => {
+    const nums = vals.filter(isFilled).map(Number).filter((n) => !isNaN(n));
+    return nums.length ? String(Math.max(...nums)) : '';
+  };
+
   const handleSaveShiftTemperatures = (e) => {
     e.preventDefault();
-    const readings = motorsList.map((m) => {
+    const touched = motorsList.filter((m) => {
       const inp = shiftTempInputs[m.id] || {};
+      return [...TEMP_KEYS, 'amps'].some((k) => isFilled(inp[k]));
+    });
+    if (touched.length === 0) {
+      showAlert('تنبيه', 'اكتب قراءات موتور واحد على الأقل قبل الحفظ.');
+      return;
+    }
+    const incomplete = touched.filter((m) => TEMP_KEYS.some((k) => !isFilled((shiftTempInputs[m.id] || {})[k])));
+    if (incomplete.length > 0) {
+      showAlert(
+        'قراءات ناقصة',
+        `أكمل القراءات الأربع (الجسم مرتين + البلي الأمامي + البلي الخلفي) للموتورات:\n${incomplete
+          .map((m) => `• ${m.locationName || `ستاند ${m.stand}`} (${m.code})`)
+          .join('\n')}`
+      );
+      return;
+    }
+
+    const readings = touched.map((m) => {
+      const inp = shiftTempInputs[m.id];
       return {
         motorId: m.id,
         motorCode: m.code,
         locationName: m.locationName || `ستاند ${m.stand}`,
-        bodyTemp: inp.bodyTemp !== undefined && inp.bodyTemp !== '' ? inp.bodyTemp : m.bodyTemp || '50',
-        bearingTemp: inp.bearingTemp !== undefined && inp.bearingTemp !== '' ? inp.bearingTemp : m.bearingTemp || '55',
-        amps: inp.amps !== undefined && inp.amps !== '' ? inp.amps : m.amps || '-'
+        bodyTemp1: inp.bodyTemp1,
+        bodyTemp2: inp.bodyTemp2,
+        frontBearingTemp: inp.frontBearingTemp,
+        rearBearingTemp: inp.rearBearingTemp,
+        bodyTemp: maxOfTemps(inp.bodyTemp1, inp.bodyTemp2),
+        bearingTemp: maxOfTemps(inp.frontBearingTemp, inp.rearBearingTemp),
+        amps: isFilled(inp.amps) ? inp.amps : m.amps || '-'
       };
     });
 
@@ -1691,8 +1726,9 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
       dayName: currentProdDate.toLocaleDateString('ar-EG', { weekday: 'long' }),
       shift: selectedShift,
       time: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }),
-      recordedBy: shiftTempTech.trim() || roleLabel,
-      supervisor: shiftTempSupervisor.trim() || '-',
+      recordedBy: isSupervisorLogin ? shiftTempTech.trim() || roleLabel : roleLabel,
+      supervisor: isSupervisorLogin ? roleLabel : shiftTempSupervisor.trim() || '-',
+      enteredBy: roleLabel,
       readings
     };
 
@@ -1701,6 +1737,10 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
       if (!r) return m;
       return {
         ...m,
+        bodyTemp1: r.bodyTemp1,
+        bodyTemp2: r.bodyTemp2,
+        frontBearingTemp: r.frontBearingTemp,
+        rearBearingTemp: r.rearBearingTemp,
         bodyTemp: r.bodyTemp,
         bearingTemp: r.bearingTemp,
         amps: r.amps,
@@ -1711,7 +1751,10 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
 
     save({ motors: updatedMotors, tempLogs: [batchLog, ...tempShiftLogs] });
     setShiftTempInputs({});
-    showAlert('تم تسجيل حرارة الوردية', `تم حفظ قراءات حرارة المواتير لـ (${selectedShift} - ${currentDateStr}) بنجاح!`);
+    showAlert(
+      'تم تسجيل حرارة الوردية',
+      `تم حفظ قراءات ${readings.length} موتور لـ (${selectedShift} - ${currentDateStr}) باسم: ${batchLog.recordedBy}`
+    );
   };
 
   const handleAddMotorMaintenanceLog = (e) => {
@@ -1723,8 +1766,8 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
       shift: selectedShift,
       time: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }),
       type: motorMaintForm.type,
-      techName: motorMaintForm.techName.trim() || roleLabel,
-      supervisorName: motorMaintForm.supervisorName.trim() || '-',
+      techName: isSupervisorLogin ? motorMaintForm.techName.trim() || '-' : roleLabel,
+      supervisorName: isSupervisorLogin ? roleLabel : motorMaintForm.supervisorName.trim() || '-',
       megger: motorMaintForm.megger || selectedMotorForLog.megger,
       bodyTemp: motorMaintForm.bodyTemp || selectedMotorForLog.bodyTemp,
       bearingTemp: motorMaintForm.bearingTemp || selectedMotorForLog.bearingTemp,
@@ -1740,7 +1783,7 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
             bodyTemp: logItem.bodyTemp || m.bodyTemp,
             bearingTemp: logItem.bearingTemp || m.bearingTemp,
             amps: logItem.ampsRead || m.amps,
-            lastTechName: logItem.techName,
+            lastTechName: logItem.techName !== '-' ? logItem.techName : roleLabel,
             logs: [logItem, ...(m.logs || [])]
           }
         : m
@@ -1764,6 +1807,24 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
       save({ motors: motorsList.filter((m) => m.id !== id) });
     });
   };
+
+  // الموتورات التي سُجلت حرارتها بالفعل في الوردية المختارة
+  const shiftRecordedIds = new Set(
+    tempShiftLogs
+      .filter((b) => b.date === currentDateStr && b.shift === selectedShift)
+      .flatMap((b) => (b.readings || []).map((r) => r.motorId))
+  );
+
+  // سجل حرارة الموتور المفتوح (الأحدث أولاً)
+  const selectedMotorTempHistory = selectedMotorForLog
+    ? tempShiftLogs
+        .flatMap((b) =>
+          (b.readings || [])
+            .filter((r) => r.motorId === selectedMotorForLog.id)
+            .map((r) => ({ ...r, batchId: b.id, date: b.date, shift: b.shift, time: b.time, recordedBy: b.recordedBy, supervisor: b.supervisor }))
+        )
+        .slice(0, 40)
+    : [];
 
   const filteredMotors = motorsList.filter((m) => {
     const matchCat =
@@ -2806,6 +2867,24 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
             </div>
 
             <div className="p-3 sm:p-4 overflow-y-auto space-y-3 text-xs">
+              <div className="flex gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setMotorLogView('maint')}
+                  className={`flex-1 py-1.5 rounded-xl font-black ${motorLogView === 'maint' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'}`}
+                >
+                  سجل الصيانة ({(selectedMotorForLog.logs || []).length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMotorLogView('temps')}
+                  className={`flex-1 py-1.5 rounded-xl font-black ${motorLogView === 'temps' ? 'bg-amber-500 text-slate-950' : 'bg-slate-100 text-slate-600'}`}
+                >
+                  سجل الحرارة ({selectedMotorTempHistory.length})
+                </button>
+              </div>
+              {motorLogView === 'maint' && (
+              <>
               <form onSubmit={handleAddMotorMaintenanceLog} className="bg-blue-50/60 border border-blue-200 rounded-xl p-3 space-y-2.5">
                 <h4 className="font-black text-blue-950">تسجيل صيانة أو إصلاح جديد للموتور:</h4>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
@@ -2825,24 +2904,34 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                     </select>
                   </div>
                   <div>
-                    <label className="font-bold text-slate-700 block mb-1">اسم الفني المنفذ:</label>
-                    <input
-                      type="text"
-                      placeholder="مثلاً: فني / محمد صابر"
-                      value={motorMaintForm.techName}
-                      onChange={(e) => setMotorMaintForm({ ...motorMaintForm, techName: e.target.value })}
-                      className="w-full border border-slate-300 rounded-lg p-2 bg-white font-bold"
-                    />
+                    <label className="font-bold text-slate-700 block mb-1">
+                      {isSupervisorLogin ? 'الملاحظ المشرف (تلقائي من حسابك):' : 'الفني المنفذ (تلقائي من حسابك):'}
+                    </label>
+                    <div className="w-full border border-emerald-300 rounded-lg p-2 bg-emerald-50 font-black text-emerald-900 truncate">
+                      {roleLabel}
+                    </div>
                   </div>
                   <div>
-                    <label className="font-bold text-slate-700 block mb-1">اسم الملاحظ المشرف:</label>
-                    <input
-                      type="text"
-                      placeholder=" / "
-                      value={motorMaintForm.supervisorName}
-                      onChange={(e) => setMotorMaintForm({ ...motorMaintForm, supervisorName: e.target.value })}
-                      className="w-full border border-slate-300 rounded-lg p-2 bg-white font-bold"
-                    />
+                    <label className="font-bold text-slate-700 block mb-1">
+                      {isSupervisorLogin ? 'أسماء الفنيين المنفذين:' : 'اسم الملاحظ المشرف:'}
+                    </label>
+                    {isSupervisorLogin ? (
+                      <input
+                        type="text"
+                        placeholder="مثلاً: محمد صابر، أحمد علي"
+                        value={motorMaintForm.techName}
+                        onChange={(e) => setMotorMaintForm({ ...motorMaintForm, techName: e.target.value })}
+                        className="w-full border border-slate-300 rounded-lg p-2 bg-white font-bold"
+                      />
+                    ) : (
+                      <input
+                        type="text"
+                        placeholder="اسم الملاحظ"
+                        value={motorMaintForm.supervisorName}
+                        onChange={(e) => setMotorMaintForm({ ...motorMaintForm, supervisorName: e.target.value })}
+                        className="w-full border border-slate-300 rounded-lg p-2 bg-white font-bold"
+                      />
+                    )}
                   </div>
                 </div>
 
@@ -2904,6 +2993,37 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                   </div>
                 ))}
               </div>
+              </>
+              )}
+              {motorLogView === 'temps' && (
+                <div className="space-y-2">
+                  <h4 className="font-black text-slate-800">
+                    قراءات الحرارة في الورديات (الجسم مرتين + البلي الأمامي والخلفي):
+                  </h4>
+                  {selectedMotorTempHistory.length === 0 && (
+                    <p className="text-slate-500 font-bold bg-slate-50 border border-slate-200 rounded-xl p-3 text-center">
+                      لا توجد قراءات حرارة مسجلة لهذا الموتور بعد.
+                    </p>
+                  )}
+                  {selectedMotorTempHistory.map((r) => (
+                    <div key={`${r.batchId}-${r.motorId}`} className="bg-slate-50 border border-slate-200 rounded-xl p-2.5 space-y-1">
+                      <div className="flex justify-between font-bold text-[11px]">
+                        <span className="text-amber-700 font-black">{r.shift}</span>
+                        <span className="font-mono text-slate-500">{r.date}</span>
+                      </div>
+                      <p className="font-mono font-black text-slate-800">
+                        {r.bodyTemp1 !== undefined
+                          ? `الجسم: ${r.bodyTemp1 || '-'}° / ${r.bodyTemp2 || '-'}° • البلي: أمامي ${r.frontBearingTemp || '-'}° / خلفي ${r.rearBearingTemp || '-'}°`
+                          : `الجسم: ${r.bodyTemp || '-'}° • البلي: ${r.bearingTemp || '-'}°`}
+                        {` • ${r.amps || '-'} A`}
+                      </p>
+                      <p className="text-[10px] text-emerald-700 font-bold">
+                        🔧 الفني: {r.recordedBy || '-'} | 👷 الملاحظ: {r.supervisor || '-'}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </Overlay>
@@ -2992,29 +3112,24 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
 
         {/* شريط التبويبات الأفقي الناعم للموبايل */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 no-scrollbar">
-          {FACTORY_TABS.filter(([k]) => k !== 'staff' || isManagerLike).map(([k, label, Icon]) => {
-            const locked = !canAccessTab(k);
-            return (
-              <button
-                key={k}
-                onClick={() => (locked ? showAlert('قسم مغلق', 'ليس لديك صلاحية دخول هذا القسم. تواصل مع مدير المصنع.') : setActiveTab(k))}
-                className={`px-3 py-1.5 text-[11px] font-bold rounded-xl flex items-center gap-1.5 whitespace-nowrap shrink-0 transition-all ${
-                  activeTab === k
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : locked
-                      ? 'bg-slate-800/40 text-slate-500 cursor-not-allowed'
-                      : 'bg-slate-800/90 text-slate-300 hover:bg-slate-800'
-                }`}
-              >
-                {locked ? <Lock className="w-3.5 h-3.5 shrink-0" /> : <Icon className="w-3.5 h-3.5 shrink-0" />}
-                <span>{label}</span>
-              </button>
-            );
-          })}
+          {FACTORY_TABS.filter(([k]) => (k !== 'staff' || isManagerLike) && canAccessTab(k)).map(([k, label, Icon]) => (
+            <button
+              key={k}
+              onClick={() => setActiveTab(k)}
+              className={`px-3 py-1.5 text-[11px] font-bold rounded-xl flex items-center gap-1.5 whitespace-nowrap shrink-0 transition-all ${
+                activeTab === k
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'bg-slate-800/90 text-slate-300 hover:bg-slate-800'
+              }`}
+            >
+              <Icon className="w-3.5 h-3.5 shrink-0" />
+              <span>{label}</span>
+            </button>
+          ))}
         </div>
       </nav>
 
-      {/* صفحة القسم المغلق: تظهر عند محاولة الوصول لقسم غير مسموح (من الرابط أو زر الرجوع) */}
+      {/* صفحة القسم المغلق: الأقسام غير المسموحة مخفية من الشريط، وتظهر هذه الرسالة فقط لو وصل لها من الرابط أو زر الرجوع */}
       {!canAccessTab(activeTab) && (
         <div className="flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col items-center justify-center gap-2 text-center">
           <Lock className="w-8 h-8 text-slate-400" />
@@ -3294,20 +3409,29 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                       </option>
                     ))}
                   </select>
-                  <input
-                    type="text"
-                    placeholder="اسم فني الكهرباء القائم بالقياس..."
-                    value={shiftTempTech}
-                    onChange={(e) => setShiftTempTech(e.target.value)}
-                    className="border border-amber-300 rounded-xl p-2 bg-white font-bold"
-                  />
-                  <input
-                    type="text"
-                    placeholder="اسم الملاحظ / مهندس الوردية..."
-                    value={shiftTempSupervisor}
-                    onChange={(e) => setShiftTempSupervisor(e.target.value)}
-                    className="border border-amber-300 rounded-xl p-2 bg-white font-bold"
-                  />
+                  <div className="border border-amber-300 rounded-xl p-2 bg-amber-100/60 font-bold text-amber-950 flex flex-col justify-center">
+                    <span className="text-[9px] text-amber-700 block">
+                      {isSupervisorLogin ? 'الملاحظ (يُسجَّل تلقائياً من حسابك)' : 'الفني القائم بالقياس (يُسجَّل تلقائياً من حسابك)'}
+                    </span>
+                    <span className="truncate">{roleLabel}</span>
+                  </div>
+                  {isSupervisorLogin ? (
+                    <input
+                      type="text"
+                      placeholder="أسماء الفنيين المشاركين في القياس..."
+                      value={shiftTempTech}
+                      onChange={(e) => setShiftTempTech(e.target.value)}
+                      className="border border-amber-300 rounded-xl p-2 bg-white font-bold"
+                    />
+                  ) : (
+                    <input
+                      type="text"
+                      placeholder="اسم الملاحظ / مهندس الوردية..."
+                      value={shiftTempSupervisor}
+                      onChange={(e) => setShiftTempSupervisor(e.target.value)}
+                      className="border border-amber-300 rounded-xl p-2 bg-white font-bold"
+                    />
+                  )}
                 </div>
               </div>
 
@@ -3322,52 +3446,35 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                           ID: {m.code}
                         </span>
                       </div>
+                      {shiftRecordedIds.has(m.id) && (
+                        <p className="text-[10px] font-black text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-2 py-1">
+                          ✅ سُجلت حرارته في هذه الوردية
+                        </p>
+                      )}
                       <div className="grid grid-cols-3 gap-1.5 text-[10px]">
-                        <div>
-                          <label className="text-slate-500 font-bold block mb-0.5">الجسم °C</label>
-                          <input
-                            type="number"
-                            placeholder={m.bodyTemp || '50'}
-                            value={inp.bodyTemp ?? ''}
-                            onChange={(e) =>
-                              setShiftTempInputs({
-                                ...shiftTempInputs,
-                                [m.id]: { ...inp, bodyTemp: e.target.value }
-                              })
-                            }
-                            className="w-full border border-slate-300 rounded-lg p-1.5 text-center font-mono font-black bg-white"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-slate-500 font-bold block mb-0.5">البلي °C</label>
-                          <input
-                            type="number"
-                            placeholder={m.bearingTemp || '55'}
-                            value={inp.bearingTemp ?? ''}
-                            onChange={(e) =>
-                              setShiftTempInputs({
-                                ...shiftTempInputs,
-                                [m.id]: { ...inp, bearingTemp: e.target.value }
-                              })
-                            }
-                            className="w-full border border-amber-400 rounded-lg p-1.5 text-center font-mono font-black bg-amber-50/50"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-slate-500 font-bold block mb-0.5">الأمبير A</label>
-                          <input
-                            type="number"
-                            placeholder={m.amps || '400'}
-                            value={inp.amps ?? ''}
-                            onChange={(e) =>
-                              setShiftTempInputs({
-                                ...shiftTempInputs,
-                                [m.id]: { ...inp, amps: e.target.value }
-                              })
-                            }
-                            className="w-full border border-slate-300 rounded-lg p-1.5 text-center font-mono font-black bg-white"
-                          />
-                        </div>
+                        {[
+                          ['bodyTemp1', 'الجسم ① °C', 'border-slate-300 bg-white'],
+                          ['bodyTemp2', 'الجسم ② °C', 'border-slate-300 bg-white'],
+                          ['amps', 'الأمبير A', 'border-slate-300 bg-white'],
+                          ['frontBearingTemp', 'البلي الأمامي °C', 'border-amber-400 bg-amber-50/50'],
+                          ['rearBearingTemp', 'البلي الخلفي °C', 'border-amber-400 bg-amber-50/50']
+                        ].map(([key, label, cls]) => (
+                          <div key={key}>
+                            <label className="text-slate-500 font-bold block mb-0.5">{label}</label>
+                            <input
+                              type="number"
+                              placeholder={key === 'amps' ? m.amps || '400' : ''}
+                              value={inp[key] ?? ''}
+                              onChange={(e) =>
+                                setShiftTempInputs({
+                                  ...shiftTempInputs,
+                                  [m.id]: { ...inp, [key]: e.target.value }
+                                })
+                              }
+                              className={`w-full border rounded-lg p-1.5 text-center font-mono font-black ${cls}`}
+                            />
+                          </div>
+                        ))}
                       </div>
                     </div>
                   );
@@ -3538,9 +3645,19 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                             <span className="font-mono text-blue-700">{m.amps || '-'} A</span>
                           </div>
                           <div>
-                            <span className="text-slate-400 text-[9px] block">حرارة الجسم/البلي:</span>
+                            <span className="text-slate-400 text-[9px] block">حرارة الجسم (قراءتان):</span>
+                            <span className="font-mono font-black text-amber-700">
+                              {m.bodyTemp1 !== undefined
+                                ? `${m.bodyTemp1 || '-'}° / ${m.bodyTemp2 || '-'}°C`
+                                : `${m.bodyTemp || '50'}°C`}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 text-[9px] block">البلي (أمامي / خلفي):</span>
                             <span className={`font-mono font-black ${bearingHot ? 'text-red-600' : 'text-amber-700'}`}>
-                              {m.bodyTemp || '50'}° / {m.bearingTemp || '55'}°C
+                              {m.frontBearingTemp !== undefined
+                                ? `${m.frontBearingTemp || '-'}° / ${m.rearBearingTemp || '-'}°C`
+                                : `${m.bearingTemp || '55'}°C`}
                             </span>
                           </div>
                           <div>
@@ -3560,6 +3677,7 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                         <button
                           onClick={() => {
                             window.history.pushState({ modal: 'motor' }, '');
+                            setMotorLogView('maint');
                             setSelectedMotorForLog(m);
                           }}
                           className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-1.5 rounded-xl text-xs flex items-center justify-center gap-1"
@@ -3923,6 +4041,7 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                   className="border border-slate-300 rounded-xl p-2 bg-white font-bold"
                 >
                   <option value="tech">فني / مهندس</option>
+                  <option value="supervisor">ملاحظ</option>
                   <option value="manager">مدير</option>
                 </select>
               </div>
@@ -3970,6 +4089,9 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                 >
                   <div>
                     <span className="font-black text-slate-900">{emp.name}</span>
+                    {emp.role === 'supervisor' && (
+                      <span className="mr-1.5 text-[10px] font-black bg-indigo-100 text-indigo-800 px-1.5 py-0.5 rounded">ملاحظ</span>
+                    )}
                     <p className="text-slate-500 font-bold">
                       الكود: <strong className="font-mono text-blue-700">{emp.pin}</strong>
                     </p>
