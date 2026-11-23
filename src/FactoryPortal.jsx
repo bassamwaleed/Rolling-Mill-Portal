@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  UserCog, Edit3, TrendingUp, AlertTriangle, CheckCircle, RotateCcw,
-  Save, Power, Settings2, Archive, CalendarDays, List, BarChart3, RefreshCw,
-  Sliders, Trash2, Clock, Settings, X, UploadCloud, History,
-  ShieldAlert, Key, Eye, Layers, Wrench, ArrowLeftRight,
-  FileSpreadsheet, FileText, Inbox, Check, XCircle, Hourglass,
-  Cpu, PlusCircle, Building2, FileSignature, BookMarked, Disc,
+  Edit3, TrendingUp, AlertTriangle, CheckCircle, RotateCcw,
+  Save, Power, Archive, RefreshCw,
+  Trash2, Clock, Settings, X, UploadCloud, History,
+  Key, Lock, Wrench, ArrowLeftRight,
+  FileSpreadsheet, FileText, Inbox, XCircle, Hourglass,
+  Cpu, PlusCircle, Building2, BookMarked, Disc,
   Share2, Copy, Users, Link2, Search, Thermometer, Database
 } from 'lucide-react';
 import { signInAnonymously, onAuthStateChanged } from 'firebase/auth';
@@ -13,7 +13,7 @@ import { doc, setDoc, onSnapshot } from 'firebase/firestore';
 import { auth, db } from './App';
 
 /* ======================================================
-   1. الثوابت الإعدادية وبناء القوالب المعزولة لكل مصنع
+   1. الثوابت الإعدادية وقوالب الستاندات لكل مصنع
    ====================================================== */
 const ALGIOSHY_STANDS_CONFIG = [
   { type: 'بيضاوي', rollCode: '111', diameter: '380', hardness: '42 HRC', totalPasses: 6, maxLimit: 2500 },
@@ -43,9 +43,50 @@ const CLEAN_NEW_FACTORY_STANDS_CONFIG = Array.from({ length: 12 }, (_, i) => ({
 }));
 
 const SHIFTS_NORMAL = ['الوردية الأولى', 'الوردية الثانية', 'الوردية الثالثة'];
+
 const SHIFTS_FRIDAY = ['الوردية الأولى (12 ساعة)', 'الوردية الثانية (12 ساعة)'];
+
 const shiftsFor = (isFri) => (isFri ? SHIFTS_FRIDAY : SHIFTS_NORMAL);
 
+// أقسام النظام (تبويبات الشريط العلوي) — تبويب "الموظفين" للمدير فقط ولا يُمنح لموظف عادي
+const FACTORY_TABS = [
+  ['dashboard', 'الممرات والتشغيل', TrendingUp],
+  ['motors', 'حالة وحرارة المواتير', Cpu],
+  ['downtime', 'أعطال الوردية', Wrench],
+  ['rollshop', 'ورشة الدرافيل', Disc],
+  ['recipes', 'وصفات المقاسات', BookMarked],
+  ['staff', 'الموظفين والأكواد', Users],
+  ['archive', 'الأرشيف والتقارير', Archive]
+];
+const ASSIGNABLE_TABS = FACTORY_TABS.filter(([k]) => k !== 'staff');
+const ASSIGNABLE_TAB_KEYS = ASSIGNABLE_TABS.map(([k]) => k);
+
+// صلاحيات الموظف: null = دخول كامل (المدير أو موظف قديم بدون تحديد)، وإلا مصفوفة بالأقسام المسموحة فقط
+const accessFor = (emp) => (emp.role === 'manager' || !Array.isArray(emp.access) ? null : emp.access);
+const firstTabOf = (access) => (access ? (FACTORY_TABS.find(([k]) => access.includes(k)) || [])[0] || 'dashboard' : 'dashboard');
+
+/* ======================================================
+   2. دوال التواريخ المساعدة
+   ====================================================== */
+const formatDateToISO = (d) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+const formatDateToGB = (iso) => {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+};
+
+const convertGBToISO = (gb) => {
+  if (!gb || !gb.includes('/')) return formatDateToISO(new Date());
+  const p = gb.split('/');
+  if (p.length !== 3) return formatDateToISO(new Date());
+  return `${p[2]}-${p[1].padStart(2, '0')}-${p[0].padStart(2, '0')}`;
+};
+
+/* ======================================================
+   3. نموذج بيانات الستاند (بناء / تطبيع)
+   ====================================================== */
 const createPassesArray = (count, activePassNum = 1, initialTons = 0) =>
   Array.from({ length: count }, (_, idx) => {
     const pNum = idx + 1;
@@ -141,40 +182,120 @@ const normalizeList = (raw, factoryId) => {
   return raw.map((st, idx) => normalizeStand(st, idx, factoryId));
 };
 
-const LiveClock = () => {
-  const [time, setTime] = useState(new Date());
-  useEffect(() => {
-    const t = setInterval(() => setTime(new Date()), 1000);
-    return () => clearInterval(t);
-  }, []);
-  return (
-    <div className="flex bg-slate-800 border border-slate-700 rounded-lg px-2 py-0.5 items-center gap-1.5 shadow-inner">
-      <Clock className="w-3 h-3 text-blue-400" />
-      <div className="flex flex-col items-center leading-none">
-        <span className="text-[10px] font-mono font-bold text-slate-100" dir="ltr">
-          {time.toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-        </span>
-      </div>
-    </div>
-  );
-};
+/* ======================================================
+   4. اللوجيك الهندسي الذكي لتغيير الممر بعد عدد كتل في الوردية
+   ====================================================== */
+const applyPassChange = (list, req, billetWeight, approver, archiveList = []) => {
+  const idx = list.findIndex((s) => String(s.id) === String(req.standId));
+  if (idx < 0) return null;
+  const st = { ...list[idx] };
+  const prev = st.activePass;
+  const shiftKey = `${req.date}__${req.shift}`;
 
-const formatDateToISO = (d) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-const formatDateToGB = (iso) => {
-  if (!iso) return '';
-  const [y, m, d] = iso.split('-');
-  return `${d}/${m}/${y}`;
-};
-const convertGBToISO = (gb) => {
-  if (!gb || !gb.includes('/')) return formatDateToISO(new Date());
-  const p = gb.split('/');
-  if (p.length !== 3) return formatDateToISO(new Date());
-  return `${p[2]}-${p[1].padStart(2, '0')}-${p[0].padStart(2, '0')}`;
+  const existingShiftLog = (archiveList || []).find((l) => l.date === req.date && l.shift === req.shift);
+
+  const base = {
+    id: Date.now() + Math.floor(Math.random() * 1000),
+    standId: st.id,
+    standName: st.name,
+    date: req.date,
+    time: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }),
+    shift: req.shift,
+    productSize: req.productSize,
+    requestedBy: req.requestedBy || approver,
+    approvedBy: approver
+  };
+  let log;
+
+  if (req.kind === 'newRoll') {
+    const total = st.passes.reduce((a, p) => a + (Number(p.tons) || 0), 0);
+    st.entryDate = req.date;
+    st.lastResetDate = req.date;
+    st.activePass = 1;
+    st.accumulatedTons = 0;
+    st.creditedShiftKey = '';
+    st.creditedShiftTons = 0;
+    st.creditedShiftBillets = 0;
+    st.passes = createPassesArray(st.totalPasses, 1, 0);
+    log = {
+      ...base,
+      kind: 'newRoll',
+      fromPass: prev,
+      toPass: 1,
+      tons: total,
+      billetsAtChange: 0,
+      notes: req.notes || 'تركيب درفيل جديد'
+    };
+  } else {
+    const target = Number(req.targetPass) || prev;
+    const billetsOnOldInThisShift = Math.max(0, Number(req.billets) || 0);
+    const tonsOnOldInThisShift = billetsOnOldInThisShift * billetWeight;
+    const currentAccumulated = Number(st.accumulatedTons) || 0;
+
+    let finalOldPassTons = currentAccumulated;
+    let newPassOpeningTons = 0;
+
+    if (billetsOnOldInThisShift > 0) {
+      if (existingShiftLog) {
+        const shiftTotalTons = Number(existingShiftLog.tons) || 0;
+        const tonsBeforeThisShift = Math.max(0, currentAccumulated - shiftTotalTons);
+        finalOldPassTons = tonsBeforeThisShift + tonsOnOldInThisShift;
+        newPassOpeningTons = Math.max(0, shiftTotalTons - tonsOnOldInThisShift);
+        st.creditedShiftKey = '';
+        st.creditedShiftTons = 0;
+        st.creditedShiftBillets = 0;
+      } else {
+        finalOldPassTons = currentAccumulated + tonsOnOldInThisShift;
+        newPassOpeningTons = 0;
+        st.creditedShiftKey = shiftKey;
+        st.creditedShiftTons = (st.creditedShiftKey === shiftKey ? Number(st.creditedShiftTons) || 0 : 0) + tonsOnOldInThisShift;
+        st.creditedShiftBillets = (st.creditedShiftKey === shiftKey ? Number(st.creditedShiftBillets) || 0 : 0) + billetsOnOldInThisShift;
+      }
+    } else {
+      finalOldPassTons = currentAccumulated;
+      newPassOpeningTons = 0;
+      st.creditedShiftKey = '';
+      st.creditedShiftTons = 0;
+      st.creditedShiftBillets = 0;
+    }
+
+    const maxOrder = Math.max(0, ...st.passes.map((p) => p.order || 0));
+    st.passes = st.passes.map((p) => {
+      if (p.passNumber === prev && prev !== target)
+        return { ...p, status: 'used', tons: finalOldPassTons, order: p.order || Math.max(1, maxOrder) };
+      if (p.passNumber === target)
+        return {
+          ...p,
+          status: 'active',
+          tons: newPassOpeningTons,
+          order: prev === target ? p.order || 1 : p.order ? p.order : maxOrder + 1
+        };
+      return p;
+    });
+    st.activePass = target;
+    st.accumulatedTons = newPassOpeningTons;
+    st.lastResetDate = req.date;
+    log = {
+      ...base,
+      kind: 'pass',
+      fromPass: prev,
+      toPass: target,
+      tons: finalOldPassTons,
+      billetsAtChange: billetsOnOldInThisShift,
+      notes:
+        req.notes ||
+        (billetsOnOldInThisShift > 0
+          ? `نقل من ممر ${prev} إلى ممر ${target} بعد سحب ${billetsOnOldInThisShift} كتلة (${tonsOnOldInThisShift.toFixed(1)} طن)`
+          : `نقل من ممر ${prev} إلى ممر ${target}`)
+    };
+  }
+  const newList = [...list];
+  newList[idx] = st;
+  return { list: newList, log };
 };
 
 /* ======================================================
-   2. التصدير الشامل (Excel / PDF)
+   5. التصدير الشامل (Excel / PDF)
    ====================================================== */
 const esc = (s) => String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 
@@ -336,115 +457,24 @@ const printPDF = (data, onBlocked) => {
 };
 
 /* ======================================================
-   3. اللوجيك الهندسي الذكي لتغيير الممر بعد عدد كتل في الوردية
+   6. مكونات واجهة مشتركة صغيرة
    ====================================================== */
-const applyPassChange = (list, req, billetWeight, approver, archiveList = []) => {
-  const idx = list.findIndex((s) => String(s.id) === String(req.standId));
-  if (idx < 0) return null;
-  const st = { ...list[idx] };
-  const prev = st.activePass;
-  const shiftKey = `${req.date}__${req.shift}`;
-
-  const existingShiftLog = (archiveList || []).find((l) => l.date === req.date && l.shift === req.shift);
-
-  const base = {
-    id: Date.now() + Math.floor(Math.random() * 1000),
-    standId: st.id,
-    standName: st.name,
-    date: req.date,
-    time: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }),
-    shift: req.shift,
-    productSize: req.productSize,
-    requestedBy: req.requestedBy || approver,
-    approvedBy: approver
-  };
-  let log;
-
-  if (req.kind === 'newRoll') {
-    const total = st.passes.reduce((a, p) => a + (Number(p.tons) || 0), 0);
-    st.entryDate = req.date;
-    st.lastResetDate = req.date;
-    st.activePass = 1;
-    st.accumulatedTons = 0;
-    st.creditedShiftKey = '';
-    st.creditedShiftTons = 0;
-    st.creditedShiftBillets = 0;
-    st.passes = createPassesArray(st.totalPasses, 1, 0);
-    log = {
-      ...base,
-      kind: 'newRoll',
-      fromPass: prev,
-      toPass: 1,
-      tons: total,
-      billetsAtChange: 0,
-      notes: req.notes || 'تركيب درفيل جديد'
-    };
-  } else {
-    const target = Number(req.targetPass) || prev;
-    const billetsOnOldInThisShift = Math.max(0, Number(req.billets) || 0);
-    const tonsOnOldInThisShift = billetsOnOldInThisShift * billetWeight;
-    const currentAccumulated = Number(st.accumulatedTons) || 0;
-
-    let finalOldPassTons = currentAccumulated;
-    let newPassOpeningTons = 0;
-
-    if (billetsOnOldInThisShift > 0) {
-      if (existingShiftLog) {
-        const shiftTotalTons = Number(existingShiftLog.tons) || 0;
-        const tonsBeforeThisShift = Math.max(0, currentAccumulated - shiftTotalTons);
-        finalOldPassTons = tonsBeforeThisShift + tonsOnOldInThisShift;
-        newPassOpeningTons = Math.max(0, shiftTotalTons - tonsOnOldInThisShift);
-        st.creditedShiftKey = '';
-        st.creditedShiftTons = 0;
-        st.creditedShiftBillets = 0;
-      } else {
-        finalOldPassTons = currentAccumulated + tonsOnOldInThisShift;
-        newPassOpeningTons = 0;
-        st.creditedShiftKey = shiftKey;
-        st.creditedShiftTons = (st.creditedShiftKey === shiftKey ? Number(st.creditedShiftTons) || 0 : 0) + tonsOnOldInThisShift;
-        st.creditedShiftBillets = (st.creditedShiftKey === shiftKey ? Number(st.creditedShiftBillets) || 0 : 0) + billetsOnOldInThisShift;
-      }
-    } else {
-      finalOldPassTons = currentAccumulated;
-      newPassOpeningTons = 0;
-      st.creditedShiftKey = '';
-      st.creditedShiftTons = 0;
-      st.creditedShiftBillets = 0;
-    }
-
-    const maxOrder = Math.max(0, ...st.passes.map((p) => p.order || 0));
-    st.passes = st.passes.map((p) => {
-      if (p.passNumber === prev && prev !== target)
-        return { ...p, status: 'used', tons: finalOldPassTons, order: p.order || Math.max(1, maxOrder) };
-      if (p.passNumber === target)
-        return {
-          ...p,
-          status: 'active',
-          tons: newPassOpeningTons,
-          order: prev === target ? p.order || 1 : p.order ? p.order : maxOrder + 1
-        };
-      return p;
-    });
-    st.activePass = target;
-    st.accumulatedTons = newPassOpeningTons;
-    st.lastResetDate = req.date;
-    log = {
-      ...base,
-      kind: 'pass',
-      fromPass: prev,
-      toPass: target,
-      tons: finalOldPassTons,
-      billetsAtChange: billetsOnOldInThisShift,
-      notes:
-        req.notes ||
-        (billetsOnOldInThisShift > 0
-          ? `نقل من ممر ${prev} إلى ممر ${target} بعد سحب ${billetsOnOldInThisShift} كتلة (${tonsOnOldInThisShift.toFixed(1)} طن)`
-          : `نقل من ممر ${prev} إلى ممر ${target}`)
-    };
-  }
-  const newList = [...list];
-  newList[idx] = st;
-  return { list: newList, log };
+const LiveClock = () => {
+  const [time, setTime] = useState(new Date());
+  useEffect(() => {
+    const t = setInterval(() => setTime(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <div className="flex bg-slate-800 border border-slate-700 rounded-lg px-2 py-0.5 items-center gap-1.5 shadow-inner">
+      <Clock className="w-3 h-3 text-blue-400" />
+      <div className="flex flex-col items-center leading-none">
+        <span className="text-[10px] font-mono font-bold text-slate-100" dir="ltr">
+          {time.toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+        </span>
+      </div>
+    </div>
+  );
 };
 
 const Overlay = ({ z = 50, children }) => (
@@ -453,10 +483,10 @@ const Overlay = ({ z = 50, children }) => (
   </div>
 );
 
-/* ======================================================
-   4. المكون الرئيسي لبوابة المصانع (عزل تام لكل مصنع + إرجاع زر الآن وكل الميزات)
-   ====================================================== */
 export default function FactoryPortal({ onBack, factoryConfig }) {
+  /* ------------------------------------------------------------
+     [أ-1] الأساس: الهوية والصلاحيات والنوافذ العامة (الحالة)
+     ------------------------------------------------------------ */
   // معرف قاعدة البيانات المستقل الخاص بهذا المصنع تحديداً
   const appId = factoryConfig?.id || 'al-gioshy-steel-rolls';
   const factoryName = factoryConfig?.name || 'شركة الجيوشي للصلب';
@@ -469,33 +499,56 @@ export default function FactoryPortal({ onBack, factoryConfig }) {
   const [currentUser, setCurrentUser] = useState('none');
   const [loggedEmployeeName, setLoggedEmployeeName] = useState('');
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [loggedEmployeeId, setLoggedEmployeeId] = useState('');
+  // الدخول من الرابط المباشر للموظفين (?via=link): يُخفي زر العودة للبوابة الرئيسية. الدخول العادي من البوابة لا يتأثر
+  const [isLinkEntry] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('via') === 'link' || (!!params.get('f') && window.history.state === null);
+  });
   const [activeTab, setActiveTabState] = useState(getInitialTabFromUrl);
   const [userAuth, setUserAuth] = useState(null);
 
   const isManagerLike = currentUser === 'manager' || currentUser === 'admin';
   const roleLabel =
     loggedEmployeeName || (currentUser === 'tech' ? 'فني تشغيل' : currentUser === 'manager' ? 'مدير المصنع' : 'أدمن');
+  const [isDataLoaded, setIsDataLoaded] = useState(false);
+  const [customLogo, setCustomLogo] = useState('');
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [tempLogoUrl, setTempLogoUrl] = useState('');
 
+  const [adminState, setAdminState] = useState({
+    isMaintenance: false,
+    maintenanceMessage: 'الموقع مغلق حالياً لإجراء تحديثات وصيانة للنظام.. يرجى المحاولة لاحقاً.',
+    techCode: factoryConfig?.techCode || '1111',
+    managerCode: factoryConfig?.managerCode || '2222',
+    adminCode: factoryConfig?.adminCode || '9999',
+    visitsCount: 0,
+    lastVisit: ''
+  });
+  const [loginPrompt, setLoginPrompt] = useState({ isOpen: false, role: '', codeInput: '', error: '' });
+  const [quickPinInput, setQuickPinInput] = useState('');
+  const [quickPinError, setQuickPinError] = useState('');
+  const [visitLogged, setVisitLogged] = useState(false);
+
+  const [modal, setModal] = useState({ isOpen: false, type: '', title: '', message: '', onConfirm: null });
+  const closeBox = () => setModal((m) => ({ ...m, isOpen: false }));
+  const showAlert = (title, message) => setModal({ isOpen: true, type: 'alert', title, message, onConfirm: null });
+  const showConfirm = (title, message, onConfirm) =>
+    setModal({ isOpen: true, type: 'confirm', title, message, onConfirm });
+
+  /* ------------------------------------------------------------
+     [ب-1] الدرفيل والتتبع والتسجيل: الحالة (الستاندات، الورديات، الطلبات، النوافذ)
+     ------------------------------------------------------------ */
   const [stands, setStands] = useState(() => buildInitialStandsForFactory(appId));
   const [shiftBillets, setShiftBillets] = useState('');
   const [productionArchive, setProductionArchive] = useState([]);
   const [passChanges, setPassChanges] = useState([]);
   const [pendingList, setPendingList] = useState([]);
-  const [downtimesList, setDowntimesList] = useState([]);
   const [handoverNotesList, setHandoverNotesList] = useState([]);
-  const [motorsList, setMotorsList] = useState([]);
-  const [tempShiftLogs, setTempShiftLogs] = useState([]);
-  const [staffList, setStaffList] = useState([]);
-  const [recipesList, setRecipesList] = useState([]);
-  const [rollShopList, setRollShopList] = useState([]);
   const [whatsappModalOpen, setWhatsappModalOpen] = useState(false);
-  const [isDataLoaded, setIsDataLoaded] = useState(false);
 
   const [billetWeight, setBilletWeight] = useState(0.75);
   const [selectedProductSize, setSelectedProductSize] = useState('16');
-  const [customLogo, setCustomLogo] = useState('');
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [tempLogoUrl, setTempLogoUrl] = useState('');
 
   const [addStandOpen, setAddStandOpen] = useState(false);
   const [newStandForm, setNewStandForm] = useState({
@@ -509,16 +562,55 @@ export default function FactoryPortal({ onBack, factoryConfig }) {
   });
   const [targetStandsCount, setTargetStandsCount] = useState(12);
 
-  const [downFilterCat, setDownFilterCat] = useState('الكل');
-  const [downSearchQuery, setDownSearchQuery] = useState('');
-  const [downForm, setDownForm] = useState({
-    category: 'كهرباء وكنترول',
-    standName: 'عام / الخط بالكامل',
-    durationMins: '',
-    reason: '',
-    actionTaken: '',
-    techName: ''
+  const [rollModal, setRollModal] = useState({ isOpen: false, standIndex: null, isEditingInfo: false });
+  const [rollEditForm, setRollEditForm] = useState({
+    name: '',
+    rollCode: '',
+    diameter: '',
+    hardness: '',
+    type: '',
+    entryDate: '',
+    totalPasses: 6
   });
+
+  const [resetModal, setResetModal] = useState({ isOpen: false, standIndex: null });
+  const [resetBillets, setResetBillets] = useState('');
+  const [resetNotes, setResetNotes] = useState('');
+  const [resetDateInput, setResetDateInput] = useState('');
+  const [resetShiftInput, setResetShiftInput] = useState('');
+  const [resetTargetPass, setResetTargetPass] = useState(null);
+
+  const [historyModal, setHistoryModal] = useState({ isOpen: false, standId: null });
+  const [approvalsOpen, setApprovalsOpen] = useState(false);
+  const [reqEdits, setReqEdits] = useState({});
+  const [dupModal, setDupModal] = useState(false);
+
+  /* ---------- اليوم الإنتاجي والورديات + زر "الآن" ---------- */
+  const getInitialProductionState = () => {
+    const now = new Date();
+    const hour = now.getHours();
+    const prodDate = new Date(now);
+    if (hour < 8) prodDate.setDate(prodDate.getDate() - 1);
+    const fri = prodDate.getDay() === 5;
+    let initialShift = '';
+    if (fri) initialShift = hour >= 8 && hour < 20 ? SHIFTS_FRIDAY[0] : SHIFTS_FRIDAY[1];
+    else if (hour >= 8 && hour < 16) initialShift = SHIFTS_NORMAL[0];
+    else if (hour >= 16 && hour < 24) initialShift = SHIFTS_NORMAL[1];
+    else initialShift = SHIFTS_NORMAL[2];
+    return { prodDate, initialShift };
+  };
+  const initState = getInitialProductionState();
+  const [currentProdDate, setCurrentProdDate] = useState(initState.prodDate);
+  const [selectedShift, setSelectedShift] = useState(initState.initialShift);
+
+  const isFriday = currentProdDate.getDay() === 5;
+  const availableShifts = shiftsFor(isFriday);
+
+  /* ------------------------------------------------------------
+     [ج-1] المواتير: الحالة (السجل، الحرارة، الصيانة)
+     ------------------------------------------------------------ */
+  const [motorsList, setMotorsList] = useState([]);
+  const [tempShiftLogs, setTempShiftLogs] = useState([]);
 
   const [motorSubView, setMotorSubView] = useState('cards');
   const [motorCategoryFilter, setMotorCategoryFilter] = useState('all');
@@ -554,6 +646,25 @@ export default function FactoryPortal({ onBack, factoryConfig }) {
     status: 'يعمل بحالة ممتازة'
   });
 
+  /* ------------------------------------------------------------
+     [د-1] الباقي: الحالة (الأعطال، ورشة الدرافيل، الوصفات، الموظفين)
+     ------------------------------------------------------------ */
+  const [downtimesList, setDowntimesList] = useState([]);
+  const [staffList, setStaffList] = useState([]);
+  const [recipesList, setRecipesList] = useState([]);
+  const [rollShopList, setRollShopList] = useState([]);
+
+  const [downFilterCat, setDownFilterCat] = useState('الكل');
+  const [downSearchQuery, setDownSearchQuery] = useState('');
+  const [downForm, setDownForm] = useState({
+    category: 'كهرباء وكنترول',
+    standName: 'عام / الخط بالكامل',
+    durationMins: '',
+    reason: '',
+    actionTaken: '',
+    techName: ''
+  });
+
   const [editingRollId, setEditingRollId] = useState(null);
   const [rollFormOpen, setRollFormOpen] = useState(false);
   const [newRollItem, setNewRollItem] = useState({
@@ -570,64 +681,26 @@ export default function FactoryPortal({ onBack, factoryConfig }) {
     name: '',
     pin: '',
     role: 'tech',
-    jobTitle: 'مشغل غرفة تحكم / فني إنتاج'
+    jobTitle: 'مشغل غرفة تحكم / فني إنتاج',
+    access: [...ASSIGNABLE_TAB_KEYS]
   });
 
-  const [newRecipe, setNewRecipe] = useState({
-    name: '',
-    productSize: '16',
-    billetSize: '130×130 مم',
-    furnaceTemp: '1150 °C',
-    finishSpeed: '12 m/s',
-    qtbPressure: '8.0 bar',
-    qtbFlow: '400 m³/h',
-    flyingShearLen: '48 متر',
-    activeStandsCount: 12,
-    notes: ''
-  });
+  /* ------------------------------------------------------------
+     [أ-2] الأساس: التنقل، مزامنة Firebase، الحفظ، الإعدادات، الدخول
+     ------------------------------------------------------------ */
+  /* ---------- صلاحيات الأقسام للموظف الحالي (تتحدث فوراً مع تعديل المدير) ---------- */
+  const loggedEmployee = loggedEmployeeId ? staffList.find((emp) => emp.id === loggedEmployeeId) : null;
+  const allowedTabs = loggedEmployeeId ? (loggedEmployee ? accessFor(loggedEmployee) : []) : null;
+  const canAccessTab = (tab) => !allowedTabs || allowedTabs.includes(tab);
 
-  const [adminState, setAdminState] = useState({
-    isMaintenance: false,
-    maintenanceMessage: 'الموقع مغلق حالياً لإجراء تحديثات وصيانة للنظام.. يرجى المحاولة لاحقاً.',
-    techCode: factoryConfig?.techCode || '1111',
-    managerCode: factoryConfig?.managerCode || '2222',
-    adminCode: factoryConfig?.adminCode || '9999',
-    visitsCount: 0,
-    lastVisit: ''
-  });
-  const [loginPrompt, setLoginPrompt] = useState({ isOpen: false, role: '', codeInput: '', error: '' });
-  const [quickPinInput, setQuickPinInput] = useState('');
-  const [quickPinError, setQuickPinError] = useState('');
-  const [visitLogged, setVisitLogged] = useState(false);
-
-  const [rollModal, setRollModal] = useState({ isOpen: false, standIndex: null, isEditingInfo: false });
-  const [rollEditForm, setRollEditForm] = useState({
-    name: '',
-    rollCode: '',
-    diameter: '',
-    hardness: '',
-    type: '',
-    entryDate: '',
-    totalPasses: 6
-  });
-
-  const [resetModal, setResetModal] = useState({ isOpen: false, standIndex: null });
-  const [resetBillets, setResetBillets] = useState('');
-  const [resetNotes, setResetNotes] = useState('');
-  const [resetDateInput, setResetDateInput] = useState('');
-  const [resetShiftInput, setResetShiftInput] = useState('');
-  const [resetTargetPass, setResetTargetPass] = useState(null);
-
-  const [historyModal, setHistoryModal] = useState({ isOpen: false, standId: null });
-  const [approvalsOpen, setApprovalsOpen] = useState(false);
-  const [reqEdits, setReqEdits] = useState({});
-  const [dupModal, setDupModal] = useState(false);
-
-  const [modal, setModal] = useState({ isOpen: false, type: '', title: '', message: '', onConfirm: null });
-  const closeBox = () => setModal((m) => ({ ...m, isOpen: false }));
-  const showAlert = (title, message) => setModal({ isOpen: true, type: 'alert', title, message, onConfirm: null });
-  const showConfirm = (title, message, onConfirm) =>
-    setModal({ isOpen: true, type: 'confirm', title, message, onConfirm });
+  // تثبيت علامة الرابط المباشر في العنوان حتى لا يعود زر الرجوع بعد تحديث الصفحة
+  useEffect(() => {
+    if (!isLinkEntry) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('via') === 'link') return;
+    params.set('via', 'link');
+    window.history.replaceState(window.history.state, '', `?${params.toString()}`);
+  }, []);
 
   /* ---------- نظام الروابط والتنقل بزر الرجوع في الموبايل ---------- */
   const setActiveTab = (newTab) => {
@@ -665,7 +738,7 @@ export default function FactoryPortal({ onBack, factoryConfig }) {
       const urlTab = params.get('tab');
       if (urlTab) {
         setActiveTabState(urlTab);
-      } else if (params.get('mode') !== 'factory' && onBack) {
+      } else if (params.get('mode') !== 'factory' && onBack && !isLinkEntry) {
         onBack();
       }
     };
@@ -904,44 +977,6 @@ export default function FactoryPortal({ onBack, factoryConfig }) {
     }
   }, [isDataLoaded, userAuth, visitLogged, appId]);
 
-  /* ---------- اليوم الإنتاجي والورديات + زر "الآن" ---------- */
-  const getInitialProductionState = () => {
-    const now = new Date();
-    const hour = now.getHours();
-    const prodDate = new Date(now);
-    if (hour < 8) prodDate.setDate(prodDate.getDate() - 1);
-    const fri = prodDate.getDay() === 5;
-    let initialShift = '';
-    if (fri) initialShift = hour >= 8 && hour < 20 ? SHIFTS_FRIDAY[0] : SHIFTS_FRIDAY[1];
-    else if (hour >= 8 && hour < 16) initialShift = SHIFTS_NORMAL[0];
-    else if (hour >= 16 && hour < 24) initialShift = SHIFTS_NORMAL[1];
-    else initialShift = SHIFTS_NORMAL[2];
-    return { prodDate, initialShift };
-  };
-  const initState = getInitialProductionState();
-  const [currentProdDate, setCurrentProdDate] = useState(initState.prodDate);
-  const [selectedShift, setSelectedShift] = useState(initState.initialShift);
-
-  const isFriday = currentProdDate.getDay() === 5;
-  const availableShifts = shiftsFor(isFriday);
-  useEffect(() => {
-    if (!availableShifts.includes(selectedShift)) setSelectedShift(availableShifts[0]);
-  }, [isFriday]);
-
-  const handleDateChange = (dir) => {
-    const nd = new Date(currentProdDate);
-    nd.setDate(nd.getDate() + dir);
-    setCurrentProdDate(nd);
-    setSelectedShift(shiftsFor(nd.getDay() === 5)[0]);
-  };
-
-  // دالة زر "الآن" للرجوع الفوري للوردية الحالية واليوم الإنتاجي الحالي
-  const handleGoToToday = () => {
-    const s = getInitialProductionState();
-    setCurrentProdDate(new Date(s.prodDate.getTime()));
-    setSelectedShift(s.initialShift);
-  };
-
   /* ---------- الحفظ السحابي الموحد في المسار الخاص بالمصنع فقط ---------- */
   const save = async ({
     stands: s,
@@ -1025,71 +1060,6 @@ export default function FactoryPortal({ onBack, factoryConfig }) {
     setIsSettingsOpen(false);
   };
 
-  const handleResetAllStands = () => {
-    showConfirm('تحذير شديد', 'هل أنت متأكد من تصفير كافة الستاندات والممرات بالكامل والبدء من ممر 1؟', () => {
-      const today = new Date().toLocaleDateString('en-GB');
-      save({
-        stands: stands.map((s) => ({
-          ...s,
-          activePass: 1,
-          accumulatedTons: 0,
-          creditedShiftKey: '',
-          creditedShiftTons: 0,
-          creditedShiftBillets: 0,
-          lastResetDate: today,
-          passes: createPassesArray(s.totalPasses, 1, 0)
-        }))
-      });
-    });
-  };
-
-  const handleClearArchive = () => {
-    showConfirm('تحذير نهائي', 'هل أنت متأكد من مسح جميع بيانات الأرشيف القديمة وسجل الممرات بالكامل لهذا المصنع؟', () => {
-      save({ archive: [], changes: [] });
-      showAlert('تمت العملية', 'تم مسح الأرشيف وسجل الممرات بنجاح.');
-    });
-  };
-
-  /* ---------- إدارة الموظفين والرابط المباشر ---------- */
-  const handleAddStaffMember = (e) => {
-    e.preventDefault();
-    if (!newStaffForm.name.trim() || !newStaffForm.pin.trim()) return;
-    const cleanPin = newStaffForm.pin.trim();
-    if (staffList.some((emp) => emp.pin === cleanPin) || cleanPin === adminState.managerCode) {
-      showAlert('تنبيه', 'هذا الكود مستخدم بالفعل لموظف آخر أو للمدير!');
-      return;
-    }
-    const item = {
-      id: `emp-${Date.now()}`,
-      name: newStaffForm.name.trim(),
-      pin: cleanPin,
-      role: newStaffForm.role,
-      jobTitle: newStaffForm.jobTitle.trim() || 'فني تشغيل',
-      active: true
-    };
-    save({ staff: [item, ...staffList] });
-    setNewStaffForm({ name: '', pin: '', role: 'tech', jobTitle: 'مشغل غرفة تحكم / فني إنتاج' });
-  };
-
-  const handleToggleStaffActive = (id) => {
-    const updated = staffList.map((emp) => (emp.id === id ? { ...emp, active: !emp.active } : emp));
-    save({ staff: updated });
-  };
-
-  const handleDeleteStaff = (id) => {
-    save({ staff: staffList.filter((emp) => emp.id !== id) });
-  };
-
-  const handleCopyEmployeeDirectLink = () => {
-    const baseUrl = window.location.origin + window.location.pathname;
-    const directUrl = `${baseUrl}?mode=factory&f=${encodeURIComponent(appId)}`;
-    navigator.clipboard.writeText(directUrl);
-    showAlert(
-      'تم نسخ رابط الموظفين المباشر',
-      `انسخ هذا الرابط وأرسله للموظفين على الواتساب:\n${directUrl}\n\nعندما يضغط الموظف عليه، سيفتح له شاشة مصنع (${factoryName}) مباشرة ويطلب منه كود الموظف فقط!`
-    );
-  };
-
   const handleQuickPinLogin = (e) => {
     e.preventDefault();
     const code = quickPinInput.trim();
@@ -1123,10 +1093,16 @@ export default function FactoryPortal({ onBack, factoryConfig }) {
         setQuickPinError('النظام في وضع الصيانة حالياً.');
         return;
       }
+      const access = accessFor(foundEmp);
+      if (access && access.length === 0) {
+        setQuickPinError('لم يتم منح هذا الحساب صلاحية دخول أي قسم. تواصل مع مدير المصنع.');
+        return;
+      }
       setIsSuperAdmin(false);
       setLoggedEmployeeName(foundEmp.name);
+      setLoggedEmployeeId(foundEmp.id);
       setCurrentUser(foundEmp.role === 'manager' ? 'manager' : 'tech');
-      setActiveTab('dashboard');
+      setActiveTab(firstTabOf(access));
       setQuickPinInput('');
       return;
     }
@@ -1147,135 +1123,123 @@ export default function FactoryPortal({ onBack, factoryConfig }) {
     setQuickPinError('الكود غير صحيح! تأكد من الكود الشخصي الخاص بك.');
   };
 
-  /* ---------- وظائف وصفات الإنتاج ---------- */
-  const handleApplyRecipe = (recipe) => {
-    setSelectedProductSize(recipe.productSize);
-    const updatedStands = stands.map((s, idx) => ({
-      ...s,
-      isActive: idx < (Number(recipe.activeStandsCount) || stands.length)
-    }));
-    save({ stands: updatedStands, productSize: recipe.productSize });
-    showAlert(
-      'تم تفعيل الوصفة على الخط',
-      `تم ضبط الخط على (${recipe.name}):\n• المقاس: ${recipe.productSize}\n• السرعة المرجعية: ${recipe.finishSpeed}\n• صندوق التبريد QTB: ${recipe.qtbPressure}`
-    );
-  };
+  const closeLogin = () => setLoginPrompt({ isOpen: false, role: '', codeInput: '', error: '' });
 
-  const handleAddRecipe = (e) => {
+  const handleVerifyAccessCode = (e) => {
     e.preventDefault();
-    if (!newRecipe.name.trim()) return;
-    const item = { id: `rec-${Date.now()}`, ...newRecipe };
-    save({ recipes: [item, ...recipesList] });
-    setNewRecipe({
-      name: '',
-      productSize: '16',
-      billetSize: '130×130 مم',
-      furnaceTemp: '1150 °C',
-      finishSpeed: '12 m/s',
-      qtbPressure: '8.0 bar',
-      qtbFlow: '400 m³/h',
-      flyingShearLen: '48 متر',
-      activeStandsCount: stands.length,
-      notes: ''
-    });
-  };
-
-  const handleDeleteRecipe = (id) => {
-    save({ recipes: recipesList.filter((r) => r.id !== id) });
-  };
-
-  /* ---------- وظائف رادار الدرافيل والمخرطة ---------- */
-  const handleSaveRollShopItem = (e) => {
-    e.preventDefault();
-    if (!newRollItem.code.trim()) return;
-
-    if (editingRollId) {
-      const updated = rollShopList.map((r) =>
-        r.id === editingRollId
-          ? {
-              ...r,
-              code: newRollItem.code.trim().toUpperCase(),
-              standName: newRollItem.standName,
-              material: newRollItem.material,
-              maxDia: Number(newRollItem.maxDia) || 400,
-              currentDia: Number(newRollItem.currentDia) || 390,
-              minScrapDia: Number(newRollItem.minScrapDia) || 340,
-              status: newRollItem.status || r.status
-            }
-          : r
-      );
-      save({ rollShop: updated });
-      setEditingRollId(null);
-      setRollFormOpen(false);
-    } else {
-      const item = {
-        id: `rs-${Date.now()}`,
-        code: newRollItem.code.trim().toUpperCase(),
-        standName: newRollItem.standName,
-        material: newRollItem.material,
-        maxDia: Number(newRollItem.maxDia) || 400,
-        currentDia: Number(newRollItem.currentDia) || 390,
-        minScrapDia: Number(newRollItem.minScrapDia) || 340,
-        redressCount: 0,
-        totalTonsRolled: 0,
-        status: newRollItem.status || 'جاهز بالورشة (جديد)',
-        lastRedressDate: new Date().toLocaleDateString('en-GB')
-      };
-      save({ rollShop: [item, ...rollShopList] });
-      setRollFormOpen(false);
+    const { role, codeInput } = loginPrompt;
+    const code = codeInput.trim();
+    if (code === adminState.adminCode) {
+      setIsSuperAdmin(true);
+      setLoggedEmployeeName('م. بسام (Admin)');
+      setCurrentUser(role === 'admin' ? 'admin' : role);
+      setActiveTab('dashboard');
+      closeLogin();
+      return;
     }
-    setNewRollItem({
-      code: '',
-      standName: 'ستاند 1',
-      material: 'SG Iron / HSS',
-      maxDia: 400,
-      currentDia: 390,
-      minScrapDia: 340,
-      status: 'جاهز بالورشة (جديد)'
-    });
+    const foundEmp = staffList.find((emp) => emp.pin === code && emp.active);
+    if (foundEmp && (foundEmp.role === role || foundEmp.role === 'manager')) {
+      const access = accessFor(foundEmp);
+      if (access && access.length === 0) {
+        setLoginPrompt((p) => ({ ...p, error: 'لم يتم منح هذا الحساب صلاحية دخول أي قسم.' }));
+        return;
+      }
+      setIsSuperAdmin(false);
+      setLoggedEmployeeName(foundEmp.name);
+      setLoggedEmployeeId(foundEmp.id);
+      setCurrentUser(foundEmp.role);
+      setActiveTab(firstTabOf(access));
+      closeLogin();
+      return;
+    }
+    const ok = (role === 'tech' && code === adminState.techCode) || (role === 'manager' && code === adminState.managerCode);
+    if (!ok) {
+      setLoginPrompt((p) => ({ ...p, error: 'الكود غير صحيح!' }));
+      return;
+    }
+    setIsSuperAdmin(false);
+    setLoggedEmployeeName(role === 'manager' ? 'مدير المصنع' : 'فني الإنتاج');
+    setCurrentUser(role);
+    setActiveTab('dashboard');
+    closeLogin();
   };
 
-  const handleStartEditRollItem = (roll) => {
-    setEditingRollId(roll.id);
-    setNewRollItem({
-      code: roll.code,
-      standName: roll.standName,
-      material: roll.material,
-      maxDia: roll.maxDia,
-      currentDia: roll.currentDia,
-      minScrapDia: roll.minScrapDia,
-      status: roll.status
-    });
-    setRollFormOpen(true);
+  const handleLogout = () => {
+    setCurrentUser('none');
+    setLoggedEmployeeName('');
+    setLoggedEmployeeId('');
+    setIsSuperAdmin(false);
+    setActiveTab('dashboard');
   };
 
-  const handleDeleteRollShopItem = (id) => {
-    showConfirm('حذف طقم الدرافيل', 'هل أنت متأكد من حذف هذا الدرفيل نهائياً من سجل الورشة؟', () => {
-      save({ rollShop: rollShopList.filter((r) => r.id !== id) });
-    });
+  const loginModalJSX = loginPrompt.isOpen && (
+    <Overlay z={90}>
+      <form onSubmit={handleVerifyAccessCode} className="bg-slate-800 border border-slate-600 rounded-xl max-w-xs w-full p-5 shadow-2xl flex flex-col gap-3 text-white">
+        <div className="flex justify-between items-center border-b border-slate-700 pb-2">
+          <h3 className="font-bold text-sm flex items-center gap-1.5">
+            <Key className="w-4 h-4 text-blue-400" /> كود الدخول
+          </h3>
+          <button type="button" onClick={closeLogin} className="text-slate-400 hover:text-white">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <input
+          type="password"
+          autoFocus
+          value={loginPrompt.codeInput}
+          onChange={(e) => setLoginPrompt((p) => ({ ...p, codeInput: e.target.value, error: '' }))}
+          placeholder="أدخل الكود الشخصي..."
+          className="w-full bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-center font-mono text-lg tracking-widest text-white outline-none"
+        />
+        {loginPrompt.error && (
+          <p className="text-red-400 text-xs font-bold text-center bg-red-950/50 border border-red-800 p-1.5 rounded">
+            {loginPrompt.error}
+          </p>
+        )}
+        <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg text-sm">
+          تأكيد الدخول
+        </button>
+      </form>
+    </Overlay>
+  );
+
+  /* ------------------------------------------------------------
+     [ب-2] الدرفيل والتتبع والتسجيل: الدوال والمشتقات
+     ------------------------------------------------------------ */
+  useEffect(() => {
+    if (!availableShifts.includes(selectedShift)) setSelectedShift(availableShifts[0]);
+  }, [isFriday]);
+
+  const handleDateChange = (dir) => {
+    const nd = new Date(currentProdDate);
+    nd.setDate(nd.getDate() + dir);
+    setCurrentProdDate(nd);
+    setSelectedShift(shiftsFor(nd.getDay() === 5)[0]);
   };
 
-  const handleRecordRedressing = (roll) => {
-    const mmRemoved = prompt(
-      `كم ملليمتر تم خرطها من قطر الدرفيل (${roll.code}) في المخرطة؟ (القطر الحالي: ${roll.currentDia} مم)`,
-      '4'
-    );
-    if (mmRemoved === null) return;
-    const cut = Number(mmRemoved) || 0;
-    if (cut <= 0) return;
-    const nextDia = Math.max(0, roll.currentDia - cut);
-    const updated = rollShopList.map((r) =>
-      r.id === roll.id
-        ? {
-            ...r,
-            currentDia: nextDia,
-            redressCount: (r.redressCount || 0) + 1,
-            status: nextDia <= r.minScrapDia ? 'تكهين (وصل لحد الخردة)' : 'تمت الخراطة وجاهز للتركيب',
-            lastRedressDate: new Date().toLocaleDateString('en-GB')
-          }
-        : r
-    );
-    save({ rollShop: updated });
+  // دالة زر "الآن" للرجوع الفوري للوردية الحالية واليوم الإنتاجي الحالي
+  const handleGoToToday = () => {
+    const s = getInitialProductionState();
+    setCurrentProdDate(new Date(s.prodDate.getTime()));
+    setSelectedShift(s.initialShift);
+  };
+
+  const handleResetAllStands = () => {
+    showConfirm('تحذير شديد', 'هل أنت متأكد من تصفير كافة الستاندات والممرات بالكامل والبدء من ممر 1؟', () => {
+      const today = new Date().toLocaleDateString('en-GB');
+      save({
+        stands: stands.map((s) => ({
+          ...s,
+          activePass: 1,
+          accumulatedTons: 0,
+          creditedShiftKey: '',
+          creditedShiftTons: 0,
+          creditedShiftBillets: 0,
+          lastResetDate: today,
+          passes: createPassesArray(s.totalPasses, 1, 0)
+        }))
+      });
+    });
   };
 
   /* ---------- ملخص الوردية السريع للواتساب ---------- */
@@ -1519,19 +1483,6 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
     );
   };
 
-  const handleDirectPassStatusChange = (standIdx, passNum, newStatus, customTons) => {
-    const ns = [...stands];
-    const st = { ...ns[standIdx] };
-    const maxOrder = Math.max(0, ...st.passes.map((p) => p.order || 0));
-    st.passes = st.passes.map((p) => {
-      if (p.passNumber !== passNum) return p;
-      if (newStatus === 'unused') return { ...p, status: 'unused', tons: 0, order: null };
-      return { ...p, status: 'used', tons: customTons !== undefined ? Number(customTons) : p.tons, order: p.order || maxOrder + 1 };
-    });
-    ns[standIdx] = st;
-    save({ stands: ns });
-  };
-
   const initiateResetStand = (index, preselectedPassNum = null, e = null) => {
     if (e) e.stopPropagation();
     const st = stands[index];
@@ -1550,13 +1501,6 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
     }
     window.history.pushState({ modal: 'reset' }, '');
     setResetModal({ isOpen: true, standIndex: index });
-  };
-
-  const handleResetDateChange = (e) => {
-    const nd = e.target.value;
-    setResetDateInput(nd);
-    const valid = shiftsFor(new Date(nd).getDay() === 5);
-    if (!valid.includes(resetShiftInput)) setResetShiftInput(valid[0]);
   };
 
   const confirmResetStand = () => {
@@ -1687,33 +1631,13 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
     setShiftBillets('');
   };
 
-  /* ---------- تسجيل التوقفات والأعطال ---------- */
-  const handleAddDowntime = (e) => {
-    e.preventDefault();
-    if (!downForm.reason.trim() || !downForm.durationMins) return;
-    const item = {
-      id: Date.now(),
-      date: currentDateStr,
-      dayName: currentProdDate.toLocaleDateString('ar-EG', { weekday: 'long' }),
-      shift: selectedShift,
-      time: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }),
-      category: downForm.category,
-      standName: downForm.standName,
-      durationMins: Number(downForm.durationMins) || 0,
-      reason: downForm.reason.trim(),
-      actionTaken: downForm.actionTaken.trim(),
-      techName: downForm.techName.trim() || roleLabel,
-      productSize: selectedProductSize,
-      by: roleLabel
-    };
-    save({ downtimes: [item, ...downtimesList] });
-    setDownForm({ ...downForm, durationMins: '', reason: '', actionTaken: '' });
-  };
+  const pendingCount = pendingList.filter((r) => r.status === 'pending').length;
+  const selectedRollStand = rollModal.standIndex !== null ? stands[rollModal.standIndex] : null;
+  const resetStandObj = resetModal.standIndex !== null ? stands[resetModal.standIndex] : null;
 
-  const handleDeleteDowntime = (id) => {
-    save({ downtimes: downtimesList.filter((d) => d.id !== id) });
-  };
-
+  /* ------------------------------------------------------------
+     [ج-2] المواتير: الدوال والمشتقات
+     ------------------------------------------------------------ */
   /* ---------- سجل المواتير + تسجيل حرارة الوردية + الصيانة ---------- */
   const handleAddMotor = (e) => {
     e.preventDefault();
@@ -1841,46 +1765,237 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
     });
   };
 
-  const closeLogin = () => setLoginPrompt({ isOpen: false, role: '', codeInput: '', error: '' });
+  const filteredMotors = motorsList.filter((m) => {
+    const matchCat =
+      motorCategoryFilter === 'all'
+        ? true
+        : motorCategoryFilter === 'aux'
+        ? m.category === 'aux'
+        : m.category !== 'aux';
+    const q = motorSearchId.trim().toLowerCase();
+    const matchSearch =
+      !q ||
+      (m.code && m.code.toLowerCase().includes(q)) ||
+      (m.locationName && m.locationName.toLowerCase().includes(q)) ||
+      (m.brand && m.brand.toLowerCase().includes(q));
+    return matchCat && matchSearch;
+  });
 
-  const handleVerifyAccessCode = (e) => {
+  /* ------------------------------------------------------------
+     [د-2] الباقي: الأعطال، ورشة الدرافيل، الوصفات، الموظفين، الأرشيف والتقارير
+     ------------------------------------------------------------ */
+  /* ---------- تسجيل التوقفات والأعطال ---------- */
+  const handleAddDowntime = (e) => {
     e.preventDefault();
-    const { role, codeInput } = loginPrompt;
-    const code = codeInput.trim();
-    if (code === adminState.adminCode) {
-      setIsSuperAdmin(true);
-      setLoggedEmployeeName('م. بسام (Admin)');
-      setCurrentUser(role === 'admin' ? 'admin' : role);
-      setActiveTab('dashboard');
-      closeLogin();
-      return;
-    }
-    const foundEmp = staffList.find((emp) => emp.pin === code && emp.active);
-    if (foundEmp && (foundEmp.role === role || foundEmp.role === 'manager')) {
-      setIsSuperAdmin(false);
-      setLoggedEmployeeName(foundEmp.name);
-      setCurrentUser(foundEmp.role);
-      setActiveTab('dashboard');
-      closeLogin();
-      return;
-    }
-    const ok = (role === 'tech' && code === adminState.techCode) || (role === 'manager' && code === adminState.managerCode);
-    if (!ok) {
-      setLoginPrompt((p) => ({ ...p, error: 'الكود غير صحيح!' }));
-      return;
-    }
-    setIsSuperAdmin(false);
-    setLoggedEmployeeName(role === 'manager' ? 'مدير المصنع' : 'فني الإنتاج');
-    setCurrentUser(role);
-    setActiveTab('dashboard');
-    closeLogin();
+    if (!downForm.reason.trim() || !downForm.durationMins) return;
+    const item = {
+      id: Date.now(),
+      date: currentDateStr,
+      dayName: currentProdDate.toLocaleDateString('ar-EG', { weekday: 'long' }),
+      shift: selectedShift,
+      time: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }),
+      category: downForm.category,
+      standName: downForm.standName,
+      durationMins: Number(downForm.durationMins) || 0,
+      reason: downForm.reason.trim(),
+      actionTaken: downForm.actionTaken.trim(),
+      techName: downForm.techName.trim() || roleLabel,
+      productSize: selectedProductSize,
+      by: roleLabel
+    };
+    save({ downtimes: [item, ...downtimesList] });
+    setDownForm({ ...downForm, durationMins: '', reason: '', actionTaken: '' });
   };
 
-  const handleLogout = () => {
-    setCurrentUser('none');
-    setLoggedEmployeeName('');
-    setIsSuperAdmin(false);
-    setActiveTab('dashboard');
+  const handleDeleteDowntime = (id) => {
+    save({ downtimes: downtimesList.filter((d) => d.id !== id) });
+  };
+
+  const filteredDowntimes = downtimesList.filter((d) => {
+    const matchCat = downFilterCat === 'الكل' || d.category === downFilterCat;
+    const q = downSearchQuery.trim().toLowerCase();
+    const matchSearch =
+      !q ||
+      (d.reason && d.reason.toLowerCase().includes(q)) ||
+      (d.standName && d.standName.toLowerCase().includes(q)) ||
+      (d.techName && d.techName.toLowerCase().includes(q));
+    return matchCat && matchSearch;
+  });
+
+  /* ---------- وظائف رادار الدرافيل والمخرطة ---------- */
+  const handleSaveRollShopItem = (e) => {
+    e.preventDefault();
+    if (!newRollItem.code.trim()) return;
+
+    if (editingRollId) {
+      const updated = rollShopList.map((r) =>
+        r.id === editingRollId
+          ? {
+              ...r,
+              code: newRollItem.code.trim().toUpperCase(),
+              standName: newRollItem.standName,
+              material: newRollItem.material,
+              maxDia: Number(newRollItem.maxDia) || 400,
+              currentDia: Number(newRollItem.currentDia) || 390,
+              minScrapDia: Number(newRollItem.minScrapDia) || 340,
+              status: newRollItem.status || r.status
+            }
+          : r
+      );
+      save({ rollShop: updated });
+      setEditingRollId(null);
+      setRollFormOpen(false);
+    } else {
+      const item = {
+        id: `rs-${Date.now()}`,
+        code: newRollItem.code.trim().toUpperCase(),
+        standName: newRollItem.standName,
+        material: newRollItem.material,
+        maxDia: Number(newRollItem.maxDia) || 400,
+        currentDia: Number(newRollItem.currentDia) || 390,
+        minScrapDia: Number(newRollItem.minScrapDia) || 340,
+        redressCount: 0,
+        totalTonsRolled: 0,
+        status: newRollItem.status || 'جاهز بالورشة (جديد)',
+        lastRedressDate: new Date().toLocaleDateString('en-GB')
+      };
+      save({ rollShop: [item, ...rollShopList] });
+      setRollFormOpen(false);
+    }
+    setNewRollItem({
+      code: '',
+      standName: 'ستاند 1',
+      material: 'SG Iron / HSS',
+      maxDia: 400,
+      currentDia: 390,
+      minScrapDia: 340,
+      status: 'جاهز بالورشة (جديد)'
+    });
+  };
+
+  const handleStartEditRollItem = (roll) => {
+    setEditingRollId(roll.id);
+    setNewRollItem({
+      code: roll.code,
+      standName: roll.standName,
+      material: roll.material,
+      maxDia: roll.maxDia,
+      currentDia: roll.currentDia,
+      minScrapDia: roll.minScrapDia,
+      status: roll.status
+    });
+    setRollFormOpen(true);
+  };
+
+  const handleDeleteRollShopItem = (id) => {
+    showConfirm('حذف طقم الدرافيل', 'هل أنت متأكد من حذف هذا الدرفيل نهائياً من سجل الورشة؟', () => {
+      save({ rollShop: rollShopList.filter((r) => r.id !== id) });
+    });
+  };
+
+  const handleRecordRedressing = (roll) => {
+    const mmRemoved = prompt(
+      `كم ملليمتر تم خرطها من قطر الدرفيل (${roll.code}) في المخرطة؟ (القطر الحالي: ${roll.currentDia} مم)`,
+      '4'
+    );
+    if (mmRemoved === null) return;
+    const cut = Number(mmRemoved) || 0;
+    if (cut <= 0) return;
+    const nextDia = Math.max(0, roll.currentDia - cut);
+    const updated = rollShopList.map((r) =>
+      r.id === roll.id
+        ? {
+            ...r,
+            currentDia: nextDia,
+            redressCount: (r.redressCount || 0) + 1,
+            status: nextDia <= r.minScrapDia ? 'تكهين (وصل لحد الخردة)' : 'تمت الخراطة وجاهز للتركيب',
+            lastRedressDate: new Date().toLocaleDateString('en-GB')
+          }
+        : r
+    );
+    save({ rollShop: updated });
+  };
+
+  /* ---------- وظائف وصفات الإنتاج ---------- */
+  const handleApplyRecipe = (recipe) => {
+    setSelectedProductSize(recipe.productSize);
+    const updatedStands = stands.map((s, idx) => ({
+      ...s,
+      isActive: idx < (Number(recipe.activeStandsCount) || stands.length)
+    }));
+    save({ stands: updatedStands, productSize: recipe.productSize });
+    showAlert(
+      'تم تفعيل الوصفة على الخط',
+      `تم ضبط الخط على (${recipe.name}):\n• المقاس: ${recipe.productSize}\n• السرعة المرجعية: ${recipe.finishSpeed}\n• صندوق التبريد QTB: ${recipe.qtbPressure}`
+    );
+  };
+
+  /* ---------- إدارة الموظفين والرابط المباشر ---------- */
+  const handleAddStaffMember = (e) => {
+    e.preventDefault();
+    if (!newStaffForm.name.trim() || !newStaffForm.pin.trim()) return;
+    if (newStaffForm.role !== 'manager' && newStaffForm.access.length === 0) {
+      showAlert('تنبيه', 'اختر قسماً واحداً على الأقل يدخل عليه هذا الموظف.');
+      return;
+    }
+    const cleanPin = newStaffForm.pin.trim();
+    if (staffList.some((emp) => emp.pin === cleanPin) || cleanPin === adminState.managerCode) {
+      showAlert('تنبيه', 'هذا الكود مستخدم بالفعل لموظف آخر أو للمدير!');
+      return;
+    }
+    const item = {
+      id: `emp-${Date.now()}`,
+      name: newStaffForm.name.trim(),
+      pin: cleanPin,
+      role: newStaffForm.role,
+      jobTitle: newStaffForm.jobTitle.trim() || 'فني تشغيل',
+      access: newStaffForm.role === 'manager' ? [...ASSIGNABLE_TAB_KEYS] : newStaffForm.access,
+      active: true
+    };
+    save({ staff: [item, ...staffList] });
+    setNewStaffForm({ name: '', pin: '', role: 'tech', jobTitle: 'مشغل غرفة تحكم / فني إنتاج', access: [...ASSIGNABLE_TAB_KEYS] });
+  };
+
+  const handleToggleStaffActive = (id) => {
+    const updated = staffList.map((emp) => (emp.id === id ? { ...emp, active: !emp.active } : emp));
+    save({ staff: updated });
+  };
+
+  // تعديل الأقسام المسموحة لموظف موجود (يسري فوراً حتى لو كان داخل النظام)
+  const handleToggleStaffTab = (id, tab) => {
+    const updated = staffList.map((emp) => {
+      if (emp.id !== id) return emp;
+      const current = accessFor(emp) || ASSIGNABLE_TAB_KEYS;
+      const next = current.includes(tab) ? current.filter((k) => k !== tab) : [...current, tab];
+      return { ...emp, access: next };
+    });
+    const target = updated.find((emp) => emp.id === id);
+    if (target && target.access.length === 0) {
+      showAlert('تنبيه', 'يجب أن يبقى للموظف قسم واحد على الأقل. لإيقاف دخوله بالكامل استخدم زر "إيقاف".');
+      return;
+    }
+    save({ staff: updated });
+  };
+
+  const handleDeleteStaff = (id) => {
+    save({ staff: staffList.filter((emp) => emp.id !== id) });
+  };
+
+  const handleCopyEmployeeDirectLink = () => {
+    const baseUrl = window.location.origin + window.location.pathname;
+    const directUrl = `${baseUrl}?mode=factory&f=${encodeURIComponent(appId)}&via=link`;
+    navigator.clipboard.writeText(directUrl);
+    showAlert(
+      'تم نسخ رابط الموظفين المباشر',
+      `انسخ هذا الرابط وأرسله للموظفين على الواتساب:\n${directUrl}\n\nعندما يضغط الموظف عليه، سيفتح له شاشة مصنع (${factoryName}) مباشرة ويطلب منه كود الموظف فقط، وبدون زر العودة للبوابة الرئيسية. كل موظف يدخل الأقسام المحددة لكوده فقط.`
+    );
+  };
+
+  const handleClearArchive = () => {
+    showConfirm('تحذير نهائي', 'هل أنت متأكد من مسح جميع بيانات الأرشيف القديمة وسجل الممرات بالكامل لهذا المصنع؟', () => {
+      save({ archive: [], changes: [] });
+      showAlert('تمت العملية', 'تم مسح الأرشيف وسجل الممرات بنجاح.');
+    });
   };
 
   /* ---------- تجميع الأرشيف والتقارير ---------- */
@@ -1944,40 +2059,7 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
     </div>
   );
 
-  const pendingCount = pendingList.filter((r) => r.status === 'pending').length;
-
-  const loginModalJSX = loginPrompt.isOpen && (
-    <Overlay z={90}>
-      <form onSubmit={handleVerifyAccessCode} className="bg-slate-800 border border-slate-600 rounded-xl max-w-xs w-full p-5 shadow-2xl flex flex-col gap-3 text-white">
-        <div className="flex justify-between items-center border-b border-slate-700 pb-2">
-          <h3 className="font-bold text-sm flex items-center gap-1.5">
-            <Key className="w-4 h-4 text-blue-400" /> كود الدخول
-          </h3>
-          <button type="button" onClick={closeLogin} className="text-slate-400 hover:text-white">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-        <input
-          type="password"
-          autoFocus
-          value={loginPrompt.codeInput}
-          onChange={(e) => setLoginPrompt((p) => ({ ...p, codeInput: e.target.value, error: '' }))}
-          placeholder="أدخل الكود الشخصي..."
-          className="w-full bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-center font-mono text-lg tracking-widest text-white outline-none"
-        />
-        {loginPrompt.error && (
-          <p className="text-red-400 text-xs font-bold text-center bg-red-950/50 border border-red-800 p-1.5 rounded">
-            {loginPrompt.error}
-          </p>
-        )}
-        <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg text-sm">
-          تأكيد الدخول
-        </button>
-      </form>
-    </Overlay>
-  );
-
-  /* ---------- شاشة إدخال الكود الشخصي للموظف/المدير ---------- */
+  /* ---------- شاشة الدخول (قبل اختيار المستخدم) ---------- */
   if (currentUser === 'none') {
     return (
       <div className="flex flex-col items-center justify-center min-h-dvh bg-slate-50 text-slate-900 p-3.5 sm:p-6 select-none font-sans" dir="rtl">
@@ -2037,7 +2119,7 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
             </form>
           )}
 
-          {onBack && (
+          {onBack && !isLinkEntry && (
             <button
               onClick={onBack}
               className="w-full pt-1 text-slate-400 hover:text-slate-700 text-xs font-bold flex items-center justify-center gap-1"
@@ -2050,40 +2132,9 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
     );
   }
 
-  const isResetDateFriday = resetDateInput ? new Date(resetDateInput).getDay() === 5 : false;
-  const resetModalShifts = shiftsFor(isResetDateFriday);
-  const selectedRollStand = rollModal.standIndex !== null ? stands[rollModal.standIndex] : null;
-  const resetStandObj = resetModal.standIndex !== null ? stands[resetModal.standIndex] : null;
-
-  const filteredMotors = motorsList.filter((m) => {
-    const matchCat =
-      motorCategoryFilter === 'all'
-        ? true
-        : motorCategoryFilter === 'aux'
-        ? m.category === 'aux'
-        : m.category !== 'aux';
-    const q = motorSearchId.trim().toLowerCase();
-    const matchSearch =
-      !q ||
-      (m.code && m.code.toLowerCase().includes(q)) ||
-      (m.locationName && m.locationName.toLowerCase().includes(q)) ||
-      (m.brand && m.brand.toLowerCase().includes(q));
-    return matchCat && matchSearch;
-  });
-
-  const filteredDowntimes = downtimesList.filter((d) => {
-    const matchCat = downFilterCat === 'الكل' || d.category === downFilterCat;
-    const q = downSearchQuery.trim().toLowerCase();
-    const matchSearch =
-      !q ||
-      (d.reason && d.reason.toLowerCase().includes(q)) ||
-      (d.standName && d.standName.toLowerCase().includes(q)) ||
-      (d.techName && d.techName.toLowerCase().includes(q));
-    return matchCat && matchSearch;
-  });
-
   return (
     <div className="min-h-dvh bg-slate-100 text-slate-900 font-sans flex flex-col p-1.5 sm:p-2.5 gap-2" dir="rtl">
+      {/* ################ [أ-3] الأساس: النوافذ العامة ################ */}
       {modal.isOpen && (
         <Overlay z={100}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden border border-slate-200">
@@ -2159,6 +2210,7 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
         </Overlay>
       )}
 
+      {/* ################ [ب-3] الدرفيل والتتبع والتسجيل: النوافذ ################ */}
       {whatsappModalOpen && (
         <Overlay z={95}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-300 flex flex-col max-h-[90vh]">
@@ -2734,6 +2786,7 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
         </Overlay>
       )}
 
+      {/* ################ [ج-3] المواتير: النوافذ ################ */}
       {/* ===== نافذة ملف وسجل صيانة الموتور ===== */}
       {selectedMotorForLog && (
         <Overlay z={85}>
@@ -2856,6 +2909,7 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
         </Overlay>
       )}
 
+      {/* ################ [أ-4] الأساس: الهيدر وشريط التبويبات ################ */}
       {/* ===== الهيدر العلوي المدمج مع الساعة الحية وزر الشعار ===== */}
       <nav className="bg-slate-900 text-white p-2 sm:p-2.5 rounded-2xl flex flex-col gap-2 shadow-md select-none">
         <div className="flex justify-between items-center gap-1.5">
@@ -2880,16 +2934,18 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
           </div>
 
           <div className="flex items-center gap-1 shrink-0">
-            <button
-              onClick={() => {
-                window.history.pushState({ modal: 'whatsapp' }, '');
-                setWhatsappModalOpen(true);
-              }}
-              className="bg-green-600 hover:bg-green-500 text-white px-2 py-1.5 rounded-xl text-[10px] font-bold flex items-center gap-1"
-            >
-              <Share2 className="w-3 h-3" />
-              <span>واتساب</span>
-            </button>
+            {canAccessTab('dashboard') && (
+              <button
+                onClick={() => {
+                  window.history.pushState({ modal: 'whatsapp' }, '');
+                  setWhatsappModalOpen(true);
+                }}
+                className="bg-green-600 hover:bg-green-500 text-white px-2 py-1.5 rounded-xl text-[10px] font-bold flex items-center gap-1"
+              >
+                <Share2 className="w-3 h-3" />
+                <span>واتساب</span>
+              </button>
+            )}
             {isManagerLike && (
               <button
                 onClick={handleCopyEmployeeDirectLink}
@@ -2936,33 +2992,40 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
 
         {/* شريط التبويبات الأفقي الناعم للموبايل */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 no-scrollbar">
-          {[
-            ['dashboard', 'الممرات والتشغيل', TrendingUp],
-            ['motors', 'حالة وحرارة المواتير', Cpu],
-            ['downtime', 'أعطال الوردية', Wrench],
-            ['rollshop', 'ورشة الدرافيل', Disc],
-            ['recipes', 'وصفات المقاسات', BookMarked],
-            ...(isManagerLike ? [['staff', 'الموظفين والأكواد', Users]] : []),
-            ['archive', 'الأرشيف والتقارير', Archive]
-          ].map(([k, label, Icon]) => (
-            <button
-              key={k}
-              onClick={() => setActiveTab(k)}
-              className={`px-3 py-1.5 text-[11px] font-bold rounded-xl flex items-center gap-1.5 whitespace-nowrap shrink-0 transition-all ${
-                activeTab === k
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'bg-slate-800/90 text-slate-300 hover:bg-slate-800'
-              }`}
-            >
-              <Icon className="w-3.5 h-3.5 shrink-0" />
-              <span>{label}</span>
-            </button>
-          ))}
+          {FACTORY_TABS.filter(([k]) => k !== 'staff' || isManagerLike).map(([k, label, Icon]) => {
+            const locked = !canAccessTab(k);
+            return (
+              <button
+                key={k}
+                onClick={() => (locked ? showAlert('قسم مغلق', 'ليس لديك صلاحية دخول هذا القسم. تواصل مع مدير المصنع.') : setActiveTab(k))}
+                className={`px-3 py-1.5 text-[11px] font-bold rounded-xl flex items-center gap-1.5 whitespace-nowrap shrink-0 transition-all ${
+                  activeTab === k
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : locked
+                      ? 'bg-slate-800/40 text-slate-500 cursor-not-allowed'
+                      : 'bg-slate-800/90 text-slate-300 hover:bg-slate-800'
+                }`}
+              >
+                {locked ? <Lock className="w-3.5 h-3.5 shrink-0" /> : <Icon className="w-3.5 h-3.5 shrink-0" />}
+                <span>{label}</span>
+              </button>
+            );
+          })}
         </div>
       </nav>
 
+      {/* صفحة القسم المغلق: تظهر عند محاولة الوصول لقسم غير مسموح (من الرابط أو زر الرجوع) */}
+      {!canAccessTab(activeTab) && (
+        <div className="flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col items-center justify-center gap-2 text-center">
+          <Lock className="w-8 h-8 text-slate-400" />
+          <h2 className="font-black text-sm text-slate-800">هذا القسم مغلق</h2>
+          <p className="text-xs text-slate-500 font-bold">ليس لديك صلاحية دخول هذا القسم. تواصل مع مدير المصنع.</p>
+        </div>
+      )}
+
+      {/* ################ [ب-4] الدرفيل والتتبع والتسجيل: صفحة الممرات والتشغيل ################ */}
       {/* ===== 1. لوحة التشغيل والممرات (مع إرجاع زر "الآن" وكل أزرار التحكم) ===== */}
-      {activeTab === 'dashboard' && (
+      {activeTab === 'dashboard' && canAccessTab('dashboard') && (
         <div className="flex flex-col gap-2 flex-1">
           {isManagerLike && (
             <div className="bg-white p-2.5 sm:p-3 rounded-2xl border border-slate-200 shadow-sm space-y-2">
@@ -3171,8 +3234,9 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
         </div>
       )}
 
+      {/* ################ [ج-4] المواتير: صفحة حالة وحرارة المواتير ################ */}
       {/* ===== 2. صفحة متابعة حالة وحرارة المواتير ===== */}
-      {activeTab === 'motors' && (
+      {activeTab === 'motors' && canAccessTab('motors') && (
         <div className="flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 p-2.5 sm:p-4 space-y-3">
           <div className="bg-slate-900 text-white p-3 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2.5">
             <div>
@@ -3520,8 +3584,9 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
         </div>
       )}
 
+      {/* ################ [د-4] الباقي: باقي الصفحات ################ */}
       {/* ===== 3. صفحة أعطال وتوقفات الوردية ===== */}
-      {activeTab === 'downtime' && (
+      {activeTab === 'downtime' && canAccessTab('downtime') && (
         <div className="flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 p-2.5 sm:p-4 space-y-3">
           <div className="bg-slate-900 text-white p-3 rounded-2xl flex flex-wrap justify-between items-center gap-2">
             <h2 className="font-black text-xs sm:text-base flex items-center gap-1.5">
@@ -3643,7 +3708,7 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
       )}
 
       {/* ===== 4. رادار طواقم الدرافيل وورشة الخراطة ===== */}
-      {activeTab === 'rollshop' && (
+      {activeTab === 'rollshop' && canAccessTab('rollshop') && (
         <div className="flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 p-2.5 sm:p-4 space-y-3">
           <div className="bg-slate-900 text-white p-3 rounded-2xl flex justify-between items-center gap-2">
             <h2 className="font-black text-xs sm:text-base flex items-center gap-1.5">
@@ -3773,7 +3838,7 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
       )}
 
       {/* ===== 5. كتالوج وصفات الإنتاج الجاهزة ===== */}
-      {activeTab === 'recipes' && (
+      {activeTab === 'recipes' && canAccessTab('recipes') && (
         <div className="flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 p-2.5 sm:p-4 space-y-3">
           <div className="bg-slate-900 text-white p-3 rounded-2xl flex justify-between items-center">
             <h2 className="font-black text-xs sm:text-base flex items-center gap-1.5">
@@ -3861,6 +3926,37 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                   <option value="manager">مدير</option>
                 </select>
               </div>
+              {newStaffForm.role === 'manager' ? (
+                <p className="text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl p-2">
+                  المدير له صلاحية كاملة على كل الأقسام.
+                </p>
+              ) : (
+                <div className="space-y-1.5">
+                  <span className="font-black text-slate-700 block">الأقسام المسموح له بدخولها (الباقي يكون مغلقاً):</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {ASSIGNABLE_TABS.map(([k, label]) => {
+                      const on = newStaffForm.access.includes(k);
+                      return (
+                        <button
+                          type="button"
+                          key={k}
+                          onClick={() =>
+                            setNewStaffForm({
+                              ...newStaffForm,
+                              access: on ? newStaffForm.access.filter((x) => x !== k) : [...newStaffForm.access, k]
+                            })
+                          }
+                          className={`px-2.5 py-1 rounded-lg font-bold border ${
+                            on ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-500 border-slate-300'
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
               <button type="submit" className="w-full bg-blue-600 text-white font-black py-2 rounded-xl">
                 حفظ كود الموظف
               </button>
@@ -3877,6 +3973,27 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                     <p className="text-slate-500 font-bold">
                       الكود: <strong className="font-mono text-blue-700">{emp.pin}</strong>
                     </p>
+                    {accessFor(emp) ? (
+                      <div className="flex flex-wrap gap-1 pt-1.5">
+                        {ASSIGNABLE_TABS.map(([k, label]) => {
+                          const on = accessFor(emp).includes(k);
+                          return (
+                            <button
+                              type="button"
+                              key={k}
+                              onClick={() => handleToggleStaffTab(emp.id, k)}
+                              className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${
+                                on ? 'bg-blue-50 text-blue-700 border-blue-300' : 'bg-slate-50 text-slate-400 border-slate-200'
+                              }`}
+                            >
+                              {on ? label : `🔒 ${label}`}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-emerald-700 font-bold text-[10px] pt-1">صلاحية كاملة على كل الأقسام</p>
+                    )}
                   </div>
                   <div className="flex gap-1.5">
                     <button
@@ -3897,7 +4014,7 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
       )}
 
       {/* ===== 7. الأرشيف والتقارير ===== */}
-      {activeTab === 'archive' && (
+      {activeTab === 'archive' && canAccessTab('archive') && (
         <div className="flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 p-2.5 sm:p-4 space-y-3">
           <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
             <h2 className="font-black text-xs sm:text-base text-slate-900">أرشيف الورديات والتقارير ({factoryName})</h2>
