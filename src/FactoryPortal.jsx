@@ -401,7 +401,7 @@ const buildReportHTML = ({ factoryName, stands, archive, changes, downtimes, mot
   return `<html dir="rtl" lang="ar" xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8">
 <title>تقرير ${esc(factoryName)}</title>
 <style>
-  body{font-family:Tahoma,Arial,sans-serif;color:#0f172a;padding:16px}
+  body{font-family:Tahoma,Arial,'Noto Sans Arabic',sans-serif;color:#0f172a;padding:16px}
   h1{font-size:20px;margin:0} h2{font-size:14px;margin:22px 0 6px;border-right:4px solid #2563eb;padding-right:8px}
   .meta{color:#64748b;font-size:11px;margin-top:4px}
   table{border-collapse:collapse;width:100%;font-size:11px;margin-bottom:8px}
@@ -455,6 +455,164 @@ const printPDF = (data, onBlocked) => {
       '<script>window.onload=function(){setTimeout(function(){window.print()},400)}<\/script>'
   );
   w.document.close();
+};
+
+// طباعة أي مستند HTML جاهز في نافذة جديدة
+const printHTMLDoc = (html, onBlocked) => {
+  const w = window.open('', '_blank');
+  if (!w) {
+    onBlocked && onBlocked();
+    return;
+  }
+  w.document.open();
+  w.document.write(html + '<script>window.onload=function(){setTimeout(function(){window.print()},400)}<\/script>');
+  w.document.close();
+};
+
+// أنواع الصيانة المعروفة (تُستخدم في فلاتر تقرير الصيانة)
+const MAINT_TYPES = [
+  'فحص دوري وعزل',
+  'تشحيم',
+  'تغيير شربون',
+  'عمرة / لف موتور',
+  'إصلاح عطل طارئ بالوردية',
+  'تغيير فلاتر',
+  'تنضيف بالهواء'
+];
+
+/* ---------- تقرير حرارة المواتير المستقل (بشكل نموذج الفحص اليومي الورقي) ---------- */
+const buildTempReportHTML = ({ factoryName, logoUrl, dateGB, shiftLabel, motors, tempLogs, maintTech }) => {
+  const dayName = new Date(convertGBToISO(dateGB) + 'T00:00:00').toLocaleDateString('ar-EG', { weekday: 'long' });
+  const batches = (tempLogs || []).filter(
+    (b) => b.date === dateGB && (shiftLabel === 'الكل' || b.shift === shiftLabel)
+  );
+  // دمج قراءات الموتور الواحد من دفعات اليوم (الأحدث أولاً — أول قيمة غير فاضية هي الأحدث)
+  const byMotor = {};
+  batches.forEach((b) => {
+    (b.readings || []).forEach((r) => {
+      const cur = byMotor[r.motorId] || {};
+      ['bodyTemp1', 'bodyTemp2', 'frontBearingTemp', 'rearBearingTemp', 'amps', 'bodyTemp', 'bearingTemp'].forEach((k) => {
+        if ((cur[k] === undefined || cur[k] === '') && r[k] !== undefined && r[k] !== '') cur[k] = r[k];
+      });
+      if (!cur.recordedBy && b.recordedBy) cur.recordedBy = b.recordedBy;
+      if (!cur.supervisor && b.supervisor) cur.supervisor = b.supervisor;
+      byMotor[r.motorId] = cur;
+    });
+  });
+  const hasMaint = (m, t) =>
+    (m.logs || []).some(
+      (lg) => lg.date === dateGB && (shiftLabel === 'الكل' || lg.shift === shiftLabel) && (lg.type || '').trim() === t
+    );
+  const cell = (v) => `<td>${v === undefined || v === '' ? '' : esc(v)}</td>`;
+  const v = (a, b) => (a === undefined || a === '' ? b : a);
+  const rowsHtml = (motors || [])
+    .map((m) => {
+      const r = byMotor[m.id] || {};
+      return `<tr>
+  <td class="mn">${esc(m.locationName || `ستاند ${m.stand}`)}<span class="mc">${esc(m.code)}</span></td>
+  ${cell(v(r.bodyTemp1, r.bodyTemp))}${cell(r.bodyTemp2)}${cell(r.rearBearingTemp)}${cell(v(r.frontBearingTemp, r.bearingTemp))}${cell(r.amps)}
+  <td class="ck">${hasMaint(m, 'تغيير فلاتر') ? '\u2714' : ''}</td>
+  <td class="ck">${hasMaint(m, 'تنضيف بالهواء') ? '\u2714' : ''}</td>
+</tr>`;
+    })
+    .join('');
+  return `<html dir="rtl" lang="ar"><head><meta charset="UTF-8">
+<title>تقرير حرارة المواتير - ${esc(factoryName)} - ${esc(dateGB)}</title>
+<style>
+  body{font-family:Tahoma,Arial,'Noto Sans Arabic',sans-serif;color:#0f172a;padding:12px}
+  .head{width:100%;border-collapse:collapse;margin-bottom:10px}
+  .head td{border:1.5px solid #0f172a;text-align:center;vertical-align:middle;padding:6px}
+  .head .t{font-size:17px;font-weight:900}
+  .head .t small{display:block;font-size:12px;margin-top:2px}
+  .head .meta{font-size:11px;font-weight:bold;line-height:1.9}
+  .head img{max-height:48px;max-width:120px}
+  table.data{border-collapse:collapse;width:100%;font-size:12px}
+  table.data th{background:#e2e8f0;border:1px solid #0f172a;padding:5px 3px;font-size:11px}
+  table.data td{border:1px solid #0f172a;padding:4px 3px;text-align:center;font-family:Consolas,monospace;font-weight:bold;min-width:34px}
+  table.data td.mn{text-align:right;font-family:Tahoma,Arial,'Noto Sans Arabic',sans-serif;padding-right:6px}
+  table.data td.mn .mc{display:block;color:#64748b;font-size:9px}
+  table.data td.ck{font-size:13px}
+  table.data tr.grp td{background:#f1f5f9;font-weight:900;text-align:center;border:1px solid #0f172a;padding:4px;font-family:Tahoma,Arial,'Noto Sans Arabic',sans-serif}
+  .foot{display:flex;justify-content:space-between;gap:12px;margin-top:16px;font-size:12px;font-weight:bold}
+  .foot div{border-top:1px solid #0f172a;padding-top:4px;min-width:150px;text-align:center}
+  @page{size:A4;margin:10mm} @media print{ body{padding:0} thead{display:table-header-group} tr{break-inside:avoid} }
+</style></head><body>
+<table class="head"><tr>
+  <td style="width:26%">${logoUrl ? `<img src="${esc(logoUrl)}" alt="logo"><br>` : ''}<b>${esc(factoryName)}</b></td>
+  <td class="t">DAILY INSPECTION REPORT<small>تقرير فحص حرارة المواتير اليومي</small></td>
+  <td style="width:26%" class="meta">Document Code: GS-ELD/F-002<br>التاريخ: ${esc(dateGB)} (${esc(dayName)})<br>${shiftLabel === 'الكل' ? 'كل الورديات' : esc(shiftLabel)}</td>
+</tr></table>
+<table class="data">
+<thead>
+<tr class="grp"><td colspan="8">المواتير — الحرارة °C وصيانة الوردية</td></tr>
+<tr><th>الموتور</th><th>جسم المحرك (1)</th><th>جسم المحرك (2)</th><th>البلي الخلفي</th><th>البلي الأمامي</th><th>الأمبير A</th><th>الفلاتر</th><th>تنضيف بالهوا</th></tr>
+</thead>
+<tbody>${rowsHtml}</tbody>
+</table>
+<div class="foot">
+  <div>فني صيانة الوردية<br>${esc(maintTech || '................')}</div>
+  <div>ملاحظ الوردية<br>................</div>
+  <div>رئيس الوردية<br>................</div>
+  <div>التاريخ<br>${esc(dateGB)}</div>
+</div>
+</body></html>`;
+};
+
+/* ---------- تقرير الصيانة المستقل مع فلترة بالنوع والوردية والفترة ---------- */
+const buildMaintReportHTML = ({ factoryName, logoUrl, typeLabel, shiftLabel, fromGB, toGB, rows }) => {
+  const filters = [
+    `نوع الصيانة: ${typeLabel}`,
+    `الوردية: ${shiftLabel}`,
+    fromGB || toGB ? `الفترة: ${fromGB || '...'} - ${toGB || '...'}` : 'كل التواريخ'
+  ].join(' | ');
+  const rowsHtml = rows
+    .map((r) => {
+      const cells = [
+        r.date || '',
+        r.shift || '',
+        r.locationName || '',
+        r.motorCode || '',
+        (r.type || '').trim(),
+        r.notes || '',
+        r.techName || r.by || '',
+        r.supervisorName || ''
+      ]
+        .map((c) => `<td>${esc(c)}</td>`)
+        .join('');
+      return `<tr>${cells}</tr>`;
+    })
+    .join('');
+  return `<html dir="rtl" lang="ar"><head><meta charset="UTF-8">
+<title>تقرير صيانة المواتير - ${esc(factoryName)}</title>
+<style>
+  body{font-family:Tahoma,Arial,'Noto Sans Arabic',sans-serif;color:#0f172a;padding:12px}
+  .head{width:100%;border-collapse:collapse;margin-bottom:10px}
+  .head td{border:1.5px solid #0f172a;text-align:center;vertical-align:middle;padding:6px}
+  .head .t{font-size:17px;font-weight:900}
+  .head img{max-height:48px;max-width:120px}
+  .meta{color:#334155;font-size:11px;font-weight:bold;margin-bottom:8px}
+  table.data{border-collapse:collapse;width:100%;font-size:11px}
+  table.data th{background:#e2e8f0;border:1px solid #0f172a;padding:5px 3px}
+  table.data td{border:1px solid #0f172a;padding:4px;text-align:center}
+  table.data tr:nth-child(even) td{background:#f8fafc}
+  .tot td{font-weight:900;background:#e2e8f0!important}
+  @page{size:A4;margin:10mm} @media print{ body{padding:0} thead{display:table-header-group} tr{break-inside:avoid} }
+</style></head><body>
+<table class="head"><tr>
+  <td style="width:26%">${logoUrl ? `<img src="${esc(logoUrl)}" alt="logo"><br>` : ''}<b>${esc(factoryName)}</b></td>
+  <td class="t">تقرير صيانة المواتير</td>
+  <td style="width:26%" class="meta">تاريخ الطباعة: ${esc(new Date().toLocaleString('ar-EG'))}</td>
+</tr></table>
+<div class="meta">${esc(filters)}</div>
+<table class="data">
+<thead>
+<tr><th>التاريخ</th><th>الوردية</th><th>الموقع/الستاند</th><th>كود الموتور</th><th>نوع الصيانة</th><th>التفاصيل</th><th>الفني المنفذ</th><th>الملاحظ</th></tr>
+</thead>
+<tbody>${rowsHtml}
+<tr class="tot"><td colspan="8">إجمالي السجلات: ${rows.length}</td></tr>
+</tbody>
+</table>
+</body></html>`;
 };
 
 /* ======================================================
@@ -631,6 +789,23 @@ export default function FactoryPortal({ onBack, factoryConfig }) {
   const [shiftTempInputs, setShiftTempInputs] = useState({});
   const [shiftTempTech, setShiftTempTech] = useState('');
   const [shiftTempSupervisor, setShiftTempSupervisor] = useState('');
+  // جولة القياس الحالية: 1 = بداية الوردية (جسم + بلي + أمبير) | 2 = وسط الوردية (جسم فقط)
+  const [tempRound, setTempRound] = useState(1);
+  // مسؤول صيانة كل وردية (افتراضي المصنع، يُعدَّل من الإعدادات ويُحفظ في settingsState)
+  const [maintShiftTechs, setMaintShiftTechs] = useState({
+    'الوردية الأولى': 'أحمد مصطفى',
+    'الوردية الثانية': 'خميس',
+    'الوردية الثالثة': 'يحيى'
+  });
+  const [tempMaintTechs, setTempMaintTechs] = useState(null);
+  const [airBlowSelected, setAirBlowSelected] = useState({});
+  // فلاتر تقارير الكهربا
+  const [tempReportDateISO, setTempReportDateISO] = useState(() => formatDateToISO(new Date()));
+  const [tempReportShift, setTempReportShift] = useState('الكل');
+  const [maintReportType, setMaintReportType] = useState('الكل');
+  const [maintReportShift, setMaintReportShift] = useState('الكل');
+  const [maintReportFromISO, setMaintReportFromISO] = useState('');
+  const [maintReportToISO, setMaintReportToISO] = useState('');
 
   const [newMotor, setNewMotor] = useState({
     category: 'rolling',
@@ -844,6 +1019,9 @@ export default function FactoryPortal({ onBack, factoryConfig }) {
         setBilletWeight(d.billetWeight || 0.75);
         setCustomLogo(d.logoUrl || '');
         setSelectedProductSize(d.selectedProductSize || '16');
+        if (d.maintTechs && typeof d.maintTechs === 'object') {
+          setMaintShiftTechs((prev) => ({ ...prev, ...d.maintTechs }));
+        }
       } else {
         setDoc(settingsRef, { factoryId: appId, billetWeight: 0.75, logoUrl: '', selectedProductSize: '16' });
       }
@@ -997,7 +1175,8 @@ export default function FactoryPortal({ onBack, factoryConfig }) {
     tempLogs,
     recipes,
     rollShop,
-    staff
+    staff,
+    maintTechs
   } = {}) => {
     if (userAuth && db) {
       try {
@@ -1036,6 +1215,7 @@ export default function FactoryPortal({ onBack, factoryConfig }) {
         if (weight !== undefined) upd.billetWeight = weight;
         if (logo !== undefined) upd.logoUrl = logo;
         if (productSize !== undefined) upd.selectedProductSize = productSize;
+        if (maintTechs !== undefined) upd.maintTechs = maintTechs;
         if (Object.keys(upd).length > 1) await setDoc(ref('settingsState'), upd, { merge: true });
       } catch (e) {
         console.error('Save error:', e);
@@ -1046,6 +1226,7 @@ export default function FactoryPortal({ onBack, factoryConfig }) {
   /* ---------- إدارة شعار المصنع وتصفير الستاندات والأرشيف ---------- */
   const openSettingsModal = () => {
     setTempLogoUrl(customLogo);
+    setTempMaintTechs({ ...maintShiftTechs });
     setIsSettingsOpen(true);
   };
   const handleLogoUpload = (e) => {
@@ -1060,7 +1241,17 @@ export default function FactoryPortal({ onBack, factoryConfig }) {
     reader.readAsDataURL(file);
   };
   const handleSaveSettings = () => {
-    if (tempLogoUrl && tempLogoUrl.trim() !== '') save({ logo: tempLogoUrl.trim() });
+    const payload = {};
+    if (tempLogoUrl && tempLogoUrl.trim() !== '') payload.logo = tempLogoUrl.trim();
+    if (tempMaintTechs) {
+      const cleaned = {};
+      Object.entries(tempMaintTechs).forEach(([k, v]) => {
+        cleaned[k] = String(v || '').trim();
+      });
+      setMaintShiftTechs((prev) => ({ ...prev, ...cleaned }));
+      payload.maintTechs = cleaned;
+    }
+    if (Object.keys(payload).length > 0) save(payload);
     setIsSettingsOpen(false);
   };
 
@@ -1683,50 +1874,63 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
     return nums.length ? String(Math.max(...nums)) : '';
   };
 
+  // حفظ قراءات الجولة الحالية فقط: الجولة 1 (بداية الوردية) جسم + بلي أمامي/خلفي + أمبير، الجولة 2 (وسط الوردية) جسم فقط
   const handleSaveShiftTemperatures = (e) => {
     e.preventDefault();
+    const roundKeys = tempRound === 1 ? ['bodyTemp1', 'frontBearingTemp', 'rearBearingTemp'] : ['bodyTemp2'];
+    const optionalKeys = tempRound === 1 ? ['amps'] : [];
+    const roundLabel = tempRound === 1 ? 'القراءة الأولى (بداية الوردية)' : 'القراءة الثانية (وسط الوردية — جسم فقط)';
     const touched = motorsList.filter((m) => {
       const inp = shiftTempInputs[m.id] || {};
-      return [...TEMP_KEYS, 'amps'].some((k) => isFilled(inp[k]));
+      return [...roundKeys, ...optionalKeys].some((k) => isFilled(inp[k]));
     });
     if (touched.length === 0) {
       showAlert('تنبيه', 'اكتب قراءات موتور واحد على الأقل قبل الحفظ.');
       return;
     }
-    const incomplete = touched.filter((m) => TEMP_KEYS.some((k) => !isFilled((shiftTempInputs[m.id] || {})[k])));
+    const incomplete = touched.filter((m) => roundKeys.some((k) => !isFilled((shiftTempInputs[m.id] || {})[k])));
     if (incomplete.length > 0) {
       showAlert(
         'قراءات ناقصة',
-        `أكمل القراءات الأربع (الجسم مرتين + البلي الأمامي + البلي الخلفي) للموتورات:\n${incomplete
-          .map((m) => `• ${m.locationName || `ستاند ${m.stand}`} (${m.code})`)
-          .join('\n')}`
+        (tempRound === 1
+          ? `أكمل قراءات الجولة الأولى (الجسم + البلي الأمامي + البلي الخلفي) للموتورات:\n`
+          : `أكمل قراءة الجسم الثانية للموتورات:\n`) +
+          incomplete.map((m) => `• ${m.locationName || `ستاند ${m.stand}`} (${m.code})`).join('\n')
       );
       return;
     }
 
     const readings = touched.map((m) => {
       const inp = shiftTempInputs[m.id];
-      return {
+      const r = {
         motorId: m.id,
         motorCode: m.code,
-        locationName: m.locationName || `ستاند ${m.stand}`,
-        bodyTemp1: inp.bodyTemp1,
-        bodyTemp2: inp.bodyTemp2,
-        frontBearingTemp: inp.frontBearingTemp,
-        rearBearingTemp: inp.rearBearingTemp,
-        bodyTemp: maxOfTemps(inp.bodyTemp1, inp.bodyTemp2),
-        bearingTemp: maxOfTemps(inp.frontBearingTemp, inp.rearBearingTemp),
-        amps: isFilled(inp.amps) ? inp.amps : m.amps || '-'
+        locationName: m.locationName || `ستاند ${m.stand}`
       };
+      if (tempRound === 1) {
+        r.bodyTemp1 = inp.bodyTemp1;
+        r.frontBearingTemp = inp.frontBearingTemp;
+        r.rearBearingTemp = inp.rearBearingTemp;
+        r.bodyTemp = maxOfTemps(inp.bodyTemp1, m.bodyTemp2);
+        r.bearingTemp = maxOfTemps(inp.frontBearingTemp, inp.rearBearingTemp);
+        r.amps = isFilled(inp.amps) ? inp.amps : m.amps || '-';
+      } else {
+        r.bodyTemp2 = inp.bodyTemp2;
+        r.bodyTemp = maxOfTemps(m.bodyTemp1, inp.bodyTemp2);
+        r.bearingTemp = maxOfTemps(m.frontBearingTemp, m.rearBearingTemp) || m.bearingTemp;
+        r.amps = m.amps || '-';
+      }
+      return r;
     });
 
     const batchLog = {
       id: Date.now(),
+      round: tempRound,
       date: currentDateStr,
       dayName: currentProdDate.toLocaleDateString('ar-EG', { weekday: 'long' }),
       shift: selectedShift,
       time: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }),
-      recordedBy: isSupervisorLogin ? shiftTempTech.trim() || roleLabel : roleLabel,
+      recordedBy: isSupervisorLogin ? shiftTempTech.trim() || maintShiftTechs[selectedShift] || roleLabel : roleLabel,
       supervisor: isSupervisorLogin ? roleLabel : shiftTempSupervisor.trim() || '-',
       enteredBy: roleLabel,
       readings
@@ -1735,25 +1939,160 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
     const updatedMotors = motorsList.map((m) => {
       const r = readings.find((x) => x.motorId === m.id);
       if (!r) return m;
-      return {
-        ...m,
-        bodyTemp1: r.bodyTemp1,
-        bodyTemp2: r.bodyTemp2,
-        frontBearingTemp: r.frontBearingTemp,
-        rearBearingTemp: r.rearBearingTemp,
-        bodyTemp: r.bodyTemp,
-        bearingTemp: r.bearingTemp,
-        amps: r.amps,
-        lastTempShift: `${currentDateStr} (${selectedShift})`,
-        lastTechName: batchLog.recordedBy
-      };
+      const merged = { ...m };
+      if (tempRound === 1) {
+        merged.bodyTemp1 = r.bodyTemp1;
+        merged.frontBearingTemp = r.frontBearingTemp;
+        merged.rearBearingTemp = r.rearBearingTemp;
+        merged.amps = r.amps;
+      } else {
+        merged.bodyTemp2 = r.bodyTemp2;
+      }
+      merged.bodyTemp = maxOfTemps(merged.bodyTemp1, merged.bodyTemp2);
+      merged.bearingTemp = maxOfTemps(merged.frontBearingTemp, merged.rearBearingTemp) || m.bearingTemp;
+      merged.lastTempShift = `${currentDateStr} (${selectedShift})`;
+      merged.lastTechName = batchLog.recordedBy;
+      return merged;
     });
 
     save({ motors: updatedMotors, tempLogs: [batchLog, ...tempShiftLogs] });
-    setShiftTempInputs({});
+    setShiftTempInputs((prev) => {
+      const next = { ...prev };
+      touched.forEach((m) => {
+        const kept = { ...(next[m.id] || {}) };
+        [...roundKeys, ...optionalKeys].forEach((k) => delete kept[k]);
+        next[m.id] = kept;
+      });
+      return next;
+    });
     showAlert(
-      'تم تسجيل حرارة الوردية',
+      `تم تسجيل ${roundLabel}`,
       `تم حفظ قراءات ${readings.length} موتور لـ (${selectedShift} - ${currentDateStr}) باسم: ${batchLog.recordedBy}`
+    );
+  };
+
+  // تسجيل جماعي: تغيير فلاتر كل المواتير دفعة واحدة للوردية الحالية
+  const handleBulkFilterChange = () => {
+    if (motorsList.length === 0) return;
+    showConfirm(
+      'تغيير فلاتر كل المواتير',
+      `سيتم تسجيل "تغيير فلاتر" لكل المواتير (${motorsList.length}) في سجل صيانة ${selectedShift} بتاريخ ${currentDateStr}. متأكد؟`,
+      () => {
+        const now = Date.now();
+        const time = new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+        const updatedMotors = motorsList.map((m, i) => ({
+          ...m,
+          lastTechName: maintShiftTechs[selectedShift] || roleLabel,
+          logs: [
+            {
+              id: now + i,
+              date: currentDateStr,
+              shift: selectedShift,
+              time,
+              type: 'تغيير فلاتر',
+              techName: maintShiftTechs[selectedShift] || roleLabel,
+              supervisorName: isSupervisorLogin ? roleLabel : shiftTempSupervisor.trim() || '-',
+              notes: 'تغيير فلاتر الموتور (تسجيل جماعي للوردية)',
+              by: roleLabel
+            },
+            ...(m.logs || [])
+          ]
+        }));
+        save({ motors: updatedMotors });
+        showAlert('تم التسجيل', `تم تسجيل تغيير الفلاتر لـ ${updatedMotors.length} موتور في ${selectedShift}.`);
+      }
+    );
+  };
+
+  // تسجيل تنضيف بالهوا للمواتير المختارة فقط
+  const handleBulkAirBlow = () => {
+    const ids = Object.keys(airBlowSelected).filter((id) => airBlowSelected[id]);
+    if (ids.length === 0) {
+      showAlert('تنبيه', 'حدد موتور واحد على الأقل اتنضف بالهوا.');
+      return;
+    }
+    const now = Date.now();
+    const time = new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+    const selectedSet = new Set(ids);
+    const updatedMotors = motorsList.map((m, i) =>
+      selectedSet.has(m.id)
+        ? {
+            ...m,
+            lastTechName: maintShiftTechs[selectedShift] || roleLabel,
+            logs: [
+              {
+                id: now + i,
+                date: currentDateStr,
+                shift: selectedShift,
+                time,
+                type: 'تنضيف بالهواء',
+                techName: maintShiftTechs[selectedShift] || roleLabel,
+                supervisorName: isSupervisorLogin ? roleLabel : shiftTempSupervisor.trim() || '-',
+                notes: 'تنضيف الموتور بالهوا من الداخل',
+                by: roleLabel
+              },
+              ...(m.logs || [])
+            ]
+          }
+        : m
+    );
+    save({ motors: updatedMotors });
+    setAirBlowSelected({});
+    showAlert('تم التسجيل', `تم تسجيل التنضيف بالهوا لـ ${ids.length} موتور في ${selectedShift}.`);
+  };
+
+  // طباعة تقرير حرارة المواتير المستقل
+  const handlePrintTempReport = () => {
+    const dateGB = formatDateToGB(tempReportDateISO);
+    printHTMLDoc(
+      buildTempReportHTML({
+        factoryName,
+        logoUrl: customLogo,
+        dateGB,
+        shiftLabel: tempReportShift,
+        motors: motorsList,
+        tempLogs: tempShiftLogs,
+        maintTech: tempReportShift !== 'الكل'
+          ? maintShiftTechs[tempReportShift]
+          : ['الوردية الأولى', 'الوردية الثانية', 'الوردية الثالثة'].map((sh) => maintShiftTechs[sh]).filter(Boolean).join(' / ')
+      }),
+      () => showAlert('تعذر الفتح', 'المتصفح منع النافذة. اسمح بالنوافذ المنبثقة لهذا الموقع وجرّب تاني.')
+    );
+  };
+
+  // طباعة تقرير الصيانة المستقل بالفلاتر المختارة
+  const handlePrintMaintReport = () => {
+    const rows = motorsList
+      .flatMap((m) =>
+        (m.logs || []).map((lg) => ({
+          ...lg,
+          motorCode: m.code,
+          locationName: m.locationName || `ستاند ${m.stand}`
+        }))
+      )
+      .filter((lg) => maintReportType === 'الكل' || (lg.type || '').trim() === maintReportType)
+      .filter((lg) => maintReportShift === 'الكل' || lg.shift === maintReportShift)
+      .filter((lg) => {
+        if (!maintReportFromISO && !maintReportToISO) return true;
+        const iso = convertGBToISO(lg.date);
+        return (!maintReportFromISO || iso >= maintReportFromISO) && (!maintReportToISO || iso <= maintReportToISO);
+      })
+      .sort((a, b) => convertGBToISO(b.date).localeCompare(convertGBToISO(a.date)) || String(b.id).localeCompare(String(a.id)));
+    if (rows.length === 0) {
+      showAlert('لا توجد سجلات', 'مفيش سجلات صيانة مطابقة للفلاتر المختارة. غيّر الفلاتر وحاول تاني.');
+      return;
+    }
+    printHTMLDoc(
+      buildMaintReportHTML({
+        factoryName,
+        logoUrl: customLogo,
+        typeLabel: maintReportType,
+        shiftLabel: maintReportShift,
+        fromGB: maintReportFromISO ? formatDateToGB(maintReportFromISO) : '',
+        toGB: maintReportToISO ? formatDateToGB(maintReportToISO) : '',
+        rows
+      }),
+      () => showAlert('تعذر الفتح', 'المتصفح منع النافذة. اسمح بالنوافذ المنبثقة لهذا الموقع وجرّب تاني.')
     );
   };
 
@@ -1766,7 +2105,7 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
       shift: selectedShift,
       time: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }),
       type: motorMaintForm.type,
-      techName: isSupervisorLogin ? motorMaintForm.techName.trim() || '-' : roleLabel,
+      techName: isSupervisorLogin ? motorMaintForm.techName.trim() || maintShiftTechs[selectedShift] || '-' : roleLabel,
       supervisorName: isSupervisorLogin ? roleLabel : motorMaintForm.supervisorName.trim() || '-',
       megger: motorMaintForm.megger || selectedMotorForLog.megger,
       bodyTemp: motorMaintForm.bodyTemp || selectedMotorForLog.bodyTemp,
@@ -1808,11 +2147,13 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
     });
   };
 
-  // الموتورات التي سُجلت حرارتها بالفعل في الوردية المختارة
-  const shiftRecordedIds = new Set(
-    tempShiftLogs
-      .filter((b) => b.date === currentDateStr && b.shift === selectedShift)
-      .flatMap((b) => (b.readings || []).map((r) => r.motorId))
+  // حالة تسجيل كل جولة قياس في الوردية المختارة (الدفعات القديمة بدون round تُحتسب للجولتين حسب حقولها)
+  const todayShiftBatches = tempShiftLogs.filter((b) => b.date === currentDateStr && b.shift === selectedShift);
+  const round1RecordedIds = new Set(
+    todayShiftBatches.flatMap((b) => (b.readings || []).filter((r) => isFilled(r.bodyTemp1)).map((r) => r.motorId))
+  );
+  const round2RecordedIds = new Set(
+    todayShiftBatches.flatMap((b) => (b.readings || []).filter((r) => isFilled(r.bodyTemp2)).map((r) => r.motorId))
   );
 
   // سجل حرارة الموتور المفتوح (الأحدث أولاً)
@@ -2260,11 +2601,32 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                   </div>
                 </div>
               )}
+              <div className="flex flex-col gap-2 border-t border-slate-200 pt-3">
+                <label className="text-xs font-bold text-slate-700 flex items-center gap-1">
+                  <Wrench className="w-4 h-4 text-blue-600" /> مسؤول صيانة الكهربا لكل وردية:
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  {SHIFTS_NORMAL.map((sh) => (
+                    <div key={sh}>
+                      <span className="text-[10px] font-bold text-slate-500 block mb-0.5">{sh}</span>
+                      <input
+                        type="text"
+                        value={(tempMaintTechs || maintShiftTechs)[sh] || ''}
+                        onChange={(e) => setTempMaintTechs({ ...(tempMaintTechs || maintShiftTechs), [sh]: e.target.value })}
+                        className="w-full border border-slate-300 rounded-xl p-1.5 text-xs font-bold bg-white"
+                      />
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[10px] text-slate-400 font-bold">
+                  بيُستخدم تلقائياً كفني الصيانة في تسجيلات الحرارة والفلاتر والتقارير.
+                </p>
+              </div>
               <button
                 onClick={handleSaveSettings}
                 className="w-full bg-blue-600 text-white font-bold py-2.5 rounded-xl hover:bg-blue-700 flex justify-center items-center gap-2 shadow-md text-xs"
               >
-                <Save className="w-4 h-4" /> حفظ وتطبيق الشعار
+                <Save className="w-4 h-4" /> حفظ الإعدادات
               </button>
             </div>
           </div>
@@ -2901,6 +3263,7 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                       <option>عمرة / لف موتور</option>
                       <option>إصلاح عطل طارئ بالوردية</option>
                              <option> تغيير فلاتر  </option>
+                      <option>تنضيف بالهواء</option>
                     </select>
                   </div>
                   <div>
@@ -3359,7 +3722,7 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                 <Cpu className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400" /> متابعة حالة وحرارة المواتير ({factoryName})
               </h2>
             </div>
-            <div className="grid grid-cols-3 sm:flex gap-1.5 w-full sm:w-auto">
+            <div className="grid grid-cols-4 sm:flex gap-1.5 w-full sm:w-auto">
               <button
                 onClick={() => setMotorSubView('cards')}
                 className={`px-2.5 py-1.5 rounded-xl text-[11px] font-black flex items-center justify-center gap-1 ${
@@ -3384,6 +3747,14 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
               >
                 <PlusCircle size={13} /> + موتور
               </button>
+              <button
+                onClick={() => setMotorSubView('reports')}
+                className={`px-2.5 py-1.5 rounded-xl text-[11px] font-black flex items-center justify-center gap-1 ${
+                  motorSubView === 'reports' ? 'bg-rose-600 text-white' : 'bg-slate-800 text-rose-400'
+                }`}
+              >
+                <BookMarked size={13} /> تقارير
+              </button>
             </div>
           </div>
 
@@ -3395,6 +3766,32 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                     تسجيل حرارة المواتير — {selectedShift} ({currentDateStr})
                   </h3>
                   {exportButtons}
+                </div>
+                <div className="grid grid-cols-2 gap-1.5 text-[11px] font-black">
+                  <button
+                    type="button"
+                    onClick={() => setTempRound(1)}
+                    className={`py-2 rounded-xl border transition-all ${
+                      tempRound === 1
+                        ? 'bg-amber-500 border-amber-600 text-slate-950 shadow'
+                        : 'bg-white/70 border-amber-200 text-amber-800'
+                    }`}
+                  >
+                    ① القراءة الأولى — بداية الوردية
+                    <span className="block text-[9px] font-bold opacity-80">جسم الموتور + البلي الأمامي والخلفي + الأمبير</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTempRound(2)}
+                    className={`py-2 rounded-xl border transition-all ${
+                      tempRound === 2
+                        ? 'bg-sky-500 border-sky-600 text-white shadow'
+                        : 'bg-white/70 border-sky-200 text-sky-800'
+                    }`}
+                  >
+                    ② القراءة الثانية — وسط الوردية
+                    <span className="block text-[9px] font-bold opacity-80">جسم الموتور فقط</span>
+                  </button>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
@@ -3446,19 +3843,28 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                           ID: {m.code}
                         </span>
                       </div>
-                      {shiftRecordedIds.has(m.id) && (
-                        <p className="text-[10px] font-black text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-2 py-1">
-                          ✅ سُجلت حرارته في هذه الوردية
-                        </p>
-                      )}
-                      <div className="grid grid-cols-3 gap-1.5 text-[10px]">
-                        {[
-                          ['bodyTemp1', 'الجسم ① °C', 'border-slate-300 bg-white'],
-                          ['bodyTemp2', 'الجسم ② °C', 'border-slate-300 bg-white'],
-                          ['amps', 'الأمبير A', 'border-slate-300 bg-white'],
-                          ['frontBearingTemp', 'البلي الأمامي °C', 'border-amber-400 bg-amber-50/50'],
-                          ['rearBearingTemp', 'البلي الخلفي °C', 'border-amber-400 bg-amber-50/50']
-                        ].map(([key, label, cls]) => (
+                      <div className="flex flex-wrap gap-1">
+                        {round1RecordedIds.has(m.id) && (
+                          <p className="text-[9px] font-black text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-1.5 py-0.5">
+                            ✅ القراءة الأولى
+                          </p>
+                        )}
+                        {round2RecordedIds.has(m.id) && (
+                          <p className="text-[9px] font-black text-sky-700 bg-sky-50 border border-sky-200 rounded-lg px-1.5 py-0.5">
+                            ✅ القراءة الثانية
+                          </p>
+                        )}
+                      </div>
+                      <div className={`grid ${tempRound === 1 ? 'grid-cols-2' : 'grid-cols-1'} gap-1.5 text-[10px]`}>
+                        {(tempRound === 1
+                          ? [
+                              ['bodyTemp1', 'الجسم ① °C', 'border-slate-300 bg-white'],
+                              ['frontBearingTemp', 'البلي الأمامي °C', 'border-amber-400 bg-amber-50/50'],
+                              ['rearBearingTemp', 'البلي الخلفي °C', 'border-amber-400 bg-amber-50/50'],
+                              ['amps', 'الأمبير A', 'border-slate-300 bg-white']
+                            ]
+                          : [['bodyTemp2', 'الجسم ② °C', 'border-sky-400 bg-sky-50/50']]
+                        ).map(([key, label, cls]) => (
                           <div key={key}>
                             <label className="text-slate-500 font-bold block mb-0.5">{label}</label>
                             <input
@@ -3485,9 +3891,57 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                 type="submit"
                 className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-2.5 rounded-xl shadow text-xs flex items-center justify-center gap-1.5"
               >
-                <Save className="w-4 h-4" /> حفظ تقرير حرارة المواتير للوردية ({selectedShift})
+                <Save className="w-4 h-4" /> {tempRound === 1 ? 'حفظ القراءة الأولى (بداية الوردية)' : 'حفظ القراءة الثانية (وسط الوردية — جسم فقط)'} — {selectedShift}
               </button>
             </form>
+          )}
+
+          {motorSubView === 'shift_temp' && (
+            <div className="bg-sky-50 border border-sky-300 rounded-2xl p-3 space-y-2.5">
+              <div className="flex flex-wrap justify-between items-center gap-2 border-b border-sky-200 pb-2">
+                <h3 className="font-black text-xs sm:text-sm text-sky-950">
+                  صيانة الوردية السريعة — {selectedShift} ({currentDateStr})
+                </h3>
+                <span className="text-[10px] font-black text-sky-800 bg-white/70 border border-sky-200 rounded-lg px-2 py-1">
+                  مسؤول صيانة الوردية: {maintShiftTechs[selectedShift] || roleLabel}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={handleBulkFilterChange}
+                className="w-full bg-sky-600 hover:bg-sky-700 text-white font-black py-2 rounded-xl shadow text-xs flex items-center justify-center gap-1.5"
+              >
+                <CheckCircle className="w-4 h-4" /> تسجيل تغيير الفلاتر لكل المواتير ({motorsList.length}) دفعة واحدة
+              </button>
+              <div className="space-y-1.5">
+                <p className="text-[10px] font-black text-sky-900">التنضيف بالهوا من الداخل — حدد المواتير اللي اتنضفت:</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {motorsList.map((m) => {
+                    const on = !!airBlowSelected[m.id];
+                    return (
+                      <button
+                        type="button"
+                        key={m.id}
+                        onClick={() => setAirBlowSelected({ ...airBlowSelected, [m.id]: !on })}
+                        className={`px-2 py-1 rounded-lg text-[10px] font-black border transition-all ${
+                          on ? 'bg-sky-600 text-white border-sky-700 shadow' : 'bg-white text-slate-600 border-slate-300'
+                        }`}
+                      >
+                        {on ? '✓ ' : ''}
+                        {m.locationName || `ستاند ${m.stand}`}
+                      </button>
+                    );
+                  })}
+                </div>
+                <button
+                  type="button"
+                  onClick={handleBulkAirBlow}
+                  className="w-full bg-white hover:bg-sky-100 text-sky-800 border border-sky-400 font-black py-2 rounded-xl text-xs"
+                >
+                  💨 تسجيل التنضيف بالهوا للمواتير المحددة ({Object.values(airBlowSelected).filter(Boolean).length})
+                </button>
+              </div>
+            </div>
           )}
 
           {motorSubView === 'add_new' && (
@@ -3581,6 +4035,118 @@ ${dangerStands.length > 0 ? `\n⚠️ *تنبيه ممرات وصلت للحد �
                 حفظ الموتور الجديد
               </button>
             </form>
+          )}
+
+          {motorSubView === 'reports' && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+              <div className="bg-amber-50 border border-amber-300 rounded-2xl p-3.5 space-y-2.5 text-xs">
+                <h3 className="font-black text-amber-950 flex items-center gap-1.5 border-b border-amber-200 pb-2">
+                  <Thermometer className="w-4 h-4" /> تقرير حرارة المواتير (مستقل)
+                </h3>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="font-bold text-slate-600 block mb-0.5 text-[10px]">التاريخ:</label>
+                    <input
+                      type="date"
+                      value={tempReportDateISO}
+                      onChange={(e) => setTempReportDateISO(e.target.value)}
+                      className="w-full border border-amber-300 rounded-xl p-2 bg-white font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-bold text-slate-600 block mb-0.5 text-[10px]">الوردية:</label>
+                    <select
+                      value={tempReportShift}
+                      onChange={(e) => setTempReportShift(e.target.value)}
+                      className="w-full border border-amber-300 rounded-xl p-2 bg-white font-bold"
+                    >
+                      <option value="الكل">كل الورديات</option>
+                      {availableShifts.map((sh) => (
+                        <option key={sh} value={sh}>
+                          {sh}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handlePrintTempReport}
+                  className="w-full bg-rose-600 hover:bg-rose-700 text-white font-black py-2.5 rounded-xl shadow text-xs flex items-center justify-center gap-1.5"
+                >
+                  <FileText className="w-4 h-4" /> طباعة تقرير الحرارة
+                </button>
+                <p className="text-[10px] text-amber-800 font-bold">
+                  بيطلع جدول الفحص اليومي: جسم المحرك قراءتين + البلي + الأمبير + علامات الفلاتر والتنضيف بالهوا.
+                </p>
+              </div>
+
+              <div className="bg-blue-50 border border-blue-300 rounded-2xl p-3.5 space-y-2.5 text-xs">
+                <h3 className="font-black text-blue-950 flex items-center gap-1.5 border-b border-blue-200 pb-2">
+                  <Wrench className="w-4 h-4" /> تقرير الصيانة (مستقل)
+                </h3>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="font-bold text-slate-600 block mb-0.5 text-[10px]">نوع الصيانة:</label>
+                    <select
+                      value={maintReportType}
+                      onChange={(e) => setMaintReportType(e.target.value)}
+                      className="w-full border border-blue-300 rounded-xl p-2 bg-white font-bold"
+                    >
+                      <option value="الكل">كل الأنواع</option>
+                      {MAINT_TYPES.map((t) => (
+                        <option key={t} value={t}>
+                          {t}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="font-bold text-slate-600 block mb-0.5 text-[10px]">الوردية:</label>
+                    <select
+                      value={maintReportShift}
+                      onChange={(e) => setMaintReportShift(e.target.value)}
+                      className="w-full border border-blue-300 rounded-xl p-2 bg-white font-bold"
+                    >
+                      <option value="الكل">كل الورديات</option>
+                      {availableShifts.map((sh) => (
+                        <option key={sh} value={sh}>
+                          {sh}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="font-bold text-slate-600 block mb-0.5 text-[10px]">من تاريخ:</label>
+                    <input
+                      type="date"
+                      value={maintReportFromISO}
+                      onChange={(e) => setMaintReportFromISO(e.target.value)}
+                      className="w-full border border-blue-300 rounded-xl p-2 bg-white font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-bold text-slate-600 block mb-0.5 text-[10px]">إلى تاريخ:</label>
+                    <input
+                      type="date"
+                      value={maintReportToISO}
+                      onChange={(e) => setMaintReportToISO(e.target.value)}
+                      className="w-full border border-blue-300 rounded-xl p-2 bg-white font-bold"
+                    />
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handlePrintMaintReport}
+                  className="w-full bg-rose-600 hover:bg-rose-700 text-white font-black py-2.5 rounded-xl shadow text-xs flex items-center justify-center gap-1.5"
+                >
+                  <FileText className="w-4 h-4" /> طباعة تقرير الصيانة
+                </button>
+                <p className="text-[10px] text-blue-800 font-bold">
+                  اختار نوع صيانة بعينه (تشحيم / فلاتر / تنضيف بالهوا...) أو وردية أو فترة، واطبع تقريرها لوحدها.
+                </p>
+              </div>
+            </div>
           )}
 
           {motorSubView === 'cards' && (
